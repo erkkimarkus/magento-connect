@@ -11,7 +11,7 @@
         <add id="Smaily_Connect::connect" title="Smaily Connect" module="Smaily_Connect"
              sortOrder="70" parent="Magento_Backend::marketing"
              resource="Smaily_Connect::connect"/>
-        <add id="Smaily_Connect::dashboard" title="Getting Started" module="Smaily_Connect"
+        <add id="Smaily_Connect::dashboard" title="Setup Wizard" module="Smaily_Connect"
              sortOrder="10" parent="Smaily_Connect::connect"
              action="smaily_connect/dashboard" resource="Smaily_Connect::connect"/>
         <add id="Smaily_Connect::event_log" title="Event Log" module="Smaily_Connect"
@@ -23,9 +23,6 @@
         <add id="Smaily_Connect::backfill" title="Historical Import" module="Smaily_Connect"
              sortOrder="40" parent="Smaily_Connect::connect"
              action="smaily_connect/backfill" resource="Smaily_Connect::backfill"/>
-        <add id="Smaily_Connect::automations" title="Intelligence Automations" module="Smaily_Connect"
-             sortOrder="50" parent="Smaily_Connect::connect"
-             action="smaily_connect/automations" resource="Smaily_Connect::automations"/>
         <add id="Smaily_Connect::config" title="Configuration" module="Smaily_Connect"
              sortOrder="60" parent="Smaily_Connect::connect"
              action="adminhtml/system_config/edit/section/smaily_connect"

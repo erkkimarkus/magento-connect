@@ -52,6 +52,11 @@ Just update the package and run `bin/magento setup:upgrade` — see
 
 ## Connecting your Smaily account
 
+The fastest path is the guided wizard: **Marketing > Smaily Connect >
+Setup Wizard** — five steps (Connect, Subscribers, Automations,
+Intelligence, Done), each saved separately, with connection testing and
+live workflow lists built in. Everything the wizard writes lands in the
+regular configuration, so you can fine-tune it later at
 **Stores > Configuration > Smaily > Smaily Connect > API Connection**
 
 | Field | Notes |
@@ -60,15 +65,17 @@ Just update the package and run `bin/magento setup:upgrade` — see
 | API Username / Password | Create these in Smaily under *Preferences > API*. The password is stored encrypted. |
 | Multilingual Mode | See [Multilingual stores](#multilingual-stores). |
 
-Credentials are validated when you save: wrong credentials block the save
-with an error; a temporarily unreachable API does not lock you out.
+Use the **Test Connection** button next to the fields for instant feedback
+on the credentials as typed — no save needed; a successful test also
+refreshes the automation workflow dropdowns. Saving always succeeds; if the
+saved credentials are wrong you get a clear warning instead of a blocked
+save.
 
 Credentials can be set per **website**, or per **store view** when each
 language uses its own Smaily account (multilingual mode "Per-language
 Smaily accounts").
 
-The **Marketing > Smaily Connect > Getting Started** page shows a setup
-checklist and live queue counters.
+
 
 ### Multilingual stores
 
@@ -213,8 +220,9 @@ Page Cache because the capture runs client-side.
 
 ### Engine automations
 
-**Marketing > Smaily Connect > Intelligence Automations** lists the
-engine-run triggers available to your sector. Each row maps a trigger to a
+The engine-run triggers live right under your regular automations:
+**Stores > Configuration > Smaily Connect > Automations** lists the
+triggers available to your sector. Each row maps a trigger to a
 Smaily workflow with a cooldown, an optional daily cap and a **test mode**
 (on by default — fires reach only the listed test emails until you turn it
 off). Nothing is enabled without your explicit action.

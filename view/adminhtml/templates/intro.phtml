@@ -1,0 +1,20 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Shared page intro: a short "what is this page and when do I need it"
+ * block above admin grids.
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+$text = (string)$block->getData('intro_text');
+if ($text === '') {
+    return;
+}
+?>
+<div class="message message-info" style="margin-bottom: 2rem;">
+    <?= $escaper->escapeHtml($text) ?>
+</div>

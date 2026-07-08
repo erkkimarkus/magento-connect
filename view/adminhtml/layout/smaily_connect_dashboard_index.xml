@@ -10,10 +10,10 @@
     <body>
         <referenceContainer name="content">
             <block class="Magento\Backend\Block\Template"
-                   name="smaily.dashboard"
-                   template="Smaily_Connect::dashboard/index.phtml">
+                   name="smaily.wizard"
+                   template="Smaily_Connect::dashboard/wizard.phtml">
                 <arguments>
-                    <argument name="view_model" xsi:type="object">Smaily\Connect\ViewModel\Adminhtml\DashboardState</argument>
+                    <argument name="view_model" xsi:type="object">Smaily\Connect\ViewModel\Adminhtml\WizardData</argument>
                 </arguments>
             </block>
         </referenceContainer>

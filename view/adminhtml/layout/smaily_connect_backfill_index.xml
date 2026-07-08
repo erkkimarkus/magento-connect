@@ -10,6 +10,14 @@
     <body>
         <referenceContainer name="content">
             <block class="Magento\Backend\Block\Template"
+                   name="smaily.intro.backfill"
+                   template="Smaily_Connect::intro.phtml"
+                   before="-">
+                <arguments>
+                    <argument name="intro_text" xsi:type="string" translate="true">Historical imports send your existing subscribers, catalog, customers and orders to Smaily / Campaign Intelligence in the background — one chunk per cron minute, so the storefront is never slowed down. Jobs are resumable and safe to re-run: deliveries are deduplicated on the receiving side.</argument>
+                </arguments>
+            </block>
+            <block class="Magento\Backend\Block\Template"
                    name="smaily.backfill.start"
                    template="Smaily_Connect::backfill/start.phtml">
                 <arguments>

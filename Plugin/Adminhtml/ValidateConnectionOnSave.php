@@ -9,7 +9,7 @@ declare(strict_types=1);
 namespace Smaily\Connect\Plugin\Adminhtml;
 
 use Magento\Config\Model\Config as SystemConfig;
-use Magento\Framework\Exception\ValidatorException;
+use Magento\Framework\Message\ManagerInterface;
 use Smaily\Connect\Model\Client\Exception\AuthenticationException;
 use Smaily\Connect\Model\Client\Exception\SmailyClientException;
 use Smaily\Connect\Model\Client\SmailyClientFactory;
@@ -20,9 +20,10 @@ use Smaily\Connect\Model\SubdomainNormalizer;
 /**
  * Validates Smaily API credentials when the connection group is saved.
  *
- * Rejected credentials block the save with an admin-visible error; transient
- * network failures do not block the save (they are logged instead), so an
- * unreachable API cannot lock the merchant out of their own configuration.
+ * NON-BLOCKING by design: the save always succeeds and the validation
+ * result is surfaced as an admin message — a merchant must never be unable
+ * to save their own configuration. Instant feedback lives in the Test
+ * Connection button next to the fields.
  */
 class ValidateConnectionOnSave
 {
@@ -30,13 +31,11 @@ class ValidateConnectionOnSave
         private readonly SmailyClientFactory $clientFactory,
         private readonly Config $config,
         private readonly SubdomainNormalizer $normalizer,
+        private readonly ManagerInterface $messageManager,
         private readonly Logger $logger
     ) {
     }
 
-    /**
-     * @throws ValidatorException
-     */
     public function beforeSave(SystemConfig $subject): void
     {
         if ($subject->getSection() !== 'smaily_connect') {
@@ -73,9 +72,15 @@ class ValidateConnectionOnSave
 
         try {
             $client->validateCredentials();
+            $this->messageManager->addSuccessMessage(
+                (string)__('Smaily connection verified — the API credentials work.')
+            );
         } catch (AuthenticationException) {
-            throw new ValidatorException(
-                __('Smaily rejected the API credentials. Please check the subdomain, username and password.')
+            $this->messageManager->addErrorMessage(
+                (string)__(
+                    'The configuration was saved, but Smaily rejected the API credentials.'
+                    . ' Check the subdomain, username and password — synchronization will not work until they are correct.'
+                )
             );
         } catch (SmailyClientException $exception) {
             $this->logger->info('Skipped credential validation, Smaily API unreachable', [

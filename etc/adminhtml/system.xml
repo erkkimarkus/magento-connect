@@ -35,6 +35,12 @@
                     <label>API Password</label>
                     <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
                 </field>
+                <field id="test_connection" translate="label" type="label" sortOrder="35"
+                       showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Verify</label>
+                    <frontend_model>Smaily\Connect\Block\Adminhtml\Config\TestConnection</frontend_model>
+                    <comment>Tests the credentials entered above without saving. Workflow dropdowns below refresh automatically after a successful test.</comment>
+                </field>
                 <field id="multilingual_mode" translate="label comment" type="select" sortOrder="40"
                        showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
                     <label>Multilingual Mode</label>
@@ -144,6 +150,11 @@
                     <source_model>Smaily\Connect\Model\Config\Source\AbandonedFields</source_model>
                     <can_be_empty>1</can_be_empty>
                     <depends><field id="abandoned_enabled">1</field></depends>
+                </field>
+                <field id="engine_automations" translate="label" type="label" sortOrder="100"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label/>
+                    <frontend_model>Smaily\Connect\Block\Adminhtml\Config\EngineAutomations</frontend_model>
                 </field>
             </group>
             <group id="rss" translate="label comment" type="text" sortOrder="40"

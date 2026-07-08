@@ -1,0 +1,146 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Engine-run automations table, embedded in the Automations config group.
+ * Saves via AJAX to smaily_connect/automations/save (the surrounding page
+ * is already a <form>, so no nested form here).
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\AutomationsForm $viewModel */
+$viewModel = $block->getData('view_model');
+$saveUrl = $block->getUrl('smaily_connect/automations/save');
+?>
+<div class="smaily-engine-automations">
+    <h3><?= $escaper->escapeHtml(__('Campaign Intelligence Automations')) ?></h3>
+<?php if (!$viewModel->isEngineConnected()): ?>
+    <p class="note">
+        <?= $escaper->escapeHtml(__('These engine-run automations (replenishment reminders, win-back and more) become available after connecting Campaign Intelligence below.')) ?>
+    </p>
+<?php elseif ($viewModel->getLoadError() !== null): ?>
+    <div class="message message-error">
+        <?= $escaper->escapeHtml(__('Could not load the automation catalog: %1', $viewModel->getLoadError())) ?>
+    </div>
+<?php else: ?>
+    <?php $workflows = $viewModel->getWorkflows(); ?>
+    <p class="note"><?= $escaper->escapeHtml(__('These automations run inside the Campaign Intelligence engine and fire the mapped Smaily workflow. Every trigger starts disabled and in test mode — nothing reaches real customers without your explicit action.')) ?></p>
+    <div class="admin__table-wrapper">
+        <table class="admin__table-secondary" id="smaily-engine-automations-table">
+            <thead>
+                <tr>
+                    <th><?= $escaper->escapeHtml(__('Enabled')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Trigger')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Smaily Workflow')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Cooldown (days)')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Daily Cap')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Test Mode')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Test Emails')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($viewModel->getRows() as $row): ?>
+                <?php $key = $escaper->escapeHtmlAttr($row['key']); ?>
+                <tr data-trigger="<?= /* @noEscape */ $key ?>">
+                    <td>
+                        <input type="checkbox" data-field="enabled" <?= $row['enabled'] ? 'checked' : '' ?>/>
+                        <input type="hidden" data-field="language_mode"
+                               value="<?= $escaper->escapeHtmlAttr($row['language_mode']) ?>"/>
+                        <input type="hidden" data-field="original_map"
+                               value="<?= $escaper->escapeHtmlAttr($row['original_map']) ?>"/>
+                    </td>
+                    <td>
+                        <strong><?= $escaper->escapeHtml($row['name']) ?></strong><br/>
+                        <small><?= $escaper->escapeHtml($row['description']) ?></small>
+                    </td>
+                    <td>
+                        <select data-field="workflow_id">
+                            <option value=""><?= $escaper->escapeHtml(__('-- Not Selected --')) ?></option>
+                            <?php foreach ($workflows as $workflow): ?>
+                                <option value="<?= (int)$workflow['id'] ?>"
+                                    <?= (string)$workflow['id'] === $row['workflow_id'] ? 'selected' : '' ?>>
+                                    <?= $escaper->escapeHtml($workflow['title']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" min="1" max="365" style="width: 6rem;"
+                               data-field="cooldown_days" value="<?= (int)$row['cooldown_days'] ?>"/>
+                    </td>
+                    <td>
+                        <input type="number" min="1" max="100000" style="width: 7rem;"
+                               data-field="daily_cap"
+                               value="<?= $row['daily_cap'] === null ? '' : (int)$row['daily_cap'] ?>"
+                               placeholder="<?= $escaper->escapeHtmlAttr(__('No cap')) ?>"/>
+                    </td>
+                    <td>
+                        <input type="checkbox" data-field="test_mode" <?= $row['test_mode'] ? 'checked' : '' ?>/>
+                    </td>
+                    <td>
+                        <input type="text" style="width: 14rem;" data-field="test_emails"
+                               value="<?= $escaper->escapeHtmlAttr($row['test_emails']) ?>"
+                               placeholder="a@example.com, b@example.com"/>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <div style="margin-top: 1rem;">
+        <button type="button" id="smaily-engine-automations-save" class="action-secondary">
+            <span><?= $escaper->escapeHtml(__('Save Intelligence Automations')) ?></span>
+        </button>
+        <span id="smaily-engine-automations-result" class="note" style="margin-left: 1rem;"></span>
+    </div>
+    <script>
+    require(['jquery', 'mage/translate'], function ($, $t) {
+        'use strict';
+
+        $('#smaily-engine-automations-save').on('click', function () {
+            var params = new URLSearchParams();
+            params.set('form_key', window.FORM_KEY);
+            $('#smaily-engine-automations-table tbody tr').each(function () {
+                var key = $(this).data('trigger'),
+                    prefix = 'triggers[' + key + ']';
+
+                $(this).find('[data-field]').each(function () {
+                    var field = $(this).data('field');
+
+                    if ($(this).is(':checkbox')) {
+                        if ($(this).is(':checked')) {
+                            params.set(prefix + '[' + field + ']', '1');
+                        }
+                    } else {
+                        params.set(prefix + '[' + field + ']', $(this).val() || '');
+                    }
+                });
+            });
+
+            var $result = $('#smaily-engine-automations-result');
+            $result.text($t('Saving…')).css('color', '');
+            fetch('<?= $escaper->escapeJs($saveUrl) ?>', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: params.toString()
+            }).then(function (response) { return response.json(); }).then(function (data) {
+                if (data.saved) {
+                    $result.text($t('Saved.')).css('color', '#006400');
+                } else {
+                    $result.text((data.errors || []).join(' ') || $t('Saving failed.')).css('color', '#e22626');
+                }
+            }).catch(function () {
+                $result.text($t('Saving failed.')).css('color', '#e22626');
+            });
+        });
+    });
+    </script>
+<?php endif; ?>
+</div>

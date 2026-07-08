@@ -1,0 +1,480 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Native 5-step setup wizard: Connect -> Subscribers -> Automations ->
+ * Intelligence -> Done. Every step saves via AJAX into the same system
+ * config paths the Stores > Configuration page edits — the wizard is a
+ * guided view over one source of truth. Steps 2+ unlock once the Smaily
+ * connection is verified (same gating as the Woo/Shopify plugins).
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
+$viewModel = $block->getData('view_model');
+$totals = $viewModel->getStoreTotals();
+$urls = [
+    'test' => $block->getUrl('smaily_connect/api/testsmaily'),
+    'workflows' => $block->getUrl('smaily_connect/api/workflows'),
+    'saveStep' => $block->getUrl('smaily_connect/api/savestep'),
+    'engineExchange' => $block->getUrl('smaily_connect/api/engineexchange'),
+    'enginePing' => $block->getUrl('smaily_connect/api/engineping'),
+    'backfill' => $block->getUrl('smaily_connect/api/backfillstate'),
+    'config' => $block->getUrl('adminhtml/system_config/edit', ['section' => 'smaily_connect']),
+    'events' => $block->getUrl('smaily_connect/events'),
+];
+?>
+<div id="smaily-wizard" class="smaily-wizard" style="max-width: 76rem;">
+    <style>
+        .smaily-wizard .smaily-steps { display: flex; gap: 0; margin: 0 0 3rem; padding: 0; list-style: none; }
+        .smaily-wizard .smaily-steps li { flex: 1; text-align: center; padding: 1rem 0.5rem; border-bottom: 3px solid #d0d0d0; color: #666; cursor: default; }
+        .smaily-wizard .smaily-steps li.active { border-color: #eb5202; color: #333; font-weight: 600; }
+        .smaily-wizard .smaily-steps li.done { border-color: #79a22e; color: #333; cursor: pointer; }
+        .smaily-wizard .smaily-step-panel { display: none; }
+        .smaily-wizard .smaily-step-panel.active { display: block; }
+        .smaily-wizard .smaily-card { background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 2rem; margin-bottom: 2rem; }
+        .smaily-wizard .smaily-field { margin-bottom: 1.6rem; max-width: 44rem; }
+        .smaily-wizard .smaily-field label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
+        .smaily-wizard .smaily-field .note { margin-top: 0.4rem; }
+        .smaily-wizard input[type=text], .smaily-wizard input[type=password], .smaily-wizard input[type=number], .smaily-wizard select { width: 100%; max-width: 40rem; }
+        .smaily-wizard .smaily-choice { display: block; padding: 1.2rem; border: 1px solid #e3e3e3; border-radius: 4px; margin-bottom: 1rem; cursor: pointer; }
+        .smaily-wizard .smaily-choice input { margin-right: 0.8rem; }
+        .smaily-wizard .smaily-choice.selected { border-color: #eb5202; background: #fff8f3; }
+        .smaily-wizard .smaily-footer { display: flex; justify-content: space-between; margin-top: 2rem; }
+        .smaily-wizard .smaily-result { margin-left: 1rem; }
+        .smaily-wizard .smaily-result.ok { color: #006400; }
+        .smaily-wizard .smaily-result.err { color: #e22626; }
+        .smaily-wizard .smaily-inline-toggle { margin-bottom: 1rem; }
+        .smaily-wizard progress { width: 100%; max-width: 40rem; height: 1.4rem; }
+    </style>
+
+    <ul class="smaily-steps">
+        <li data-step="1"><?= $escaper->escapeHtml(__('1. Connect')) ?></li>
+        <li data-step="2"><?= $escaper->escapeHtml(__('2. Subscribers')) ?></li>
+        <li data-step="3"><?= $escaper->escapeHtml(__('3. Automations')) ?></li>
+        <li data-step="4"><?= $escaper->escapeHtml(__('4. Intelligence')) ?></li>
+        <li data-step="5"><?= $escaper->escapeHtml(__('5. Done')) ?></li>
+    </ul>
+
+    <!-- Step 1: Connect -->
+    <div class="smaily-step-panel" data-step="1">
+        <div class="smaily-card">
+            <h2><?= $escaper->escapeHtml(__('Connect your Smaily account')) ?></h2>
+            <p><?= $escaper->escapeHtml(__('You can find or create API credentials in Smaily under Preferences > API. The password is stored encrypted and never leaves your server.')) ?></p>
+            <div class="smaily-field">
+                <label for="smaily-w-subdomain"><?= $escaper->escapeHtml(__('Subdomain')) ?></label>
+                <input type="text" id="smaily-w-subdomain" placeholder="demo"/>
+                <p class="note"><?= $escaper->escapeHtml(__('If your Smaily URL is https://demo.sendsmaily.net, the subdomain is "demo". Pasting the full URL also works.')) ?></p>
+            </div>
+            <div class="smaily-field">
+                <label for="smaily-w-username"><?= $escaper->escapeHtml(__('API Username')) ?></label>
+                <input type="text" id="smaily-w-username"/>
+            </div>
+            <div class="smaily-field">
+                <label for="smaily-w-password"><?= $escaper->escapeHtml(__('API Password')) ?></label>
+                <input type="password" id="smaily-w-password" autocomplete="new-password"/>
+                <p class="note" id="smaily-w-password-note" style="display:none;"><?= $escaper->escapeHtml(__('A password is already saved — leave this empty to keep it.')) ?></p>
+            </div>
+            <button type="button" class="action-secondary" id="smaily-w-test">
+                <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
+            </button>
+            <span class="smaily-result" id="smaily-w-test-result"></span>
+        </div>
+    </div>
+
+    <!-- Step 2: Subscribers -->
+    <div class="smaily-step-panel" data-step="2">
+        <div class="smaily-card">
+            <h2><?= $escaper->escapeHtml(__('Who should be synced to Smaily?')) ?></h2>
+            <p><?= $escaper->escapeHtml(__('This is a lawful-basis choice. Pick the preset that matches how you have asked your customers for permission — you can change it later under Configuration.')) ?></p>
+            <label class="smaily-choice">
+                <input type="radio" name="smaily-w-mode" value="consent" checked/>
+                <strong><?= $escaper->escapeHtml(__('Subscribers only (consent)')) ?></strong> — <?= $escaper->escapeHtml(__('recommended')) ?>
+                <p class="note"><?= $escaper->escapeHtml(__('Only customers who opted into the newsletter are synced. Unsubscribes in Smaily are mirrored back to Magento automatically (two-way sync).')) ?></p>
+            </label>
+            <label class="smaily-choice">
+                <input type="radio" name="smaily-w-mode" value="legitimate_interest"/>
+                <strong><?= $escaper->escapeHtml(__('All customers (legitimate interest)')) ?></strong>
+                <p class="note"><?= $escaper->escapeHtml(__('Every registered customer is synced; Smaily manages suppression. Make sure your privacy policy covers this basis.')) ?></p>
+            </label>
+            <label class="smaily-choice">
+                <input type="radio" name="smaily-w-mode" value="checkout_optin"/>
+                <strong><?= $escaper->escapeHtml(__('Checkout opt-in only')) ?></strong>
+                <p class="note"><?= $escaper->escapeHtml(__('Nobody is synced automatically — only shoppers who tick the newsletter checkbox at checkout.')) ?></p>
+            </label>
+
+            <div class="smaily-field" style="margin-top:2rem;">
+                <label><?= $escaper->escapeHtml(__('Extra fields to sync with each contact')) ?></label>
+                <div id="smaily-w-fields"></div>
+                <p class="note"><?= $escaper->escapeHtml(__('Empty values are never sent, so existing Smaily data is not wiped.')) ?></p>
+            </div>
+            <div class="smaily-inline-toggle">
+                <label><input type="checkbox" id="smaily-w-checkout-optin" checked/>
+                    <?= $escaper->escapeHtml(__('Show a newsletter checkbox at checkout')) ?></label>
+            </div>
+            <div class="smaily-inline-toggle">
+                <label><input type="checkbox" id="smaily-w-suppress" checked/>
+                    <?= $escaper->escapeHtml(__('Let Smaily send the opt-in confirmation emails (suppresses Magento\'s own)')) ?></label>
+            </div>
+
+            <div class="smaily-card" style="background:#f8f8f8;">
+                <strong><?= $escaper->escapeHtml(__('Import your existing subscribers')) ?></strong>
+                <p class="note"><?= $escaper->escapeHtml(__('Your store has %1 customers, %2 orders and %3 products. The import runs in the background, a chunk per minute, and never slows the storefront down.', $totals['customers'], $totals['orders'], $totals['products'])) ?></p>
+                <button type="button" class="action-secondary" id="smaily-w-backfill">
+                    <span><?= $escaper->escapeHtml(__('Import subscribers to Smaily')) ?></span>
+                </button>
+                <span class="smaily-result" id="smaily-w-backfill-result"></span>
+                <progress id="smaily-w-backfill-bar" value="0" max="100" style="display:none;"></progress>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Automations -->
+    <div class="smaily-step-panel" data-step="3">
+        <div class="smaily-card">
+            <h2><?= $escaper->escapeHtml(__('Map store events to Smaily automations')) ?></h2>
+            <p><?= $escaper->escapeHtml(__('Each event triggers the Smaily automation workflow you pick. The lists below come live from your Smaily account — create the workflows there first if they are missing, then press Refresh.')) ?>
+               <button type="button" class="action-tertiary" id="smaily-w-refresh-workflows"><span><?= $escaper->escapeHtml(__('Refresh workflows')) ?></span></button>
+            </p>
+
+            <div class="smaily-field">
+                <label><input type="checkbox" id="smaily-w-welcome-enabled"/>
+                    <?= $escaper->escapeHtml(__('Welcome — fires when someone becomes a subscriber')) ?></label>
+                <select id="smaily-w-welcome-workflow" class="smaily-w-workflow"></select>
+            </div>
+            <div class="smaily-field">
+                <label><input type="checkbox" id="smaily-w-firstorder-enabled"/>
+                    <?= $escaper->escapeHtml(__('First order — fires on a customer\'s first purchase')) ?></label>
+                <select id="smaily-w-firstorder-workflow" class="smaily-w-workflow"></select>
+            </div>
+            <div class="smaily-field">
+                <label><input type="checkbox" id="smaily-w-abandoned-enabled"/>
+                    <?= $escaper->escapeHtml(__('Abandoned cart — fires when a cart is left behind')) ?></label>
+                <select id="smaily-w-abandoned-workflow" class="smaily-w-workflow"></select>
+                <p class="note" style="margin-top:0.6rem;">
+                    <?= $escaper->escapeHtml(__('Wait')) ?>
+                    <input type="number" id="smaily-w-cutoff" min="10" max="1440" value="30" style="width:6rem; display:inline;"/>
+                    <?= $escaper->escapeHtml(__('minutes of inactivity before the cart counts as abandoned. Each cart is mailed once; carts older than 24 hours are never mailed.')) ?>
+                </p>
+            </div>
+            <p class="note"><?= $escaper->escapeHtml(__('The automation receives the cart contents (up to 10 products) and a recovery link that restores the exact cart. Per-language workflow routing for multilingual stores is configured under Configuration > Automations.')) ?></p>
+        </div>
+    </div>
+
+    <!-- Step 4: Intelligence -->
+    <div class="smaily-step-panel" data-step="4">
+        <div class="smaily-card">
+            <h2><?= $escaper->escapeHtml(__('Campaign Intelligence (optional)')) ?></h2>
+            <p><?= $escaper->escapeHtml(__('The Smaily recommendation engine uses your catalog, orders and (opt-in) browsing behavior to personalize newsletters and run smart automations like replenishment reminders and win-back. Skip this step if you do not have an Intelligence subscription — you can connect any time later.')) ?></p>
+            <div id="smaily-w-engine-disconnected">
+                <div class="smaily-field">
+                    <label for="smaily-w-setup-url"><?= $escaper->escapeHtml(__('Setup URL or token from Smaily')) ?></label>
+                    <input type="text" id="smaily-w-setup-url" placeholder="https://intelligence.smaily.com/setup/…"/>
+                    <p class="note"><?= $escaper->escapeHtml(__('The one-time token is exchanged immediately and never stored.')) ?></p>
+                </div>
+                <button type="button" class="action-secondary" id="smaily-w-engine-connect">
+                    <span><?= $escaper->escapeHtml(__('Connect')) ?></span>
+                </button>
+                <span class="smaily-result" id="smaily-w-engine-result"></span>
+            </div>
+            <div id="smaily-w-engine-connected" style="display:none;">
+                <p class="message message-success" id="smaily-w-engine-status"></p>
+                <p><?= $escaper->escapeHtml(__('Catalog, customer and order sync started automatically. Historical data can be imported from Marketing > Smaily Connect > Historical Import.')) ?></p>
+                <div class="smaily-inline-toggle">
+                    <label><input type="checkbox" id="smaily-w-browse"/>
+                        <?= $escaper->escapeHtml(__('Enable storefront browse tracking (product views, searches, cart activity)')) ?></label>
+                    <p class="note"><?= $escaper->escapeHtml(__('Off by default. Respects Magento cookie restriction mode; events flow through your own server, so the API key never reaches the browser.')) ?></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 5: Done -->
+    <div class="smaily-step-panel" data-step="5">
+        <div class="smaily-card">
+            <h2><?= $escaper->escapeHtml(__('You are all set!')) ?></h2>
+            <p><?= $escaper->escapeHtml(__('Smaily Connect is now syncing in near-real-time. Here is where everything lives from now on:')) ?></p>
+            <ul style="line-height:2.2;">
+                <li><a href="<?= $escaper->escapeUrl($urls['config']) ?>"><?= $escaper->escapeHtml(__('Configuration')) ?></a> — <?= $escaper->escapeHtml(__('every setting from this wizard, plus RSS feed, logging and per-website overrides')) ?></li>
+                <li><a href="<?= $escaper->escapeUrl($urls['events']) ?>"><?= $escaper->escapeHtml(__('Event Log')) ?></a> — <?= $escaper->escapeHtml(__('every delivery to Smaily with retry; check here first if something seems off')) ?></li>
+                <li><?= $escaper->escapeHtml(__('Product RSS feed for the Smaily template editor:')) ?> <code><?= $escaper->escapeHtml($block->getBaseUrl() . 'smaily/rss/feed') ?></code></li>
+            </ul>
+            <p class="note"><?= $escaper->escapeHtml(__('Tip: make sure the Magento cron runs every minute — deliveries are queued and flushed by the smaily_connect cron group.')) ?></p>
+        </div>
+    </div>
+
+    <div class="smaily-footer">
+        <button type="button" class="action-secondary" id="smaily-w-back"><span><?= $escaper->escapeHtml(__('Back')) ?></span></button>
+        <div>
+            <span class="smaily-result" id="smaily-w-save-result"></span>
+            <button type="button" class="action-primary" id="smaily-w-next"><span><?= $escaper->escapeHtml(__('Continue')) ?></span></button>
+        </div>
+    </div>
+</div>
+
+<script>
+require(['jquery', 'mage/translate'], function ($, $t) {
+    'use strict';
+
+    var boot = <?= /* @noEscape */ $viewModel->getBootJson() ?>;
+    var urls = <?= /* @noEscape */ json_encode(array_map('strval', $urls)) ?>;
+    var SYNC_FIELDS = [
+        ['first_name', $t('First name')], ['last_name', $t('Last name')],
+        ['prefix', $t('Name prefix')], ['gender', $t('Gender')],
+        ['birthday', $t('Date of birth')], ['customer_id', $t('Customer ID')],
+        ['customer_group', $t('Customer group')], ['subscription_type', $t('Subscription type')]
+    ];
+    var step = 1, connected = boot.connected;
+
+    function post(url, data) {
+        return fetch(url + '?form_key=' + encodeURIComponent(window.FORM_KEY), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify(data || {})
+        }).then(function (r) { return r.json(); });
+    }
+
+    function result(selector, text, ok) {
+        $(selector).text(text).removeClass('ok err').addClass(ok ? 'ok' : 'err');
+    }
+
+    function credentials() {
+        return {
+            subdomain: $('#smaily-w-subdomain').val(),
+            username: $('#smaily-w-username').val(),
+            password: $('#smaily-w-password').val()
+        };
+    }
+
+    function render() {
+        $('.smaily-steps li').each(function () {
+            var s = $(this).data('step');
+            $(this).toggleClass('active', s === step).toggleClass('done', s < step);
+        });
+        $('.smaily-step-panel').removeClass('active');
+        $('.smaily-step-panel[data-step=' + step + ']').addClass('active');
+        $('#smaily-w-back').toggle(step > 1 && step < 5);
+        $('#smaily-w-next').toggle(step < 5);
+        $('#smaily-w-next span').text(step === 4 ? $t('Finish') : $t('Continue'));
+        $('#smaily-w-save-result').text('');
+        window.scrollTo(0, 0);
+    }
+
+    function fillWorkflows(workflows) {
+        $('.smaily-w-workflow').each(function () {
+            var current = $(this).val() || $(this).data('saved') || '';
+            $(this).empty().append(new Option($t('-- Not Selected --'), ''));
+            (workflows || []).forEach(function (w) {
+                $(this).append(new Option(w.name + ' (' + w.id + ')', w.id));
+            }.bind(this));
+            $(this).val(current);
+        });
+    }
+
+    function loadWorkflows() {
+        return post(urls.workflows, credentials()).then(function (data) {
+            fillWorkflows(data.workflows);
+            if (data.error) {
+                result('#smaily-w-save-result', data.error, false);
+            }
+        });
+    }
+
+    function saveStep(name, data) {
+        return post(urls.saveStep, {step: name, data: data}).then(function (response) {
+            if (!response.saved) {
+                var message = (response.errors || []).map(function (e) { return e.message; }).join(' ');
+                throw new Error(message || $t('Saving failed.'));
+            }
+        });
+    }
+
+    var stepSavers = {
+        1: function () {
+            var creds = credentials();
+            if (!connected && (!creds.subdomain || !creds.username || !creds.password)) {
+                return Promise.reject(new Error($t('Fill in the credentials and press Test Connection first.')));
+            }
+            return saveStep('connect', {
+                subdomain: creds.subdomain,
+                username: creds.username,
+                password: creds.password,
+                multilingual_mode: boot.connection.multilingualMode
+            });
+        },
+        2: function () {
+            return saveStep('subscribers', {
+                sync_enabled: true,
+                sync_mode: $('input[name=smaily-w-mode]:checked').val(),
+                sync_fields: $('#smaily-w-fields input:checked').map(function () { return $(this).val(); }).get(),
+                checkout_optin_enabled: $('#smaily-w-checkout-optin').is(':checked'),
+                suppress_optin_emails: $('#smaily-w-suppress').is(':checked')
+            });
+        },
+        3: function () {
+            return saveStep('automations', {
+                welcome_enabled: $('#smaily-w-welcome-enabled').is(':checked'),
+                welcome_workflow: $('#smaily-w-welcome-workflow').val(),
+                first_order_enabled: $('#smaily-w-firstorder-enabled').is(':checked'),
+                first_order_workflow: $('#smaily-w-firstorder-workflow').val(),
+                abandoned_enabled: $('#smaily-w-abandoned-enabled').is(':checked'),
+                abandoned_workflow: $('#smaily-w-abandoned-workflow').val(),
+                abandoned_cutoff: parseInt($('#smaily-w-cutoff').val(), 10) || 30
+            });
+        },
+        4: function () {
+            return saveStep('intelligence', {
+                browse_tracking: $('#smaily-w-browse').is(':checked')
+            }).then(function () {
+                return saveStep('finish', {});
+            });
+        }
+    };
+
+    // --- Prefill from saved settings -------------------------------------
+    $('#smaily-w-subdomain').val(boot.connection.subdomain);
+    $('#smaily-w-username').val(boot.connection.username);
+    if (boot.connection.hasPassword) {
+        $('#smaily-w-password-note').show();
+    }
+    if (connected) {
+        result('#smaily-w-test-result', $t('Connected with the saved credentials.'), true);
+    }
+
+    SYNC_FIELDS.forEach(function (field) {
+        var checked = boot.subscribers.syncFields.indexOf(field[0]) !== -1 ? 'checked' : '';
+        $('#smaily-w-fields').append(
+            '<label style="display:inline-block;width:16rem;"><input type="checkbox" value="' + field[0] + '" ' + checked + '/> ' + field[1] + '</label>'
+        );
+    });
+    $('input[name=smaily-w-mode][value=' + boot.subscribers.syncMode + ']').prop('checked', true);
+    $('#smaily-w-checkout-optin').prop('checked', boot.subscribers.checkoutOptin);
+    $('#smaily-w-suppress').prop('checked', boot.subscribers.suppressOptinEmails);
+
+    $('#smaily-w-welcome-enabled').prop('checked', boot.automations.welcomeEnabled);
+    $('#smaily-w-firstorder-enabled').prop('checked', boot.automations.firstOrderEnabled);
+    $('#smaily-w-abandoned-enabled').prop('checked', boot.automations.abandonedEnabled);
+    $('#smaily-w-cutoff').val(boot.automations.abandonedCutoff);
+    $('#smaily-w-welcome-workflow').data('saved', boot.automations.welcomeWorkflow);
+    $('#smaily-w-firstorder-workflow').data('saved', boot.automations.firstOrderWorkflow);
+    $('#smaily-w-abandoned-workflow').data('saved', boot.automations.abandonedWorkflow);
+
+    if (boot.intelligence.connected) {
+        $('#smaily-w-engine-disconnected').hide();
+        $('#smaily-w-engine-connected').show();
+        $('#smaily-w-engine-status').text(
+            $t('Connected: %1 (engine %2)').replace('%1', boot.intelligence.tenantName).replace('%2', boot.intelligence.engineVersion)
+        );
+        $('#smaily-w-browse').prop('checked', boot.intelligence.browseTracking);
+    }
+
+    // Radio-card highlight.
+    $(document).on('change', 'input[name=smaily-w-mode]', function () {
+        $('.smaily-choice').removeClass('selected');
+        $(this).closest('.smaily-choice').addClass('selected');
+    });
+    $('input[name=smaily-w-mode]:checked').trigger('change');
+
+    // --- Step 1 actions ---------------------------------------------------
+    $('#smaily-w-test').on('click', function () {
+        result('#smaily-w-test-result', $t('Testing…'), true);
+        post(urls.test, credentials()).then(function (data) {
+            connected = !!data.connected;
+            result('#smaily-w-test-result', data.connected
+                ? $t('Connected! Continue to the next step.')
+                : (data.error || $t('Connection failed.')), data.connected);
+        });
+    });
+
+    // --- Step 2 backfill ----------------------------------------------------
+    var backfillTimer = null;
+    function pollBackfill(startFirst) {
+        post(urls.backfill, {job_type: 'contacts', action: startFirst ? 'start' : 'status'}).then(function (data) {
+            var $bar = $('#smaily-w-backfill-bar');
+            if (data.status === 'running') {
+                $bar.show().val(data.percent);
+                result('#smaily-w-backfill-result',
+                    $t('Importing… %1 / %2').replace('%1', data.processed).replace('%2', data.total || '?'), true);
+                backfillTimer = setTimeout(function () { pollBackfill(false); }, 4000);
+            } else if (data.status === 'completed') {
+                $bar.show().val(100);
+                result('#smaily-w-backfill-result', $t('Import completed (%1 contacts).').replace('%1', data.processed), true);
+            } else if (data.status === 'failed') {
+                result('#smaily-w-backfill-result', $t('Import failed — see the Event Log for details.'), false);
+            }
+        });
+    }
+    $('#smaily-w-backfill').on('click', function () {
+        clearTimeout(backfillTimer);
+        pollBackfill(true);
+    });
+
+    // --- Step 3 workflows ---------------------------------------------------
+    $('#smaily-w-refresh-workflows').on('click', loadWorkflows);
+
+    // --- Step 4 engine --------------------------------------------------------
+    $('#smaily-w-engine-connect').on('click', function () {
+        result('#smaily-w-engine-result', $t('Connecting…'), true);
+        post(urls.engineExchange, {setup_url: $('#smaily-w-setup-url').val()}).then(function (data) {
+            if (data.connected) {
+                $('#smaily-w-engine-disconnected').hide();
+                $('#smaily-w-engine-connected').show();
+                $('#smaily-w-engine-status').text(
+                    $t('Connected: %1 (engine %2)').replace('%1', data.tenantName).replace('%2', data.engineVersion)
+                );
+            } else {
+                result('#smaily-w-engine-result', data.message || $t('Connection failed.'), false);
+            }
+        });
+    });
+
+    // --- Navigation -----------------------------------------------------------
+    $('#smaily-w-next').on('click', function () {
+        var $button = $(this).prop('disabled', true);
+        result('#smaily-w-save-result', $t('Saving…'), true);
+        stepSavers[step]().then(function () {
+            result('#smaily-w-save-result', '', true);
+            if (step === 3) {
+                step = 4;
+            } else if (step === 4) {
+                step = 5;
+            } else {
+                step += 1;
+            }
+            if (step === 3) {
+                loadWorkflows();
+            }
+            render();
+        }).catch(function (error) {
+            result('#smaily-w-save-result', error.message, false);
+        }).finally(function () {
+            $button.prop('disabled', false);
+        });
+    });
+    $('#smaily-w-back').on('click', function () {
+        step = Math.max(1, step - 1);
+        render();
+    });
+    $('.smaily-steps').on('click', 'li.done', function () {
+        step = $(this).data('step');
+        if (step === 3) {
+            loadWorkflows();
+        }
+        render();
+    });
+
+    if (boot.setupCompleted) {
+        step = 5;
+    } else if (connected) {
+        step = 2;
+    }
+    if (step === 3) {
+        loadWorkflows();
+    }
+    render();
+});
+</script>

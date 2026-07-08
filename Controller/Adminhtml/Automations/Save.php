@@ -11,6 +11,8 @@ namespace Smaily\Connect\Controller\Adminhtml\Automations;
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Action\HttpPostActionInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
+use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\ResultFactory;
 use Smaily\Connect\Model\Engine\Client;
@@ -35,12 +37,32 @@ class Save extends Action implements HttpPostActionInterface
     /**
      * @inheritDoc
      */
-    public function execute(): Redirect
+    public function execute(): Redirect|Json
     {
+        $errors = [];
+        $saved = $this->save($errors);
+
+        // Embedded config-page block saves via AJAX; plain form posts get a
+        // redirect back with flash messages.
+        $request = $this->getRequest();
+        if ($request instanceof HttpRequest && $request->isXmlHttpRequest()) {
+            /** @var Json $json */
+            $json = $this->resultFactory->create(ResultFactory::TYPE_JSON);
+
+            return $json->setData(['saved' => $saved, 'errors' => $errors]);
+        }
+
         /** @var Redirect $redirect */
         $redirect = $this->resultFactory->create(ResultFactory::TYPE_REDIRECT);
-        $redirect->setPath('smaily_connect/automations');
 
+        return $redirect->setRefererOrBaseUrl();
+    }
+
+    /**
+     * @param string[] $errors collected error strings (also flashed)
+     */
+    private function save(array &$errors): bool
+    {
         $triggers = (array)$this->getRequest()->getParam('triggers', []);
         $rows = [];
         foreach ($triggers as $key => $data) {
@@ -84,9 +106,9 @@ class Save extends Action implements HttpPostActionInterface
         }
 
         if (!$rows) {
-            $this->messageManager->addNoticeMessage((string)__('Nothing to save.'));
+            $errors[] = (string)__('Nothing to save.');
 
-            return $redirect;
+            return false;
         }
 
         try {
@@ -94,26 +116,28 @@ class Save extends Action implements HttpPostActionInterface
             $this->messageManager->addSuccessMessage(
                 (string)__('%1 automation trigger(s) saved.', count($rows))
             );
+
+            return true;
         } catch (EngineRequestException $exception) {
             foreach ((array)($exception->getErrorBody()['errors'] ?? []) as $error) {
                 if (is_array($error)) {
-                    $this->messageManager->addErrorMessage(sprintf(
+                    $errors[] = sprintf(
                         '%s / %s: %s',
                         (string)($error['trigger_key'] ?? 'row'),
                         (string)($error['field'] ?? ''),
                         (string)($error['message'] ?? 'invalid')
-                    ));
+                    );
                 }
             }
-            $this->messageManager->addErrorMessage(
-                (string)__('Nothing was saved: %1', $exception->getMessage())
-            );
+            $errors[] = (string)__('Nothing was saved: %1', $exception->getMessage());
         } catch (EngineException $exception) {
-            $this->messageManager->addErrorMessage(
-                (string)__('Saving failed: %1', $exception->getMessage())
-            );
+            $errors[] = (string)__('Saving failed: %1', $exception->getMessage());
         }
 
-        return $redirect;
+        foreach ($errors as $message) {
+            $this->messageManager->addErrorMessage($message);
+        }
+
+        return false;
     }
 }
