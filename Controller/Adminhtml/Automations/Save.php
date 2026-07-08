@@ -54,15 +54,30 @@ class Save extends Action implements HttpPostActionInterface
                 explode(',', (string)($data['test_emails'] ?? ''))
             )));
 
+            // Preserve a per_language row (saved from another platform on the
+            // same tenant) as long as the merchant did not change the
+            // workflow here — a save must never silently wipe language maps.
+            $originalMode = (string)($data['language_mode'] ?? 'single');
+            $originalMap = json_decode((string)($data['original_map'] ?? ''), true);
+            $originalMap = is_array($originalMap) ? $originalMap : [];
+            if ($originalMode === 'per_language'
+                && $workflowId === (string)($originalMap['fallback'] ?? '')
+            ) {
+                $languageMode = 'per_language';
+                $map = $originalMap;
+            } else {
+                $languageMode = 'single';
+                $map = $workflowId !== '' ? ['id' => $workflowId] : [];
+            }
+
             $rows[] = [
                 'trigger_key' => (string)$key,
-                'enabled' => !empty($data['enabled']) && $workflowId !== '',
-                // MVP scope: single-language mode; per-language maps come with
-                // the multilingual admin later.
-                'language_mode' => 'single',
-                'automation_map' => $workflowId !== '' ? ['id' => $workflowId] : [],
+                'enabled' => !empty($data['enabled']) && $map !== [],
+                'language_mode' => $languageMode,
+                // An empty map must serialize as a JSON object, not [].
+                'automation_map' => $map === [] ? new \stdClass() : $map,
                 'cooldown_days' => max(1, min(365, (int)($data['cooldown_days'] ?? 7))),
-                'daily_cap' => $dailyCap === '' ? null : max(1, (int)$dailyCap),
+                'daily_cap' => $dailyCap === '' ? null : max(1, min(100000, (int)$dailyCap)),
                 'test_mode' => !empty($data['test_mode']),
                 'test_emails' => array_slice($testEmails, 0, 50),
             ];

@@ -65,6 +65,11 @@ class ProfilingConsent
             if ($value !== null && (string)$value === '0') {
                 $allowed = false;
             }
+        } catch (\Smaily\Connect\Model\Client\Exception\ApiException $exception) {
+            if ($exception->getSmailyCode() !== \Smaily\Connect\Model\Client\Exception\ApiException::CODE_EMAIL_NOT_FOUND) {
+                $this->logger->debug('Profiling consent read failed', ['error' => $exception->getMessage()]);
+            }
+            // Unknown contact = default allowed; not an error condition.
         } catch (SmailyClientException $exception) {
             // Fail open: an unreachable API must not break the storefront.
             $this->logger->debug('Profiling consent read failed', ['error' => $exception->getMessage()]);
@@ -101,7 +106,7 @@ class ProfilingConsent
 
         if ($this->engineSettings->isConnected()) {
             try {
-                $this->engineClient->customerOptOut($email, !$allowed, 'user_request', $timestamp);
+                $this->engineClient->customerOptOut($email, !$allowed, 'user_preference', $timestamp);
             } catch (EngineException $exception) {
                 $this->logger->error('Engine profiling opt-out failed', [
                     'error' => $exception->getMessage(),

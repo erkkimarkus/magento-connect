@@ -119,8 +119,10 @@ class AbandonedCart
                 continue;
             }
 
-            $this->dispatcher->dispatchAutomation(Trigger::ABANDONED_CART, $storeId, $address);
+            // Mark first, dispatch second: if we crash in between, the shopper
+            // misses one reminder instead of receiving a duplicate.
             $this->stateManager->markMailed((int)$quote->getId(), $storeId, $address['email']);
+            $this->dispatcher->dispatchAutomation(Trigger::ABANDONED_CART, $storeId, $address);
             $mailed++;
         }
 

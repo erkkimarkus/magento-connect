@@ -155,17 +155,23 @@ class Client
     }
 
     /**
-     * Profiling opt-out/opt-in (contract §10).
+     * Profiling opt-out/opt-in (contract §10). The opt-in reversal carries
+     * no opted_out_at; the reason vocabulary is §10's (user_preference),
+     * not §9's delete reasons.
      *
      * @return array<string, mixed>
      */
     public function customerOptOut(string $email, bool $optOut, string $reason, string $timestamp): array
     {
-        return $this->request('POST', $this->customerEndpoint('customer_opt_out', $email), [
+        $body = [
             'opt_out' => $optOut,
             'reason' => $reason,
-            'opted_out_at' => $timestamp,
-        ]);
+        ];
+        if ($optOut) {
+            $body['opted_out_at'] = $timestamp;
+        }
+
+        return $this->request('POST', $this->customerEndpoint('customer_opt_out', $email), $body);
     }
 
     /**
@@ -336,12 +342,12 @@ class Client
         if (str_starts_with($input, 'http://') || str_starts_with($input, 'https://')) {
             $parts = parse_url($input);
             $host = (string)($parts['host'] ?? '');
-            $scheme = (string)($parts['scheme'] ?? 'https');
             $path = (string)($parts['path'] ?? '');
             $segments = array_values(array_filter(explode('/', $path)));
             $token = $segments !== [] ? end($segments) : '';
 
-            return [$host !== '' ? $scheme . '://' . $host : self::DEFAULT_SETUP_BASE_URL, $token];
+            // Always https — the one-time token must never travel plaintext.
+            return [$host !== '' ? 'https://' . $host : self::DEFAULT_SETUP_BASE_URL, $token];
         }
 
         return [self::DEFAULT_SETUP_BASE_URL, $input];
@@ -355,7 +361,7 @@ class Client
         $magentoVersion = (string)$this->productMetadata->getVersion();
 
         return [
-            'name' => 'Smaily Connect',
+            'name' => 'smaily-connect-magento',
             'version' => ModuleInfo::VERSION,
             'platform' => 'magento',
             'platform_version' => $magentoVersion,

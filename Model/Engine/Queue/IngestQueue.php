@@ -103,21 +103,59 @@ class IngestQueue
             return [];
         }
 
+        // Claim with a per-worker token so concurrent flushes never
+        // double-send (see EventQueue::claimBatch for the rationale).
+        $token = $this->identityGenerator->generateId();
         $connection = $this->resourceConnection->getConnection();
+        $table = $this->resourceConnection->getTableName(IngestEventResource::TABLE_NAME);
         $connection->update(
-            $this->resourceConnection->getTableName(IngestEventResource::TABLE_NAME),
-            ['status' => IngestEvent::STATUS_SENDING],
+            $table,
+            [
+                'status' => IngestEvent::STATUS_SENDING,
+                'claim_token' => $token,
+                'claimed_at' => $now,
+            ],
             [
                 'id IN (?)' => array_keys($events),
                 'status = ?' => IngestEvent::STATUS_PENDING,
             ]
         );
 
-        foreach ($events as $event) {
-            $event->setData('status', IngestEvent::STATUS_SENDING);
+        $claimedIds = array_map('intval', $connection->fetchCol(
+            $connection->select()->from($table, ['id'])
+                ->where('claim_token = ?', $token)
+                ->where('status = ?', IngestEvent::STATUS_SENDING)
+        ));
+
+        $claimed = [];
+        foreach ($claimedIds as $id) {
+            if (isset($events[$id])) {
+                $events[$id]->setData('status', IngestEvent::STATUS_SENDING);
+                $claimed[] = $events[$id];
+            }
         }
 
-        return array_values($events);
+        return $claimed;
+    }
+
+    /**
+     * Return rows stuck in "sending" (killed worker) back to pending.
+     */
+    public function requeueStale(int $olderThanSeconds = 900): int
+    {
+        $connection = $this->resourceConnection->getConnection();
+
+        return $connection->update(
+            $this->resourceConnection->getTableName(IngestEventResource::TABLE_NAME),
+            ['status' => IngestEvent::STATUS_PENDING, 'claim_token' => null],
+            [
+                'status = ?' => IngestEvent::STATUS_SENDING,
+                'claimed_at < ?' => $this->dateTime->gmtDate(
+                    'Y-m-d H:i:s',
+                    $this->dateTime->gmtTimestamp() - $olderThanSeconds
+                ),
+            ]
+        );
     }
 
     public function markSent(IngestEvent $event, ?string $response = null): void

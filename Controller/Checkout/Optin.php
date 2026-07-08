@@ -10,19 +10,27 @@ namespace Smaily\Connect\Controller\Checkout;
 
 use Magento\Checkout\Model\Session as CheckoutSession;
 use Magento\Framework\App\Action\HttpPostActionInterface;
+use Magento\Framework\App\CsrfAwareActionInterface;
 use Magento\Framework\App\Request\Http as HttpRequest;
+use Magento\Framework\App\Request\InvalidRequestException;
+use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\Result\JsonFactory;
-use Magento\Framework\Data\Form\FormKey\Validator as FormKeyValidator;
+use Magento\Framework\Data\Form\FormKey;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
+use Magento\Store\Model\StoreManagerInterface;
 use Smaily\Connect\Model\AbandonedCart\StateManager;
 use Smaily\Connect\Model\Config;
 
 /**
  * Persists the checkout newsletter opt-in choice for the current quote
  * (POST smaily/checkout/optin, called by the checkout checkbox component).
+ *
+ * CSRF: the component sends the form key inside a JSON body, which the
+ * standard framework validator cannot see — so the controller implements
+ * CsrfAwareActionInterface and validates the body form key itself.
  */
-class Optin implements HttpPostActionInterface
+class Optin implements HttpPostActionInterface, CsrfAwareActionInterface
 {
     public function __construct(
         private readonly HttpRequest $request,
@@ -30,8 +38,9 @@ class Optin implements HttpPostActionInterface
         private readonly CheckoutSession $checkoutSession,
         private readonly StateManager $stateManager,
         private readonly JsonSerializer $serializer,
-        private readonly FormKeyValidator $formKeyValidator,
-        private readonly Config $config
+        private readonly FormKey $formKey,
+        private readonly Config $config,
+        private readonly StoreManagerInterface $storeManager
     ) {
     }
 
@@ -42,23 +51,11 @@ class Optin implements HttpPostActionInterface
     {
         $result = $this->jsonFactory->create();
 
-        $body = [];
-        $rawContent = (string)$this->request->getContent();
-        if ($rawContent !== '') {
-            try {
-                $decoded = $this->serializer->unserialize($rawContent);
-                $body = is_array($decoded) ? $decoded : [];
-            } catch (\InvalidArgumentException) {
-                $body = [];
-            }
-        }
+        $body = $this->decodeBody();
+        $websiteId = (int)$this->storeManager->getStore()->getWebsiteId();
+        if (!$this->isFormKeyValid($body) || !$this->config->isCheckoutOptinEnabled($websiteId)) {
+            $result->setHttpResponseCode(400);
 
-        // The checkout component sends the form key in the JSON body; make it
-        // visible to the standard validator.
-        if (isset($body['form_key'])) {
-            $this->request->setParam('form_key', (string)$body['form_key']);
-        }
-        if (!$this->formKeyValidator->validate($this->request) || !$this->config->isCheckoutOptinEnabled()) {
             return $result->setData(['success' => false]);
         }
 
@@ -74,5 +71,53 @@ class Optin implements HttpPostActionInterface
         }
 
         return $result->setData(['success' => $quoteId > 0]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function createCsrfValidationException(RequestInterface $request): ?InvalidRequestException
+    {
+        return null;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function validateForCsrf(RequestInterface $request): ?bool
+    {
+        return $this->isFormKeyValid($this->decodeBody());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeBody(): array
+    {
+        $rawContent = (string)$this->request->getContent();
+        if ($rawContent === '') {
+            return [];
+        }
+        try {
+            $decoded = $this->serializer->unserialize($rawContent);
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    private function isFormKeyValid(array $body): bool
+    {
+        $submitted = (string)($body['form_key'] ?? '');
+
+        try {
+            return $submitted !== '' && hash_equals($this->formKey->getFormKey(), $submitted);
+        } catch (\Exception) {
+            return false;
+        }
     }
 }

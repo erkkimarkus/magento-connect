@@ -33,7 +33,8 @@ class Feed implements HttpGetActionInterface
         private readonly RawFactory $rawFactory,
         private readonly StoreManagerInterface $storeManager,
         private readonly FeedBuilder $feedBuilder,
-        private readonly Config $config
+        private readonly Config $config,
+        private readonly \Magento\Framework\App\CacheInterface $cache
     ) {
     }
 
@@ -52,13 +53,26 @@ class Feed implements HttpGetActionInterface
         }
 
         $categoryParam = $this->request->getParam('category');
-        $xml = $this->feedBuilder->build(
-            $this->storeManager->getStore(),
-            is_numeric($categoryParam) ? (int)$categoryParam : null,
-            (int)$this->request->getParam('limit', FeedBuilder::DEFAULT_LIMIT),
-            (string)$this->request->getParam('sort', 'created_at'),
-            (string)$this->request->getParam('order', 'desc')
-        );
+        $categoryId = is_numeric($categoryParam) ? (int)$categoryParam : null;
+        $limit = (int)$this->request->getParam('limit', FeedBuilder::DEFAULT_LIMIT);
+        $sort = (string)$this->request->getParam('sort', 'created_at');
+        $order = (string)$this->request->getParam('order', 'desc');
+        $store = $this->storeManager->getStore();
+
+        // Server-side cache: the feed is unauthenticated and rebuilding it
+        // loads up to 250 products, so identical requests must not hit the DB.
+        $cacheKey = 'smaily_rss_' . sha1(implode('|', [
+            (int)$store->getId(),
+            (string)$categoryId,
+            $limit,
+            $sort,
+            $order,
+        ]));
+        $xml = $this->cache->load($cacheKey);
+        if ($xml === false) {
+            $xml = $this->feedBuilder->build($store, $categoryId, $limit, $sort, $order);
+            $this->cache->save($xml, $cacheKey, [], self::CACHE_LIFETIME_SECONDS);
+        }
 
         $result->setHeader('Content-Type', 'application/rss+xml; charset=UTF-8', true);
         $result->setHeader(

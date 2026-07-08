@@ -31,6 +31,8 @@ class FlushEventQueue
 
     public function execute(): void
     {
+        $this->eventQueue->requeueStale();
+
         $events = $this->eventQueue->claimBatch(self::BATCH_SIZE);
         if (!$events) {
             return;

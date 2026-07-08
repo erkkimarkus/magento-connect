@@ -20,7 +20,6 @@ use Smaily\Connect\Model\Automation\Trigger;
 use Smaily\Connect\Model\Config;
 use Smaily\Connect\Model\ContactSync\Mode;
 use Smaily\Connect\Model\ContactSync\SyncDispatcher;
-use Smaily\Connect\Model\Engine\AttributionManager;
 
 /**
  * Order placement side effects (sales_order_place_after):
@@ -37,8 +36,7 @@ class OrderPlaced implements ObserverInterface
         private readonly StateManager $abandonedCartState,
         private readonly OrderCollectionFactory $orderCollectionFactory,
         private readonly StoreManagerInterface $storeManager,
-        private readonly SubscriptionManagerInterface $subscriptionManager,
-        private readonly AttributionManager $attributionManager
+        private readonly SubscriptionManagerInterface $subscriptionManager
     ) {
     }
 
@@ -58,14 +56,6 @@ class OrderPlaced implements ObserverInterface
             $this->abandonedCartState->markCompleted($quoteId);
         } else {
             $optedIn = false;
-        }
-
-        // Recommendation attribution: stamp campaign-click cookies onto the
-        // order for the engine order ingest (best-effort).
-        try {
-            $this->attributionManager->saveForOrder((int)$order->getEntityId());
-        } catch (\Throwable) {
-            // Attribution must never block order placement.
         }
 
         $storeId = (int)$order->getStoreId();
@@ -125,11 +115,15 @@ class OrderPlaced implements ObserverInterface
             return;
         }
 
-        $orderCount = $this->orderCollectionFactory->create()
-            ->addFieldToFilter('customer_id', ['eq' => $customerId])
-            ->getSize();
-        // The current order may or may not be persisted yet at place_after.
-        if ($orderCount > 1) {
+        // sales_order_place_after fires before the order row is persisted, so
+        // count only OTHER orders (the entity_id filter is a no-op while the
+        // current order has no id yet).
+        $collection = $this->orderCollectionFactory->create()
+            ->addFieldToFilter('customer_id', ['eq' => $customerId]);
+        if ($order->getEntityId()) {
+            $collection->addFieldToFilter('entity_id', ['neq' => (int)$order->getEntityId()]);
+        }
+        if ($collection->getSize() > 0) {
             return;
         }
 

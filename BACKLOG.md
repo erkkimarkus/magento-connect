@@ -44,6 +44,21 @@ Needs a real Hyvä environment to develop and verify:
 - i18n translation files (`i18n/en_US.csv`, `et_EE.csv`).
 - Storefront JS tests for tracker/attribution.
 
+## Deliberate decisions to revisit
+
+- **Browse beacon vs profiling opt-out:** the beacon is anonymous
+  (visitor-token based), so a per-email consent gate cannot be applied at
+  collection time under FPC; enforcement of the §10 profiling opt-out happens
+  engine-side (opted-out contacts are excluded from recommendations). If the
+  spec's "stop collection too" posture becomes a hard requirement, bind the
+  opt-out to the visitor token via customer-data sections.
+- **Browse `source: "plugin_magento"`:** not yet in the contract's constant
+  list (`web, plugin_woo, plugin_shopify, make, custom`) — add it to
+  RECENGINE_API_CONTRACT.md in the connect/re repos before any engine-side
+  source-enum tightening.
+- **Order item amounts are tax-inclusive** (what the shopper saw); Woo sends
+  ex-tax. Both are valid engine inputs; documented in OrderPayloadBuilder.
+
 ## Upstream
 
 - Coordinate with Smaily: staged review of the v3 branch, Marketplace

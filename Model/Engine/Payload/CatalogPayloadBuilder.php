@@ -69,6 +69,9 @@ class CatalogPayloadBuilder
             'in_stock' => $this->isInStock($product),
             'product_url' => $languageValues['product_url'],
             'external_id' => (string)$product->getId(),
+            // The engine's primary structural exclusion signal (§3): gift
+            // card types are excluded engine-side from this, never by us.
+            'product_type' => (string)$product->getTypeId(),
             'is_virtual' => in_array($product->getTypeId(), [Type::TYPE_VIRTUAL, 'downloadable'], true),
             'is_downloadable' => $product->getTypeId() === 'downloadable',
         ];
@@ -76,6 +79,13 @@ class CatalogPayloadBuilder
         $regular = (float)$product->getPriceInfo()->getPrice('regular_price')->getAmount()->getValue();
         if ($regular > (float)$item['price']) {
             $item['compare_price'] = round($regular, 4);
+            $saleUntil = (string)$product->getData('special_to_date');
+            if ($saleUntil !== '') {
+                $timestamp = strtotime($saleUntil);
+                if ($timestamp !== false) {
+                    $item['on_sale_until'] = gmdate('Y-m-d\TH:i:s\Z', $timestamp);
+                }
+            }
         }
 
         if ($languageValues['description'] !== null) {

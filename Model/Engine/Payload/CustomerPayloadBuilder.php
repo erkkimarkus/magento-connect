@@ -47,6 +47,11 @@ class CustomerPayloadBuilder
             $item['country'] = $country;
         }
 
+        $phone = $this->billingPhone($customer);
+        if ($phone !== null) {
+            $item['phone'] = $phone;
+        }
+
         $language = $this->languageResolver->forStore($customer->getStoreId());
         if ($language !== '') {
             $item['language'] = $language;
@@ -61,6 +66,19 @@ class CustomerPayloadBuilder
         }
 
         return $item;
+    }
+
+    private function billingPhone(CustomerInterface $customer): ?string
+    {
+        foreach ((array)$customer->getAddresses() as $address) {
+            if ($address->isDefaultBilling()) {
+                $phone = trim((string)$address->getTelephone());
+
+                return $phone !== '' ? $phone : null;
+            }
+        }
+
+        return null;
     }
 
     private function billingCountry(CustomerInterface $customer): ?string

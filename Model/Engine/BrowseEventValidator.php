@@ -57,11 +57,15 @@ class BrowseEventValidator
             'source' => self::SOURCE,
         ];
 
-        foreach (['sku', 'category_path', 'search_query', 'customer_email',
+        // customer_email is deliberately NOT accepted from the anonymous
+        // beacon — a client-asserted identity on an unauthenticated endpoint
+        // would let anyone poison another shopper's browse profile. Identity
+        // binding happens server-side via the identity-merge flow instead.
+        foreach (['sku', 'category_path', 'search_query', 'external_id',
             'smaily_visitor_token', 'smaily_rec_id', 'smaily_ctx'] as $field) {
             $value = trim((string)($event[$field] ?? ''));
             if ($value !== '' && strlen($value) <= 255) {
-                $clean[$field] = $field === 'customer_email' ? strtolower($value) : $value;
+                $clean[$field] = $value;
             }
         }
 

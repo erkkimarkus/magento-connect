@@ -70,19 +70,22 @@ class BrowseEventValidatorTest extends TestCase
         ]));
     }
 
-    public function testEmailLowercasedAndDwellCoerced(): void
+    public function testClientAssertedEmailIsRejectedAndDwellCoerced(): void
     {
         $clean = $this->validator->sanitize([
             'event_id' => self::UUID,
             'session_id' => 's1',
             'event_type' => 'search',
             'search_query' => 'kassitoit',
-            'customer_email' => 'Test@Example.COM',
+            'customer_email' => 'spoofed@example.com',
+            'external_id' => '42',
             'dwell_seconds' => '12',
         ]);
 
         self::assertNotNull($clean);
-        self::assertSame('test@example.com', $clean['customer_email']);
+        // Identity must never be client-asserted on the anonymous beacon.
+        self::assertArrayNotHasKey('customer_email', $clean);
+        self::assertSame('42', $clean['external_id']);
         self::assertSame(12, $clean['dwell_seconds']);
         self::assertSame('kassitoit', $clean['search_query']);
     }

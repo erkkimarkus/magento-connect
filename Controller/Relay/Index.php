@@ -33,6 +33,7 @@ use Smaily\Connect\Model\Logger\Logger;
 class Index implements HttpPostActionInterface, CsrfAwareActionInterface
 {
     private const MAX_EVENTS = 100;
+    private const RATE_LIMIT_PER_MINUTE = 30;
 
     public function __construct(
         private readonly HttpRequest $request,
@@ -40,6 +41,8 @@ class Index implements HttpPostActionInterface, CsrfAwareActionInterface
         private readonly Settings $settings,
         private readonly Client $client,
         private readonly BrowseEventValidator $validator,
+        private readonly \Magento\Framework\App\CacheInterface $cache,
+        private readonly \Magento\Framework\Stdlib\DateTime\DateTime $dateTime,
         private readonly Logger $logger
     ) {
     }
@@ -55,6 +58,12 @@ class Index implements HttpPostActionInterface, CsrfAwareActionInterface
             $result->setHttpResponseCode(404);
 
             return $result->setData(['ok' => false]);
+        }
+
+        if (!$this->allowRequest()) {
+            $result->setHttpResponseCode(429);
+
+            return $result->setData(['ok' => false, 'error' => 'rate limited']);
         }
 
         $decoded = json_decode((string)$this->request->getContent(), true);
@@ -87,6 +96,25 @@ class Index implements HttpPostActionInterface, CsrfAwareActionInterface
         }
 
         return $result->setData(['ok' => true, 'accepted' => count($events)]);
+    }
+
+    /**
+     * Cheap per-IP request limiter: the store must not be usable as an
+     * authenticated amplifier against the engine.
+     */
+    private function allowRequest(): bool
+    {
+        $ip = (string)$this->request->getClientIp();
+        $window = intdiv($this->dateTime->gmtTimestamp(), 60);
+        $key = 'smaily_relay_' . sha1($ip) . '_' . $window;
+
+        $count = (int)$this->cache->load($key);
+        if ($count >= self::RATE_LIMIT_PER_MINUTE) {
+            return false;
+        }
+        $this->cache->save((string)($count + 1), $key, [], 120);
+
+        return true;
     }
 
     /**

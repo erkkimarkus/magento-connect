@@ -40,6 +40,8 @@ class FlushIngestQueue
             return;
         }
 
+        $this->queue->requeueStale();
+
         foreach (array_keys(Client::DOMAIN_WRAPPERS) as $domain) {
             $this->flushDomain($domain);
         }
@@ -115,6 +117,18 @@ class FlushIngestQueue
                 'domain' => $domain,
                 'errors' => count($errorsByIndex),
                 'total' => count($events),
+            ]);
+        }
+
+        // D6 invariant: processed + deduplicated + errors == total sent.
+        $accounted = (int)($response['processed'] ?? 0)
+            + (int)($response['deduplicated'] ?? 0)
+            + count($errorsByIndex);
+        if ($accounted !== count($events)) {
+            $this->logger->info('D6 count invariant mismatch', [
+                'domain' => $domain,
+                'sent' => count($events),
+                'accounted' => $accounted,
             ]);
         }
     }

@@ -32,22 +32,26 @@ class AddNewsletterOptinToLayout
     public function afterProcess(LayoutProcessor $subject, array $jsLayout): array
     {
         $websiteId = (int)$this->storeManager->getWebsite()->getId();
+        $storeId = (int)$this->storeManager->getStore()->getId();
         if (!$this->config->isCheckoutOptinEnabled($websiteId)
             || !$this->config->isSyncEnabled($websiteId)
-            || !$this->config->isConnected()
+            || !$this->config->isConnected($storeId ?: null)
         ) {
             return $jsLayout;
         }
 
-        $paymentChildren = &$jsLayout['components']['checkout']['children']['steps']['children']
-            ['billing-step']['children']['payment']['children'];
-        if (!is_array($paymentChildren)) {
+        // The afterMethods region renders once below the payment methods list
+        // in Luma's payment.html; per-method regions like beforePlaceOrder
+        // would render nothing at this level.
+        $afterMethods = &$jsLayout['components']['checkout']['children']['steps']['children']
+            ['billing-step']['children']['payment']['children']['afterMethods']['children'];
+        if (!is_array($afterMethods)) {
             return $jsLayout;
         }
 
-        $paymentChildren['smaily-newsletter-optin'] = [
+        $afterMethods['smaily-newsletter-optin'] = [
             'component' => 'Smaily_Connect/js/view/checkout/newsletter-optin',
-            'displayArea' => 'beforePlaceOrder',
+            'displayArea' => 'afterMethods',
             'sortOrder' => 100,
         ];
 

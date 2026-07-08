@@ -78,6 +78,7 @@ class AutomationsForm implements ArgumentInterface
             }
             $key = (string)$trigger['key'];
             $existing = $configured[$key] ?? [];
+            $map = (array)($existing['automation_map'] ?? []);
             $rows[] = [
                 'key' => $key,
                 'name' => (string)($trigger['name_en'] ?? $key),
@@ -85,7 +86,11 @@ class AutomationsForm implements ArgumentInterface
                 'recipe' => (string)($trigger['recipe_en'] ?? $trigger['recipe_et'] ?? ''),
                 // Fail-closed defaults per contract §13.
                 'enabled' => (bool)($existing['enabled'] ?? false),
-                'workflow_id' => (string)($existing['automation_map']['id'] ?? ''),
+                // A per_language map stores the single-mode id under
+                // "fallback" — read both so mixed-platform tenants render.
+                'workflow_id' => (string)($map['id'] ?? $map['fallback'] ?? ''),
+                'language_mode' => (string)($existing['language_mode'] ?? 'single'),
+                'original_map' => json_encode($map) ?: '{}',
                 'cooldown_days' => (int)($existing['cooldown_days'] ?? 7),
                 'daily_cap' => $existing['daily_cap'] ?? null,
                 'test_mode' => (bool)($existing['test_mode'] ?? true),

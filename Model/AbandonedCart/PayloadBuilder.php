@@ -36,6 +36,7 @@ class PayloadBuilder
         private readonly StoreManagerInterface $storeManager,
         private readonly ProductCollectionFactory $productCollectionFactory,
         private readonly ImageHelperFactory $imageHelperFactory,
+        private readonly RestoreTokenManager $restoreTokenManager,
         private readonly Logger $logger
     ) {
     }
@@ -62,10 +63,18 @@ class PayloadBuilder
         try {
             $store = $this->storeManager->getStore((int)$quote->getStoreId());
             if ($store instanceof \Magento\Store\Model\Store) {
+                // Legacy Magento templates use {{store}} as the store NAME —
+                // kept for upgrade continuity; store_url serves templates
+                // shared with the Woo/Shopify plugins (which send a URL).
                 $address['store'] = (string)$store->getName();
+                $address['store_url'] = (string)$store->getBaseUrl();
                 $address['store_group'] = (string)$store->getStoreGroup()?->getName();
                 $address['store_website'] = (string)$store->getWebsite()->getName();
-                $address['abandoned_cart_url'] = $store->getUrl('checkout/cart');
+                // A tokenized recovery link that restores this exact quote.
+                $address['abandoned_cart_url'] = $store->getUrl('smaily/cart/restore', [
+                    'id' => (int)$quote->getId(),
+                    'token' => $this->restoreTokenManager->generate((int)$quote->getId()),
+                ]);
             }
         } catch (LocalizedException) {
             // Store context is decorative; the address stays valid without it.

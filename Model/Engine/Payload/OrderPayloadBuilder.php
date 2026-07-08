@@ -18,10 +18,11 @@ use Magento\Sales\Model\Order;
  * Status maps onto the closed engine enum; orders in transient states
  * (payment review, pending payment, hold) are never sent — build() returns
  * null for them. Amounts are order-currency values; items carry pre-discount
- * unit prices and post-discount line totals (incl. tax), matching the Woo
- * builder. Attribution fields come from the smaily_order_attribution side
- * table. NB: the order wire key is smaily_rec_ctx while browse events use
- * smaily_ctx — never unify them.
+ * unit prices and post-discount line totals. Deliberate divergence: Magento
+ * sends tax-INCLUSIVE amounts (what the shopper saw), while Woo sends
+ * ex-tax subtotals — both are valid engine inputs. Attribution fields come
+ * from the smaily_order_attribution side table. NB: the order wire key is
+ * smaily_rec_ctx while browse events use smaily_ctx — never unify them.
  */
 class OrderPayloadBuilder
 {
@@ -95,7 +96,9 @@ class OrderPayloadBuilder
 
             $row = [
                 'sku' => (string)$orderItem->getSku(),
-                'qty' => $qty,
+                // Integer when whole (contract examples use ints); a genuinely
+                // fractional qty (e.g. 1.5 kg) wires as a float.
+                'qty' => $qty == (int)$qty ? (int)$qty : $qty,
                 'unit_price' => round($rowTotalInclTax / $qty, 4),
                 'line_total' => round(max(0, $rowTotalInclTax - $itemDiscount), 4),
             ];

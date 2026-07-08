@@ -44,6 +44,10 @@ $viewModel = $block->getData('view_model');
                         <td>
                             <input type="checkbox" name="<?= /* @noEscape */ $name ?>[enabled]" value="1"
                                 <?= $row['enabled'] ? 'checked' : '' ?>/>
+                            <input type="hidden" name="<?= /* @noEscape */ $name ?>[language_mode]"
+                                   value="<?= $escaper->escapeHtmlAttr($row['language_mode']) ?>"/>
+                            <input type="hidden" name="<?= /* @noEscape */ $name ?>[original_map]"
+                                   value="<?= $escaper->escapeHtmlAttr($row['original_map']) ?>"/>
                         </td>
                         <td>
                             <strong><?= $escaper->escapeHtml($row['name']) ?></strong><br/>

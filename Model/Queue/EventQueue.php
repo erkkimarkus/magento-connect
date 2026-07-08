@@ -109,21 +109,61 @@ class EventQueue
             return [];
         }
 
+        // Claim with a per-worker token: only rows this worker actually
+        // transitioned are processed, so a concurrent flush (manual cron run,
+        // multi-node cron) can never double-send the same event.
+        $token = $this->identityGenerator->generateId();
         $connection = $this->resourceConnection->getConnection();
+        $table = $this->resourceConnection->getTableName(EventResource::TABLE_NAME);
         $connection->update(
-            $this->resourceConnection->getTableName(EventResource::TABLE_NAME),
-            ['status' => Event::STATUS_SENDING],
+            $table,
+            [
+                'status' => Event::STATUS_SENDING,
+                'claim_token' => $token,
+                'claimed_at' => $now,
+            ],
             [
                 'id IN (?)' => array_keys($events),
                 'status = ?' => Event::STATUS_PENDING,
             ]
         );
 
-        foreach ($events as $event) {
-            $event->setData('status', Event::STATUS_SENDING);
+        $claimedIds = array_map('intval', $connection->fetchCol(
+            $connection->select()->from($table, ['id'])
+                ->where('claim_token = ?', $token)
+                ->where('status = ?', Event::STATUS_SENDING)
+        ));
+
+        $claimed = [];
+        foreach ($claimedIds as $id) {
+            if (isset($events[$id])) {
+                $events[$id]->setData('status', Event::STATUS_SENDING);
+                $claimed[] = $events[$id];
+            }
         }
 
-        return array_values($events);
+        return $claimed;
+    }
+
+    /**
+     * Return rows stuck in "sending" (killed worker, OOM, deploy) back to
+     * pending so they are retried instead of being lost forever.
+     */
+    public function requeueStale(int $olderThanSeconds = 900): int
+    {
+        $connection = $this->resourceConnection->getConnection();
+
+        return $connection->update(
+            $this->resourceConnection->getTableName(EventResource::TABLE_NAME),
+            ['status' => Event::STATUS_PENDING, 'claim_token' => null],
+            [
+                'status = ?' => Event::STATUS_SENDING,
+                'claimed_at < ?' => $this->dateTime->gmtDate(
+                    'Y-m-d H:i:s',
+                    $this->dateTime->gmtTimestamp() - $olderThanSeconds
+                ),
+            ]
+        );
     }
 
     /**

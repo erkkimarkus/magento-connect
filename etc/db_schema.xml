@@ -18,6 +18,8 @@
         <column xsi:type="mediumtext" name="payload" nullable="false" comment="Event Payload JSON"/>
         <column xsi:type="varchar" name="status" nullable="false" length="16" default="pending" comment="pending|sending|sent|failed"/>
         <column xsi:type="smallint" name="attempts" unsigned="true" nullable="false" default="0" comment="Delivery Attempts"/>
+        <column xsi:type="varchar" name="claim_token" nullable="true" length="36" comment="Flush Worker Claim Token"/>
+        <column xsi:type="timestamp" name="claimed_at" on_update="false" nullable="true" comment="Claimed At"/>
         <column xsi:type="timestamp" name="next_retry_at" on_update="false" nullable="true" comment="Next Retry At"/>
         <column xsi:type="text" name="last_error" nullable="true" comment="Last Error Message"/>
         <column xsi:type="mediumtext" name="sent_payload" nullable="true" comment="Payload As Sent"/>
@@ -49,6 +51,8 @@
         <column xsi:type="mediumtext" name="payload" nullable="false" comment="Wire Payload JSON"/>
         <column xsi:type="varchar" name="status" nullable="false" length="16" default="pending" comment="pending|sending|sent|failed"/>
         <column xsi:type="smallint" name="attempts" unsigned="true" nullable="false" default="0" comment="Delivery Attempts"/>
+        <column xsi:type="varchar" name="claim_token" nullable="true" length="36" comment="Flush Worker Claim Token"/>
+        <column xsi:type="timestamp" name="claimed_at" on_update="false" nullable="true" comment="Claimed At"/>
         <column xsi:type="timestamp" name="next_retry_at" on_update="false" nullable="true" comment="Next Retry At"/>
         <column xsi:type="text" name="last_error" nullable="true" comment="Last Error Message"/>
         <column xsi:type="mediumtext" name="sent_payload" nullable="true" comment="Payload As Sent"/>

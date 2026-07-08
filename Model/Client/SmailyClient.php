@@ -151,7 +151,12 @@ class SmailyClient
             throw new TransportException('Smaily API returned a malformed response body');
         }
 
-        $this->logger->debug('Smaily API response', ['endpoint' => $uri, 'body' => $decoded]);
+        // Summarized on purpose: full bodies would put contact PII in logs.
+        $this->logger->debug('Smaily API response', [
+            'endpoint' => $uri,
+            'code' => $decoded['code'] ?? null,
+            'rows' => array_is_list($decoded) ? count($decoded) : 1,
+        ]);
 
         if (isset($decoded['code']) && (int)$decoded['code'] !== ApiException::CODE_SUCCESS) {
             throw new ApiException(
@@ -187,12 +192,25 @@ class SmailyClient
     }
 
     /**
+     * Strip credentials and summarize PII-bearing payloads for debug logs.
+     *
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
     private function redact(array $options): array
     {
         unset($options[RequestOptions::AUTH]);
+
+        if (isset($options[RequestOptions::JSON]) && is_array($options[RequestOptions::JSON])) {
+            $body = $options[RequestOptions::JSON];
+            $options[RequestOptions::JSON] = [
+                'items' => array_is_list($body) ? count($body) : 1,
+                'keys' => array_slice(array_keys(array_is_list($body) ? ($body[0] ?? []) : $body), 0, 20),
+            ];
+        }
+        if (isset($options[RequestOptions::QUERY]['email'])) {
+            $options[RequestOptions::QUERY]['email'] = '[redacted]';
+        }
 
         return $options;
     }
