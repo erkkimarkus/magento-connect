@@ -23,5 +23,8 @@
         <job name="smaily_backfill_tick" instance="Smaily\Connect\Cron\BackfillTick" method="execute">
             <schedule>* * * * *</schedule>
         </job>
+        <job name="smaily_flush_ingest_queue" instance="Smaily\Connect\Cron\FlushIngestQueue" method="execute">
+            <schedule>* * * * *</schedule>
+        </job>
     </group>
 </config>

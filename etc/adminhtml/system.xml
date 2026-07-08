@@ -156,6 +156,43 @@
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                 </field>
             </group>
+            <group id="intelligence" translate="label comment" type="text" sortOrder="50"
+                   showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>Campaign Intelligence</label>
+                <comment>Optional integration with the Smaily recommendation engine: catalog, customer, order and browse data power personalized recommendations and engine-run automations.</comment>
+                <field id="status" translate="label" type="label" sortOrder="5"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Connection Status</label>
+                    <frontend_model>Smaily\Connect\Block\Adminhtml\Config\EngineStatus</frontend_model>
+                </field>
+                <field id="setup_token" translate="label comment" type="text" sortOrder="10"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Setup Token or URL</label>
+                    <comment>Paste the one-time setup URL (or token) provided by Smaily and save the configuration to connect. The token is exchanged immediately and never stored.</comment>
+                    <backend_model>Smaily\Connect\Model\Config\Backend\EngineSetupToken</backend_model>
+                </field>
+                <field id="sync_catalog" translate="label" type="select" sortOrder="20"
+                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                    <label>Sync Catalog</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="sync_customers" translate="label" type="select" sortOrder="30"
+                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                    <label>Sync Customers</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="sync_orders" translate="label" type="select" sortOrder="40"
+                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                    <label>Sync Orders</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="browse_tracking" translate="label comment" type="select" sortOrder="50"
+                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                    <label>Storefront Browse Tracking</label>
+                    <comment>Sends anonymized browsing events (product views, searches, cart activity) to the engine. Respects Magento cookie restriction mode. Off by default.</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+            </group>
             <group id="logging" translate="label" type="text" sortOrder="900"
                    showInDefault="1" showInWebsite="0" showInStore="0">
                 <label>Logging</label>

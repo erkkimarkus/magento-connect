@@ -34,6 +34,13 @@
             <rss>
                 <enabled>1</enabled>
             </rss>
+            <intelligence>
+                <connected>0</connected>
+                <sync_catalog>1</sync_catalog>
+                <sync_customers>1</sync_customers>
+                <sync_orders>1</sync_orders>
+                <browse_tracking>0</browse_tracking>
+            </intelligence>
             <logging>
                 <verbosity>error</verbosity>
             </logging>

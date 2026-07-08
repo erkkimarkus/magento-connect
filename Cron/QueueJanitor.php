@@ -31,20 +31,28 @@ class QueueJanitor
     ) {
     }
 
+    private const TABLES = [
+        EventResource::TABLE_NAME,
+        \Smaily\Connect\Model\ResourceModel\Engine\IngestEvent::TABLE_NAME,
+    ];
+
     public function execute(): void
     {
-        $deleted = $this->prune(Event::STATUS_SENT, self::SENT_RETENTION_DAYS)
-            + $this->prune(Event::STATUS_FAILED, self::FAILED_RETENTION_DAYS);
+        $deleted = 0;
+        foreach (self::TABLES as $table) {
+            $deleted += $this->prune($table, Event::STATUS_SENT, self::SENT_RETENTION_DAYS)
+                + $this->prune($table, Event::STATUS_FAILED, self::FAILED_RETENTION_DAYS);
+        }
 
         if ($deleted > 0) {
             $this->logger->info('Queue janitor pruned rows', ['deleted' => $deleted]);
         }
     }
 
-    private function prune(string $status, int $retentionDays): int
+    private function prune(string $tableName, string $status, int $retentionDays): int
     {
         $connection = $this->resourceConnection->getConnection();
-        $table = $this->resourceConnection->getTableName(EventResource::TABLE_NAME);
+        $table = $this->resourceConnection->getTableName($tableName);
         $cutoff = $this->dateTime->gmtDate(
             'Y-m-d H:i:s',
             $this->dateTime->gmtTimestamp() - $retentionDays * 86400

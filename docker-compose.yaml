@@ -24,6 +24,7 @@ services:
     volumes:
     - data:/var/www/html
     - ./:/var/www/html/app/code/Smaily/Connect
+    - /var/www/html/app/code/Smaily/Connect/vendor
     depends_on:
       db:
         condition: service_healthy

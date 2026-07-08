@@ -16,4 +16,20 @@
     <event name="sales_order_place_after">
         <observer name="smaily_connect_order_placed" instance="Smaily\Connect\Observer\OrderPlaced"/>
     </event>
+    <!-- Campaign Intelligence ingest hooks. -->
+    <event name="catalog_product_save_after">
+        <observer name="smaily_connect_engine_product_save" instance="Smaily\Connect\Observer\Engine\ProductSaveAfter"/>
+    </event>
+    <event name="catalog_product_delete_before">
+        <observer name="smaily_connect_engine_product_delete" instance="Smaily\Connect\Observer\Engine\ProductDeleteBefore"/>
+    </event>
+    <event name="customer_save_after_data_object">
+        <observer name="smaily_connect_engine_customer_save" instance="Smaily\Connect\Observer\Engine\CustomerSaveAfter"/>
+    </event>
+    <event name="sales_order_save_after">
+        <observer name="smaily_connect_engine_order_save" instance="Smaily\Connect\Observer\Engine\OrderSaveAfter"/>
+    </event>
+    <event name="customer_login">
+        <observer name="smaily_connect_engine_identity_merge" instance="Smaily\Connect\Observer\Engine\CustomerLogin"/>
+    </event>
 </config>

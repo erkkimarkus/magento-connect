@@ -1,0 +1,19 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * @var \Magento\Framework\View\Element\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\ProductContext $viewModel */
+$viewModel = $block->getData('view_model');
+$context = $viewModel->getContextJson();
+if ($context === null) {
+    return;
+}
+?>
+<script>
+    window.smailyPageContext = <?= /* @noEscape */ $context ?>;
+</script>

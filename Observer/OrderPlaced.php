@@ -20,6 +20,7 @@ use Smaily\Connect\Model\Automation\Trigger;
 use Smaily\Connect\Model\Config;
 use Smaily\Connect\Model\ContactSync\Mode;
 use Smaily\Connect\Model\ContactSync\SyncDispatcher;
+use Smaily\Connect\Model\Engine\AttributionManager;
 
 /**
  * Order placement side effects (sales_order_place_after):
@@ -36,7 +37,8 @@ class OrderPlaced implements ObserverInterface
         private readonly StateManager $abandonedCartState,
         private readonly OrderCollectionFactory $orderCollectionFactory,
         private readonly StoreManagerInterface $storeManager,
-        private readonly SubscriptionManagerInterface $subscriptionManager
+        private readonly SubscriptionManagerInterface $subscriptionManager,
+        private readonly AttributionManager $attributionManager
     ) {
     }
 
@@ -56,6 +58,14 @@ class OrderPlaced implements ObserverInterface
             $this->abandonedCartState->markCompleted($quoteId);
         } else {
             $optedIn = false;
+        }
+
+        // Recommendation attribution: stamp campaign-click cookies onto the
+        // order for the engine order ingest (best-effort).
+        try {
+            $this->attributionManager->saveForOrder((int)$order->getEntityId());
+        } catch (\Throwable) {
+            // Attribution must never block order placement.
         }
 
         $storeId = (int)$order->getStoreId();

@@ -1,0 +1,71 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
+declare(strict_types=1);
+
+namespace Smaily\Connect\Observer\Engine;
+
+use Magento\Customer\Model\Customer;
+use Magento\Framework\Event\Observer;
+use Magento\Framework\Event\ObserverInterface;
+use Smaily\Connect\Model\Engine\AttributionManager;
+use Smaily\Connect\Model\Engine\Settings;
+use Smaily\Connect\Model\Queue\EventQueue;
+use Smaily\Connect\Model\Queue\EventType;
+
+/**
+ * Identity merge on login: binds the anonymous session/visitor cookies to
+ * the now-known customer. Queued (never blocks login) — the handler calls
+ * POST identity/merge with the engine's retry policy.
+ */
+class CustomerLogin implements ObserverInterface
+{
+    public function __construct(
+        private readonly Settings $settings,
+        private readonly AttributionManager $attributionManager,
+        private readonly EventQueue $eventQueue
+    ) {
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function execute(Observer $observer): void
+    {
+        if (!$this->settings->isConnected()) {
+            return;
+        }
+
+        $customer = $observer->getEvent()->getData('customer');
+        if (!$customer instanceof Customer || !$customer->getEmail()) {
+            return;
+        }
+
+        $cookies = $this->attributionManager->readCookies();
+        if ($cookies['anon_session_id'] === null && $cookies['visitor_token'] === null) {
+            return;
+        }
+
+        $payload = [
+            'customer_email' => strtolower(trim((string)$customer->getEmail())),
+            'customer_external_id' => (string)$customer->getId(),
+            'merge_ts' => gmdate('Y-m-d\TH:i:s\Z'),
+            'merge_reason' => 'login',
+        ];
+        if ($cookies['anon_session_id'] !== null) {
+            $payload['anon_session_id'] = $cookies['anon_session_id'];
+        }
+        if ($cookies['visitor_token'] !== null) {
+            $payload['smaily_visitor_token'] = $cookies['visitor_token'];
+        }
+
+        $this->eventQueue->enqueue(
+            EventType::ENGINE_IDENTITY_MERGE,
+            $payload,
+            (string)$customer->getId()
+        );
+    }
+}

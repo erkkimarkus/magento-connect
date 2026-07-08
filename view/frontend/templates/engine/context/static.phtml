@@ -1,0 +1,20 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Static page-type context (checkout, success) — the type comes from
+ * layout XML arguments.
+ *
+ * @var \Magento\Framework\View\Element\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+$type = (string)$block->getData('context_type');
+if ($type === '') {
+    return;
+}
+?>
+<script>
+    window.smailyPageContext = {"type": "<?= $escaper->escapeJs($type) ?>"};
+</script>
