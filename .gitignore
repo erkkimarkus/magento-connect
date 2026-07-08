@@ -1,2 +1,9 @@
 .vscode/launch.json
 .env
+/vendor/
+/composer.lock
+/var/
+.phpunit.result.cache
+phpcs.xml
+phpstan.neon
+phpunit.xml

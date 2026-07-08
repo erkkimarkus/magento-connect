@@ -23,7 +23,7 @@ services:
     - MAGENTO_ADMIN_PASSWORD=smailydev1
     volumes:
     - data:/var/www/html
-    - ./:/var/www/html/app/code/Smaily/SmailyForMagento
+    - ./:/var/www/html/app/code/Smaily/Connect
     depends_on:
       db:
         condition: service_healthy

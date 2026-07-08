@@ -1,5 +1,14 @@
 # Changelog
 
+### 3.0.0 (unreleased)
+
+Ground-up rewrite as module `Smaily_Connect`, targeting feature parity with the Smaily Connect plugins for WooCommerce and Shopify.
+
+- New module name `Smaily_Connect` (namespace `Smaily\Connect`); composer package name unchanged, settings migrate automatically on `setup:upgrade`.
+- Declared PHP (8.1–8.4) and Magento (2.4.4+) requirements in composer.json [[#18](https://github.com/sendsmaily/smaily-magento-extension/issues/18)]
+- No more columns on the core `quote` table; legacy `reminder_date`/`is_sent` columns and the unused `smaily_customer_sync` table are cleaned up on upgrade.
+- Unit tests, phpcs/phpstan static analysis and CI added [[#51](https://github.com/sendsmaily/smaily-magento-extension/issues/51)]
+
 ### 2.8.1
 
 Fixes an issue with cron scheduling using wrong interval for daily customer synchronization.
