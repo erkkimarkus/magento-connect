@@ -11,6 +11,7 @@ namespace Smaily\Connect\Observer;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Newsletter\Model\SubscriptionManagerInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
 use Magento\Store\Model\StoreManagerInterface;
@@ -34,7 +35,8 @@ class OrderPlaced implements ObserverInterface
         private readonly SyncDispatcher $dispatcher,
         private readonly StateManager $abandonedCartState,
         private readonly OrderCollectionFactory $orderCollectionFactory,
-        private readonly StoreManagerInterface $storeManager
+        private readonly StoreManagerInterface $storeManager,
+        private readonly SubscriptionManagerInterface $subscriptionManager
     ) {
     }
 
@@ -83,8 +85,15 @@ class OrderPlaced implements ObserverInterface
         }
 
         if ($optedIn) {
-            // Explicit checkout opt-in: subscribe regardless of mode.
-            $this->dispatcher->dispatchContactSync($email, $storeId, false, null);
+            // Explicit checkout opt-in: create a native newsletter subscriber.
+            // The subscriber-save observer handles the Smaily sync + welcome
+            // automation, and double opt-in confirmation is honoured.
+            $customerId = (int)$order->getCustomerId();
+            if ($customerId > 0) {
+                $this->subscriptionManager->subscribeCustomer($customerId, $storeId);
+            } else {
+                $this->subscriptionManager->subscribe($email, $storeId);
+            }
 
             return;
         }

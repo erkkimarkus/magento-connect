@@ -80,6 +80,12 @@
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                     <depends><field id="sync_mode">legitimate_interest</field></depends>
                 </field>
+                <field id="checkout_optin_enabled" translate="label comment" type="select" sortOrder="55"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Show Newsletter Checkbox At Checkout</label>
+                    <comment>Adds a newsletter opt-in checkbox to the checkout payment step. Works for both guests and registered customers.</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
                 <field id="suppress_optin_emails" translate="label comment" type="select" sortOrder="60"
                        showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
                     <label>Let Smaily Send Opt-In Emails</label>

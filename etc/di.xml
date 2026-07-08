@@ -43,4 +43,23 @@
     <type name="Magento\Newsletter\Model\Subscriber">
         <plugin name="smaily_connect_suppress_newsletter_emails" type="Smaily\Connect\Plugin\SuppressNewsletterEmails"/>
     </type>
+
+    <!-- Backfill processors, keyed by "{job_type}:{target}". -->
+    <type name="Smaily\Connect\Cron\BackfillTick">
+        <arguments>
+            <argument name="processors" xsi:type="array">
+                <item name="contacts:smaily" xsi:type="object">Smaily\Connect\Model\Backfill\ContactsProcessor</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- CLI commands. -->
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="smaily_backfill_start" xsi:type="object">Smaily\Connect\Console\Command\BackfillStartCommand</item>
+                <item name="smaily_backfill_status" xsi:type="object">Smaily\Connect\Console\Command\BackfillStatusCommand</item>
+            </argument>
+        </arguments>
+    </type>
 </config>

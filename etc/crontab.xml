@@ -20,5 +20,8 @@
         <job name="smaily_abandoned_cart" instance="Smaily\Connect\Cron\AbandonedCart" method="execute">
             <schedule>*/5 * * * *</schedule>
         </job>
+        <job name="smaily_backfill_tick" instance="Smaily\Connect\Cron\BackfillTick" method="execute">
+            <schedule>* * * * *</schedule>
+        </job>
     </group>
 </config>
