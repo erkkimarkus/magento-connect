@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
+    <group id="smaily_connect">
+        <job name="smaily_flush_event_queue" instance="Smaily\Connect\Cron\FlushEventQueue" method="execute">
+            <schedule>* * * * *</schedule>
+        </job>
+        <job name="smaily_queue_janitor" instance="Smaily\Connect\Cron\QueueJanitor" method="execute">
+            <schedule>20 2 * * *</schedule>
+        </job>
+    </group>
+</config>

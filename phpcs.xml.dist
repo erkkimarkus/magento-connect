@@ -9,4 +9,7 @@
     <arg name="extensions" value="php,phtml"/>
     <arg name="colors"/>
     <arg value="sp"/>
+    <!-- Warnings are reported but do not fail the build; the Marketplace
+         gate is errors at severity 10. -->
+    <config name="ignore_warnings_on_exit" value="1"/>
 </ruleset>
