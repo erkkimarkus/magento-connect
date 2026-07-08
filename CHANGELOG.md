@@ -2,12 +2,33 @@
 
 ### 3.0.0 (unreleased)
 
-Ground-up rewrite as module `Smaily_Connect`, targeting feature parity with the Smaily Connect plugins for WooCommerce and Shopify.
+Ground-up rewrite as module `Smaily_Connect`, targeting feature parity with the Smaily Connect plugins for WooCommerce and Shopify. Upgrading from 2.8.x is seamless: the composer package name is unchanged and all settings (including the previously plaintext API password, now encrypted) migrate automatically during `setup:upgrade`.
 
-- New module name `Smaily_Connect` (namespace `Smaily\Connect`); composer package name unchanged, settings migrate automatically on `setup:upgrade`.
+**New features**
+
+- Contact-sync lawful-basis modes: subscribers only (consent, default), all customers (legitimate interest), checkout opt-in only.
+- Two-way consent sync: unsubscribes/resubscribes in Smaily mirror back onto Magento newsletter subscribers (action-log delta polling).
+- Welcome and first-order automations alongside the abandoned cart automation; per-language workflow routing for multilingual stores (store view = language).
+- Checkout newsletter opt-in checkbox (guests and customers, double opt-in respected).
+- Durable event queues with retries/backoff, admin Event Log grids with mass retry, and health notices when deliveries keep failing.
+- Historical import (backfill) of subscribers, catalog, customers and orders — admin one-click or CLI.
+- Campaign Intelligence integration: catalog/customer/order/browse ingest, recommendation attribution, identity merge, engine-run automations admin, GDPR export/erase CLI and a shopper personalization opt-out page.
+- RSS feed improvements: category **ID** filter, limit/sort/order parameters, cache headers, enable/disable toggle [[#48](https://github.com/sendsmaily/smaily-magento-extension/issues/48), [#49](https://github.com/sendsmaily/smaily-magento-extension/issues/49), [#50](https://github.com/sendsmaily/smaily-magento-extension/issues/50), [#72](https://github.com/sendsmaily/smaily-magento-extension/issues/72)]
+- Configurable log verbosity on a dedicated log file [[#113](https://github.com/sendsmaily/smaily-magento-extension/issues/113)]
+
+**Under the hood**
+
+- New module name `Smaily_Connect` (namespace `Smaily\Connect`); composer package name unchanged.
 - Declared PHP (8.1–8.4) and Magento (2.4.4+) requirements in composer.json [[#18](https://github.com/sendsmaily/smaily-magento-extension/issues/18)]
 - No more columns on the core `quote` table; legacy `reminder_date`/`is_sent` columns and the unused `smaily_customer_sync` table are cleaned up on upgrade.
+- Store-timezone-safe scheduling (the hardcoded Europe/Tallinn timezone is gone); Guzzle-based API clients with timeouts and typed errors.
+- Legacy custom captcha replaced by Magento's native reCAPTCHA module (admin notice on upgrade).
 - Unit tests, phpcs/phpstan static analysis and CI added [[#51](https://github.com/sendsmaily/smaily-magento-extension/issues/51)]
+
+**Behavior changes**
+
+- Subscriber sync frequency presets are gone: v3 syncs in near-real-time via observers + a 15-minute consent reconcile.
+- The RSS feed lists catalog-visible products only; configurable variants resolve to their parent.
 
 ### 2.8.1
 
