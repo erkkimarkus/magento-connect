@@ -1,0 +1,85 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\DashboardState $viewModel */
+$viewModel = $block->getData('view_model');
+$configUrl = $block->getUrl('adminhtml/system_config/edit', ['section' => 'smaily_connect']);
+$events = $viewModel->getEventCounts();
+$ingest = $viewModel->getIngestCounts();
+
+$step = static function (bool $done, string $title, string $description) use ($escaper): string {
+    $badge = $done
+        ? '<span class="grid-severity-notice"><span>' . $escaper->escapeHtml((string)__('Done')) . '</span></span>'
+        : '<span class="grid-severity-minor"><span>' . $escaper->escapeHtml((string)__('To do')) . '</span></span>';
+
+    return '<tr><td style="width:6rem;">' . $badge . '</td><td><strong>'
+        . $escaper->escapeHtml($title) . '</strong><br/>'
+        . $escaper->escapeHtml($description) . '</td></tr>';
+};
+?>
+<div class="smaily-dashboard">
+    <p>
+        <?= $escaper->escapeHtml(__('Smaily Connect keeps your newsletter audience, automations and Campaign Intelligence in sync with your store.')) ?>
+        <a href="<?= $escaper->escapeUrl($configUrl) ?>"><?= $escaper->escapeHtml(__('Open Configuration')) ?></a>
+    </p>
+
+    <div class="admin__table-wrapper" style="max-width: 60rem;">
+        <table class="admin__table-secondary">
+            <tbody>
+                <?= /* @noEscape */ $step(
+                    $viewModel->isSmailyConnected(),
+                    (string)__('1. Connect your Smaily account'),
+                    (string)__('Enter the API subdomain, username and password under API Connection.')
+                ) ?>
+                <?= /* @noEscape */ $step(
+                    $viewModel->isSmailyConnected() && $viewModel->isSyncEnabled(),
+                    (string)__('2. Choose your subscriber sync mode'),
+                    (string)__('Current mode: %1', $viewModel->getSyncModeLabel())
+                ) ?>
+                <?= /* @noEscape */ $step(
+                    $viewModel->hasAutomationsConfigured(),
+                    (string)__('3. Map automations'),
+                    (string)__('Pick Smaily workflows for welcome, first order and abandoned cart events.')
+                ) ?>
+                <?= /* @noEscape */ $step(
+                    $viewModel->isEngineConnected(),
+                    (string)__('4. Connect Campaign Intelligence (optional)'),
+                    $viewModel->isEngineConnected()
+                        ? (string)__('Connected: %1', $viewModel->getEngineTenantLabel())
+                        : (string)__('Paste the setup token from Smaily to enable recommendations.')
+                ) ?>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 style="margin-top: 3rem;"><?= $escaper->escapeHtml(__('Queues')) ?></h2>
+    <div class="admin__table-wrapper" style="max-width: 60rem;">
+        <table class="admin__table-secondary">
+            <thead>
+                <tr>
+                    <th><?= $escaper->escapeHtml(__('Queue')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Pending')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Failed')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><a href="<?= $escaper->escapeUrl($block->getUrl('smaily_connect/events')) ?>"><?= $escaper->escapeHtml(__('Marketing events')) ?></a></td>
+                    <td><?= (int)$events['pending'] ?></td>
+                    <td><?= (int)$events['failed'] ?></td>
+                </tr>
+                <tr>
+                    <td><a href="<?= $escaper->escapeUrl($block->getUrl('smaily_connect/ingest')) ?>"><?= $escaper->escapeHtml(__('Intelligence ingest')) ?></a></td>
+                    <td><?= (int)$ingest['pending'] ?></td>
+                    <td><?= (int)$ingest['failed'] ?></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

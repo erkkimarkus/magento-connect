@@ -26,5 +26,8 @@
         <job name="smaily_flush_ingest_queue" instance="Smaily\Connect\Cron\FlushIngestQueue" method="execute">
             <schedule>* * * * *</schedule>
         </job>
+        <job name="smaily_health_check" instance="Smaily\Connect\Cron\HealthCheck" method="execute">
+            <schedule>*/15 * * * *</schedule>
+        </job>
     </group>
 </config>
