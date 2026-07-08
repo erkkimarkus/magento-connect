@@ -1,116 +1,63 @@
-First off, thanks for taking the time to contribute!
+# Contributing
 
+Thanks for taking the time to contribute!
 
-# Table of contents
+## Getting started
 
-- [Getting started](#getting-started)
-- [Internals](#internals)
-  - [Structure of the repository](#structure-of-the-repository)
-- [Development](#development)
-  - [Starting the environment](#starting-the-environment)
-  - [Stopping the environment](#stopping-the-environment)
-  - [Resetting the environment](#resetting-the-environment)
-- [Publishing to Magento Marketplace](#publishing-to-magento-marketplace)
-  - [Testing module before submitting for review](#testing-module-before-submitting-for-review)
-  - [Magento Marketplace review](#magento-marketplace-review)
+Requirements: PHP 8.1–8.4, Composer, Docker (for the sandbox).
 
+```bash
+git clone https://github.com/sendsmaily/smaily-magento-extension.git
+cd smaily-magento-extension
+composer install    # Magento packages resolve via the Mage-OS mirror
+```
 
-# Getting started
+If your local PHP is newer than 8.4, add `--ignore-platform-reqs`.
 
-The development environment requires [Docker](https://docs.docker.com/) and [Docker Compose](https://docs.docker.com/compose/) to run.
-Please refer to the official documentation for step-by-step installation guide.
+## Development environment
 
-Clone the repository:
+A Docker sandbox with Magento 2.4.8 + sample data and the module mounted at
+`app/code/Smaily/Connect`:
 
-    $ git clone git@github.com:sendsmaily/smaily-magento-extension.git
+```bash
+docker compose up -d
+# Storefront: http://localhost:8080/
+# Admin:      http://localhost:8080/admin  (admin / smailydev1)
 
-Next, change your working directory to the local repository:
+docker exec magento2 bash -c 'cd /var/www/html && bin/magento setup:upgrade'
+```
 
-    $ cd smaily-magento-extension
+The first start installs Magento and takes several minutes. Reset with
+`docker compose down -v`.
 
-And run the environment:
+## Quality gates
 
-    $ docker-compose up
+Every pull request must pass CI (the same commands work locally):
 
-> During container start-up Magento and its sample data will be installed. It can take a while.
+```bash
+vendor/bin/phpunit --testsuite unit   # unit tests
+vendor/bin/phpcs                      # Magento2 coding standard (errors fail)
+vendor/bin/phpstan analyse            # level 6, with the Magento extension
+```
 
-To disable sample data installation on first run, change `MAGENTO_SAMPLEDATA` environment variable value to `0` in `docker-compose.yaml`.
+Additions to sync payloads or API clients must stay wire-compatible with
+the Smaily Connect plugins for WooCommerce and Shopify — see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#wire-contracts) before touching
+a payload builder or client. End-to-end verification steps live in
+[TESTING.md](TESTING.md).
 
+## Pull requests
 
-# Internals
+- Branch from `master`, keep changes focused, include tests for new logic.
+- Describe the merchant-visible behavior change in the PR description and
+  add a `CHANGELOG.md` entry under the unreleased version.
+- New settings need `etc/adminhtml/system.xml` + `etc/config.xml` defaults
+  and, when replacing a legacy 2.8.x option, a mapping in
+  `Model/Migration/LegacyConfigMapper` (with a unit test).
 
-## Structure of the repository
+## Releasing
 
-The repository is split into multiple parts:
-
-- `assets` - screenshots for extension's user guide;
-- `src` - extension files;
-
-In addition there are system directories:
-
-- `.github` - GitHub issue and pull request templates, and GitHub Actions workflows;
-- `.sandbox` - files needed for running the development environment;
-
-
-# Development
-
-## Starting the environment
-
-You can run the environment by executing:
-
-    $ docker-compose up
-
-> **Note!** Make sure you do not have any other process(es) listening on ports 8080 and 8888.
-
-## Stopping the environment
-
-Environment can be stopped by executing:
-
-    $ docker-compose down
-
-## Resetting the environment
-
-If you need to reset the installation in the development environment, just simply delete environment's Docker volumes. Easiest way to achieve this is by running:
-
-    $ docker-compose down -v
-
-## Set up PHP CodeSniffer in Visual Studio Code
-
-Magento uses [SquizLabs CodeSniffer](https://github.com/squizlabs/PHP_CodeSniffer) to ensure every extension is up to par with [Magento Coding Standards](https://github.com/magento/magento-coding-standard). If you are rocking [Visual Studio Code](https://code.visualstudio.com/) as your preferred code editor, then you can look into setting up [PHPCS](https://marketplace.visualstudio.com/items?itemName=ikappas.phpcs) extension to ease Magento extension development.
-
-
-# Publishing to Magento Marketplace
-
-Every new release of Smaily For Magento extension published needs to pass automatic and manual testing by the Magento review team!
-
-## Testing module before submitting for review
-
-It is a **MANDATORY** step before applying for the Magento review.
-
-Start the development environment and open shell into running `magento2` container:
-
-    $ docker exec -it magento2 /bin/bash
-
-In the container test the package code:
-
-    $ vendor/bin/phpcs app/code/Smaily/SmailyForMagento --standard=Magento2 --severity=10
-
-> This needs to return no value as all severity level 10 errors will fail automatic review.
-
-Ensure production mode compiles without errors:
-
-    $ php bin/magento deploy:mode:set production
-
-Once everything checks out, reset your development environment:
-
-    $ rm -rf generated/metadata/* generated/code/*
-    $ php bin/magento deploy:mode:set default
-
-## Magento Marketplace review
-
-1. Go to [Magento Developer Portal](https://developer.magento.com/) and log in;
-2. Navigate to Extensions section;
-3. Find `Smaily Ecommerce Integration` for `M2`;
-4. Submit a New Version for review.
-
-**Note!** You can only submit a single version once, and Magento Marketplace and package version must match.
+Publishing a GitHub release triggers `.github/workflows/release.yaml`,
+which builds and attaches the installable ZIP. The composer package is
+`smaily/smailyformagento`; the module version lives in `composer.json` and
+`Model/ModuleInfo.php` (keep them in sync).

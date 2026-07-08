@@ -1,0 +1,199 @@
+# Architecture
+
+Developer documentation for the `Smaily_Connect` module (namespace
+`Smaily\Connect`). The module is a ground-up v3 rewrite targeting feature
+parity with the Smaily Connect plugins for WooCommerce and Shopify; the
+three connectors share wire contracts, so cross-platform consistency is a
+design constraint, not an accident.
+
+## Layout
+
+Classes live at the **package root** (classic Magento module layout) so the
+package works both as a composer dependency (`vendor/smaily/smailyformagento`)
+and as a manual `app/code/Smaily/Connect` install — Magento's app/code
+autoloader maps `Smaily\Connect\*` to the module root.
+
+```
+Api/                service contracts (queue handler interface)
+Block/              adminhtml config renderers
+Console/Command/    CLI (backfill, engine ping/disconnect, GDPR)
+Controller/         frontend: rss, relay, checkout optin, cart restore, privacy
+Controller/Adminhtml/  grids, dashboard, automations form
+Cron/               queue flushers, abandoned cart, reconcile, backfill tick,
+                    janitor, health check
+Model/
+  Client/           Smaily marketing API client (Guzzle, Basic auth)
+  Engine/           Campaign Intelligence: client, settings, ingest queue,
+                    payload builders, attribution, browse validation
+  Queue/            marketing event queue + per-type handlers
+  ContactSync/      lawful-basis mode, payload builder, dispatcher, guard
+  AbandonedCart/    quote-scan state, payload, restore tokens
+  Automation/       trigger routing (multilingual mapping table)
+  Backfill/         chunked import jobs + processors
+  Migration/        2.8.x config mapper (pure, unit-tested)
+  Privacy/          profiling consent
+Observer/           thin event bridges (all logic lives in Model/)
+Plugin/             newsletter email suppression, config validation,
+                    checkout layout injection
+Setup/Patch/        legacy schema cleanup (Schema/), config migration (Data/)
+ViewModel/          template data providers
+view/               adminhtml grids/templates, frontend JS + templates
+```
+
+## The two delivery pipelines
+
+Everything outbound flows through one of two **durable queues** — nothing
+user-facing ever blocks on an HTTP call, and nothing is lost when an API is
+down.
+
+### Marketing events → Smaily (`smaily_event_queue`)
+
+```
+Observer / cron ──enqueue──> smaily_event_queue ──cron flush (1 min)──> Smaily API
+```
+
+- Event types (`Model/Queue/EventType`): `contact.sync` (batched per store
+  view — per-language accounts hit the right credentials),
+  `automation.trigger` (delivered one-by-one so a partial failure can never
+  re-trigger an automation), `engine.identity_merge`.
+- Handlers are registered per type in `di.xml`
+  (`Model/Queue/HandlerPool`); adding an event type = adding a handler.
+- Payloads are built at enqueue time (`ContactSync\SubscriberPayloadBuilder`,
+  `ContactSync\SyncDispatcher`) and stored on the row.
+
+### Engine ingest → Campaign Intelligence (`smaily_ingest_queue`)
+
+```
+Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1 min)──> engine
+       (domain: catalog | customers | orders | browse)
+```
+
+- One wire item per row; the row UUID doubles as the wire `event_id`, so
+  engine-side transport dedup makes retries safe.
+- `Cron/FlushIngestQueue` sends one batch per domain per run (batch caps
+  100/100/50/100 per the contract) and maps the D6 response's
+  `errors[].index` back onto individual rows — a 200 is never treated as
+  all-or-nothing.
+- Browse events are the exception: loss-tolerant by design, they are relayed
+  synchronously (`Controller/Relay/Index`) and never queued.
+
+### Queue semantics (both queues)
+
+- **Retry policy:** backoff 60 s / 5 min / 15 min / 1 h / 6 h, max 5
+  attempts, then parked as `failed` for manual retry from the admin grids.
+- **Claiming:** rows are claimed with a per-worker `claim_token`; only rows
+  the worker actually won are processed, so concurrent flushes (manual cron,
+  multi-node) can never double-send. Rows stuck in `sending` (killed
+  worker) are requeued after 15 minutes.
+- **Idempotency:** `event_uuid` is unique; callers may pass a deterministic
+  UUID to make an enqueue idempotent.
+- **Retention:** sent 30 days, failed 90 days (`Cron/QueueJanitor`).
+
+## Database tables
+
+| Table | Purpose |
+|---|---|
+| `smaily_event_queue` | Marketing event queue |
+| `smaily_ingest_queue` | Engine ingest queue |
+| `smaily_abandoned_cart` | Per-quote send state + checkout opt-in flag (the core `quote` table is never altered) |
+| `smaily_automation_mapping` | (website, trigger, language, account) → workflow |
+| `smaily_backfill_job` | Chunked import jobs (cursor-resumable) |
+| `smaily_order_attribution` | Recommendation attribution per order (sales connection) |
+
+All schema is declarative (`etc/db_schema.xml` + whitelist).
+`Setup/Patch/Schema/MigrateLegacyQuoteColumns` drops the legacy 2.8.x
+artifacts (`quote.reminder_date`, `quote.is_sent`, `smaily_customer_sync`)
+because a renamed module's declarative schema cannot.
+
+## Cron jobs (group `smaily_connect`)
+
+The group runs in a separate process (`etc/config.xml`). Host cron should
+invoke `bin/magento cron:run` every minute.
+
+| Job | Schedule | Does |
+|---|---|---|
+| `smaily_flush_event_queue` | every minute | Drain marketing queue |
+| `smaily_flush_ingest_queue` | every minute | Drain engine queue (all domains) |
+| `smaily_backfill_tick` | every minute | Advance the oldest active import one time-budgeted chunk |
+| `smaily_abandoned_cart` | every 5 min | Scan idle quotes, enqueue automations |
+| `smaily_contact_reconcile` | every 15 min | Smaily→Magento consent mirror |
+| `smaily_health_check` | every 15 min | Engine-down / failure-volume notices |
+| `smaily_queue_janitor` | daily | Retention pruning |
+
+## Key flows
+
+### Consent reconcile (consent mode only)
+
+`Cron/ContactReconcile` polls Smaily's action log
+(`GET /api/history.php?since_seq_id=…&actions=optin,optout,delete,complaint`,
+comma-separated — note the Woo reference's bracket-array form is a latent
+bug there, not here) per website with a durable cursor
+(`FlagManager`), and mirrors state onto `newsletter_subscriber` inside the
+`ContactSync\ReconcileGuard` so the subscriber-save observer never echoes
+the write back to Smaily. Writes use import mode — no Magento emails.
+
+### Abandoned cart
+
+`Cron/AbandonedCart` scans the native `quote` table (active, has items +
+email, idle past cutoff, younger than 24 h), diffs against the
+`smaily_abandoned_cart` side table, marks `mailed` **before** dispatching
+(a crash costs one reminder, never a duplicate), and enqueues the
+automation. The payload's `abandoned_cart_url` is an HMAC-signed
+`smaily/cart/restore` link (`AbandonedCart\RestoreTokenManager`, keyed with
+the installation crypt key) that restores the exact quote.
+
+### Attribution (FPC-safe by construction)
+
+Landing capture is client-side (`view/frontend/web/js/attribution.js` —
+URL params → first-party cookies), because server-side capture never runs
+on FPC-cached pages. At order save (`Observer/Engine/OrderSaveAfter`, where
+`entity_id` exists) cookies are stamped into `smaily_order_attribution`;
+`OrderPayloadBuilder` forwards them on the order wire
+(`smaily_rec_id` / `smaily_visitor_token` / `smaily_rec_ctx` /
+`session_id`). NB: orders use `smaily_rec_ctx`, browse events use
+`smaily_ctx` — distinct wire keys by contract.
+
+### Browse tracking
+
+`view/frontend/web/js/tracker.js` (RequireJS; core is framework-free
+vanilla for a future Hyvä path) reads page context from
+`window.smailyPageContext` (set by FPC-cached per-page templates), batches
+events for 5 s, and posts to `smaily/relay`. The relay
+(`Controller/Relay/Index`) is CSRF-exempt (anonymous beacon), strictly
+sanitized (`Engine\BrowseEventValidator` — UUID v4 event ids, event-type
+enum, **no client-asserted `customer_email`**), rate-limited per IP, and
+forwards server-side so the API key never reaches the browser.
+
+## Wire contracts
+
+The authoritative engine contract is `RECENGINE_API_CONTRACT.md` in the
+Smaily connect repositories (byte-synced across platforms). Load-bearing
+invariants implemented here:
+
+- Endpoint URLs always come from the stored endpoints map
+  (`Engine\Settings`), never concatenated; `{email}` placeholders are
+  substituted with `str_replace`.
+- Retry: 1/2/4/8/16 s on 429 (honouring `retry_after_seconds` from the
+  body) and 5xx; other 4xx never retry (`Engine\Client`).
+- Smaily marketing API: HTTP Basic; success envelope `{code:101}`, 203 =
+  invalid data, 206 = email not found (`Model\Client\SmailyClient`).
+- Engine automations config (§13): every row carries all eight keys;
+  validation is all-or-nothing; `per_language` rows saved by other
+  platforms survive a Magento save.
+
+## Extension points
+
+- **New queue event type:** implement `Api\Queue\EventHandlerInterface`,
+  register in the `HandlerPool` via `di.xml`.
+- **New backfill:** implement `Model\Backfill\ProcessorInterface`, register
+  under `"{job_type}:{target}"` in `Cron\BackfillTick`'s pool.
+- **Payload shape changes:** each payload has exactly one builder class
+  (`ContactSync\SubscriberPayloadBuilder`, `AbandonedCart\PayloadBuilder`,
+  `Engine\Payload\*`) — the single source of truth used by both live hooks
+  and backfills.
+
+## Testing
+
+See [../TESTING.md](../TESTING.md): unit suite + static analysis in CI, a
+Docker Magento 2.4.8 sandbox for end-to-end smoke, and a scripted 2.8.x
+upgrade-migration verification.
