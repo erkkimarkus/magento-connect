@@ -7,6 +7,8 @@
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <preference for="Smaily\Connect\Model\Engine\SleeperInterface" type="Smaily\Connect\Model\Engine\Sleeper"/>
+
     <!-- Dedicated log channel: var/log/smaily_connect.log -->
     <virtualType name="Smaily\Connect\Logger\Handler" type="Magento\Framework\Logger\Handler\Base">
         <arguments>
@@ -50,6 +52,9 @@
         <arguments>
             <argument name="processors" xsi:type="array">
                 <item name="contacts:smaily" xsi:type="object">Smaily\Connect\Model\Backfill\ContactsProcessor</item>
+                <item name="catalog:engine" xsi:type="object">Smaily\Connect\Model\Backfill\EngineCatalogProcessor</item>
+                <item name="customers:engine" xsi:type="object">Smaily\Connect\Model\Backfill\EngineCustomersProcessor</item>
+                <item name="orders:engine" xsi:type="object">Smaily\Connect\Model\Backfill\EngineOrdersProcessor</item>
             </argument>
         </arguments>
     </type>
@@ -62,6 +67,7 @@
                 <item name="smaily_backfill_status" xsi:type="object">Smaily\Connect\Console\Command\BackfillStatusCommand</item>
                 <item name="smaily_engine_ping" xsi:type="object">Smaily\Connect\Console\Command\EnginePingCommand</item>
                 <item name="smaily_engine_disconnect" xsi:type="object">Smaily\Connect\Console\Command\EngineDisconnectCommand</item>
+                <item name="smaily_gdpr" xsi:type="object">Smaily\Connect\Console\Command\GdprCommand</item>
             </argument>
         </arguments>
     </type>

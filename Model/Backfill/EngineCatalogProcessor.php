@@ -1,0 +1,126 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+
+declare(strict_types=1);
+
+namespace Smaily\Connect\Model\Backfill;
+
+use Magento\Catalog\Model\Product;
+use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
+use Smaily\Connect\Model\Engine\Client;
+use Smaily\Connect\Model\Engine\Payload\CatalogPayloadBuilder;
+use Smaily\Connect\Model\Engine\Queue\IngestQueue;
+use Smaily\Connect\Model\Logger\Logger;
+
+/**
+ * Historical catalog import: pages products into the ingest queue; the
+ * flusher delivers at the engine's batch pace. A flood guard pauses the
+ * job while the queue backlog is high, so live events are never starved.
+ */
+class EngineCatalogProcessor implements ProcessorInterface
+{
+    private const PAGE_SIZE = 100;
+    private const TIME_BUDGET_SECONDS = 15;
+    private const QUEUE_BACKLOG_LIMIT = 500;
+
+    public function __construct(
+        private readonly JobManager $jobManager,
+        private readonly ProductCollectionFactory $productCollectionFactory,
+        private readonly CatalogPayloadBuilder $payloadBuilder,
+        private readonly IngestQueue $ingestQueue,
+        private readonly Logger $logger
+    ) {
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function process(Job $job): void
+    {
+        if ($this->ingestQueue->countPending(Client::DOMAIN_CATALOG) >= self::QUEUE_BACKLOG_LIMIT) {
+            return; // Let the flusher drain before enqueueing more.
+        }
+
+        if ($job->getData('total_count') === null) {
+            $job->setData('total_count', $this->countProducts());
+        }
+        $this->jobManager->markRunning($job);
+
+        $deadline = microtime(true) + self::TIME_BUDGET_SECONDS;
+        do {
+            $cursor = (int)$job->getCursorValue();
+            $products = $this->loadPage($cursor);
+            if (!$products) {
+                $this->jobManager->complete($job);
+
+                return;
+            }
+
+            $processed = 0;
+            $failed = 0;
+            $newCursor = $cursor;
+            foreach ($products as $product) {
+                $newCursor = max($newCursor, (int)$product->getId());
+                try {
+                    if ($this->payloadBuilder->isIngestible($product)) {
+                        $this->ingestQueue->enqueue(
+                            Client::DOMAIN_CATALOG,
+                            $this->payloadBuilder->build($product),
+                            (string)$product->getId()
+                        );
+                    }
+                    $processed++;
+                } catch (\Throwable $exception) {
+                    $failed++;
+                    $this->logger->debug('Catalog backfill item failed', [
+                        'product_id' => $product->getId(),
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+            }
+            $this->jobManager->recordProgress($job, $processed, $failed, (string)$newCursor);
+
+            if ($this->ingestQueue->countPending(Client::DOMAIN_CATALOG) >= self::QUEUE_BACKLOG_LIMIT) {
+                return;
+            }
+        } while (microtime(true) < $deadline);
+    }
+
+    /**
+     * @return Product[]
+     */
+    private function loadPage(int $cursor): array
+    {
+        $collection = $this->productCollectionFactory->create();
+        if (!$collection instanceof \Magento\Catalog\Model\ResourceModel\Product\Collection) {
+            return [];
+        }
+        $collection->addAttributeToSelect([
+            'name', 'status', 'visibility', 'price', 'special_price',
+            'short_description', 'description', 'url_key', 'image',
+            'small_image', 'thumbnail', 'manufacturer',
+        ]);
+        $collection->addFieldToFilter('entity_id', ['gt' => $cursor]);
+        $collection->addUrlRewrite();
+        $collection->addPriceData();
+        $collection->setOrder('entity_id', 'ASC');
+        $collection->setPageSize(self::PAGE_SIZE);
+
+        $products = [];
+        foreach ($collection->getItems() as $product) {
+            if ($product instanceof Product) {
+                $products[] = $product;
+            }
+        }
+
+        return $products;
+    }
+
+    private function countProducts(): int
+    {
+        return $this->productCollectionFactory->create()->getSize();
+    }
+}

@@ -180,6 +180,22 @@ class IngestQueue
     }
 
     /**
+     * Number of undelivered rows for a domain (backfill flood guard).
+     *
+     * @phpstan-impure
+     */
+    public function countPending(string $domain): int
+    {
+        $connection = $this->resourceConnection->getConnection();
+        $select = $connection->select()
+            ->from($this->resourceConnection->getTableName(IngestEventResource::TABLE_NAME), ['cnt' => 'COUNT(*)'])
+            ->where('domain = ?', $domain)
+            ->where('status IN (?)', [IngestEvent::STATUS_PENDING, IngestEvent::STATUS_SENDING]);
+
+        return (int)$connection->fetchOne($select);
+    }
+
+    /**
      * Decode a row payload and stamp the wire event_id from the row UUID.
      *
      * @return array<string, mixed>

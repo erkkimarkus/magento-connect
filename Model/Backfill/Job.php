@@ -23,9 +23,20 @@ class Job extends AbstractModel
     public const STATUS_CANCELLED = 'cancelled';
 
     public const TYPE_CONTACTS = 'contacts';
+    public const TYPE_CATALOG = 'catalog';
+    public const TYPE_CUSTOMERS = 'customers';
+    public const TYPE_ORDERS = 'orders';
 
     public const TARGET_SMAILY = 'smaily';
     public const TARGET_ENGINE = 'engine';
+
+    /** Job type -> delivery target. */
+    public const TYPE_TARGETS = [
+        self::TYPE_CONTACTS => self::TARGET_SMAILY,
+        self::TYPE_CATALOG => self::TARGET_ENGINE,
+        self::TYPE_CUSTOMERS => self::TARGET_ENGINE,
+        self::TYPE_ORDERS => self::TARGET_ENGINE,
+    ];
 
     /**
      * @inheritDoc

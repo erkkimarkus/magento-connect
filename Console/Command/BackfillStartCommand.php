@@ -42,14 +42,14 @@ class BackfillStartCommand extends Command
             ->addArgument(
                 'type',
                 InputArgument::OPTIONAL,
-                'Job type (contacts)',
+                'Job type: contacts (Smaily) or catalog|customers|orders (Campaign Intelligence)',
                 Job::TYPE_CONTACTS
             )
             ->addOption(
                 'website',
                 'w',
                 InputOption::VALUE_REQUIRED,
-                'Website ID (omit to start a job for every website)'
+                'Website ID for contacts jobs (omit to start a job for every website)'
             );
     }
 
@@ -59,21 +59,27 @@ class BackfillStartCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $jobType = (string)$input->getArgument('type');
-        if ($jobType !== Job::TYPE_CONTACTS) {
+        $target = Job::TYPE_TARGETS[$jobType] ?? null;
+        if ($target === null) {
             $output->writeln(sprintf('<error>Unknown job type "%s".</error>', $jobType));
 
             return Command::FAILURE;
         }
 
-        $websiteOption = $input->getOption('website');
-        $websiteIds = $websiteOption !== null
-            ? [(int)$websiteOption]
-            : array_map(static fn ($website) => (int)$website->getId(), $this->storeManager->getWebsites());
+        if ($target === Job::TARGET_ENGINE) {
+            // Engine jobs cover the whole installation (one tenant).
+            $websiteIds = [0];
+        } else {
+            $websiteOption = $input->getOption('website');
+            $websiteIds = $websiteOption !== null
+                ? [(int)$websiteOption]
+                : array_map(static fn ($website) => (int)$website->getId(), $this->storeManager->getWebsites());
+        }
 
         $started = 0;
         foreach ($websiteIds as $websiteId) {
             try {
-                $job = $this->jobManager->start($jobType, Job::TARGET_SMAILY, $websiteId);
+                $job = $this->jobManager->start($jobType, $target, $websiteId);
                 $output->writeln(sprintf(
                     '<info>Started %s backfill #%d for website %d.</info>',
                     $jobType,

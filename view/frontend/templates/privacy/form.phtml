@@ -1,0 +1,38 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * @var \Magento\Framework\View\Element\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\PrivacyForm $viewModel */
+$viewModel = $block->getData('view_model');
+$allowed = $viewModel->isProfilingAllowed();
+?>
+<form action="<?= $escaper->escapeUrl($block->getUrl('smaily/privacy/save')) ?>" method="post">
+    <?= $block->getBlockHtml('formkey') ?>
+    <fieldset class="fieldset">
+        <legend class="legend"><span><?= $escaper->escapeHtml(__('Personalized Recommendations')) ?></span></legend>
+        <p><?= $escaper->escapeHtml(__('We use your shopping activity to personalize product recommendations in our newsletters. You can opt out at any time; newsletters will then show generic content.')) ?></p>
+        <div class="field choice">
+            <input type="checkbox"
+                   id="smaily-profiling-allowed"
+                   name="profiling_allowed"
+                   value="1"
+                   class="checkbox"
+                   <?= $allowed ? 'checked' : '' ?>/>
+            <label class="label" for="smaily-profiling-allowed">
+                <span><?= $escaper->escapeHtml(__('Allow personalized recommendations')) ?></span>
+            </label>
+        </div>
+    </fieldset>
+    <div class="actions-toolbar">
+        <div class="primary">
+            <button type="submit" class="action save primary">
+                <span><?= $escaper->escapeHtml(__('Save Preference')) ?></span>
+            </button>
+        </div>
+    </div>
+</form>
