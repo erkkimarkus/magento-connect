@@ -31,7 +31,9 @@
         "magento/module-store": "^101.1"
     },
     "require-dev": {
+        "bitexpert/phpstan-magento": "^0.43.0",
         "magento/magento-coding-standard": "*",
+        "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^1.10 || ^2.0",
         "phpunit/phpunit": "^9.6 || ^10.5"
     },
@@ -54,7 +56,8 @@
             "dealerdirect/phpcodesniffer-composer-installer": true,
             "magento/composer-dependency-version-audit-plugin": true,
             "php-http/discovery": true,
-            "mage-os/composer-dependency-version-audit-plugin": true
+            "mage-os/composer-dependency-version-audit-plugin": true,
+            "phpstan/extension-installer": true
         }
     },
     "repositories": [{

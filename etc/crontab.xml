@@ -14,5 +14,11 @@
         <job name="smaily_queue_janitor" instance="Smaily\Connect\Cron\QueueJanitor" method="execute">
             <schedule>20 2 * * *</schedule>
         </job>
+        <job name="smaily_contact_reconcile" instance="Smaily\Connect\Cron\ContactReconcile" method="execute">
+            <schedule>*/15 * * * *</schedule>
+        </job>
+        <job name="smaily_abandoned_cart" instance="Smaily\Connect\Cron\AbandonedCart" method="execute">
+            <schedule>*/5 * * * *</schedule>
+        </job>
     </group>
 </config>

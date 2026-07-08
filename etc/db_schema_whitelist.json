@@ -58,6 +58,7 @@
             "store_id": true,
             "email": true,
             "status": true,
+            "newsletter_optin": true,
             "abandoned_at": true,
             "mail_sent_at": true,
             "created_at": true,
@@ -125,20 +126,6 @@
         "constraint": {
             "PRIMARY": true,
             "SMAILY_ORDER_ATTRIBUTION_ORDER_ID": true
-        }
-    },
-    "smaily_consent_mirror": {
-        "column": {
-            "id": true,
-            "website_id": true,
-            "email": true,
-            "last_state": true,
-            "changed_at": true,
-            "suppress_until": true
-        },
-        "constraint": {
-            "PRIMARY": true,
-            "SMAILY_CONSENT_MIRROR_WEBSITE_ID_EMAIL": true
         }
     }
 }

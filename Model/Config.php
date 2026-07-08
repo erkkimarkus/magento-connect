@@ -24,7 +24,25 @@ class Config
     public const XML_PATH_SUBDOMAIN = 'smaily_connect/connection/subdomain';
     public const XML_PATH_USERNAME = 'smaily_connect/connection/username';
     public const XML_PATH_PASSWORD = 'smaily_connect/connection/password';
+    public const XML_PATH_MULTILINGUAL_MODE = 'smaily_connect/connection/multilingual_mode';
+    public const XML_PATH_SYNC_ENABLED = 'smaily_connect/subscribers/sync_enabled';
+    public const XML_PATH_SYNC_MODE = 'smaily_connect/subscribers/sync_mode';
+    public const XML_PATH_SYNC_FIELDS = 'smaily_connect/subscribers/sync_fields';
+    public const XML_PATH_INCLUDE_GUESTS = 'smaily_connect/subscribers/include_guests';
+    public const XML_PATH_AUTOMATION_FORCE_OPT_IN = 'smaily_connect/subscribers/automation_force_opt_in';
+    public const XML_PATH_SUPPRESS_OPTIN_EMAILS = 'smaily_connect/subscribers/suppress_optin_emails';
+    public const XML_PATH_WELCOME_ENABLED = 'smaily_connect/automations/welcome_enabled';
+    public const XML_PATH_WELCOME_WORKFLOW = 'smaily_connect/automations/welcome_workflow';
+    public const XML_PATH_FIRST_ORDER_ENABLED = 'smaily_connect/automations/first_order_enabled';
+    public const XML_PATH_FIRST_ORDER_WORKFLOW = 'smaily_connect/automations/first_order_workflow';
+    public const XML_PATH_ABANDONED_ENABLED = 'smaily_connect/automations/abandoned_enabled';
+    public const XML_PATH_ABANDONED_WORKFLOW = 'smaily_connect/automations/abandoned_workflow';
+    public const XML_PATH_ABANDONED_CUTOFF = 'smaily_connect/automations/abandoned_cutoff';
+    public const XML_PATH_ABANDONED_FIELDS = 'smaily_connect/automations/abandoned_fields';
+    public const XML_PATH_RSS_ENABLED = 'smaily_connect/rss/enabled';
     public const XML_PATH_LOG_VERBOSITY = 'smaily_connect/logging/verbosity';
+
+    public const MIN_ABANDONED_CUTOFF_MINUTES = 10;
 
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig,
@@ -94,5 +112,128 @@ class Config
     public function getLogVerbosity(): string
     {
         return (string)$this->scopeConfig->getValue(self::XML_PATH_LOG_VERBOSITY);
+    }
+
+    /**
+     * Get the multilingual routing mode (single|a|b|c) for a website.
+     */
+    public function getMultilingualMode(?int $websiteId = null): string
+    {
+        return (string)$this->websiteValue(self::XML_PATH_MULTILINGUAL_MODE, $websiteId);
+    }
+
+    public function isSyncEnabled(?int $websiteId = null): bool
+    {
+        return $this->websiteFlag(self::XML_PATH_SYNC_ENABLED, $websiteId);
+    }
+
+    /**
+     * Get the contact-sync lawful-basis preset for a website.
+     */
+    public function getSyncMode(?int $websiteId = null): string
+    {
+        return (string)$this->websiteValue(self::XML_PATH_SYNC_MODE, $websiteId);
+    }
+
+    /**
+     * Get enabled optional sync fields.
+     *
+     * @return string[]
+     */
+    public function getSyncFields(?int $websiteId = null): array
+    {
+        $raw = (string)$this->websiteValue(self::XML_PATH_SYNC_FIELDS, $websiteId);
+
+        return $raw === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $raw))));
+    }
+
+    public function includeGuests(?int $websiteId = null): bool
+    {
+        return $this->websiteFlag(self::XML_PATH_INCLUDE_GUESTS, $websiteId);
+    }
+
+    public function automationForceOptIn(?int $websiteId = null): bool
+    {
+        return $this->websiteFlag(self::XML_PATH_AUTOMATION_FORCE_OPT_IN, $websiteId);
+    }
+
+    public function suppressOptinEmails(?int $websiteId = null): bool
+    {
+        return $this->websiteFlag(self::XML_PATH_SUPPRESS_OPTIN_EMAILS, $websiteId);
+    }
+
+    public function isWelcomeEnabled(?int $websiteId = null): bool
+    {
+        return $this->websiteFlag(self::XML_PATH_WELCOME_ENABLED, $websiteId);
+    }
+
+    public function getWelcomeWorkflow(?int $websiteId = null): int
+    {
+        return (int)$this->websiteValue(self::XML_PATH_WELCOME_WORKFLOW, $websiteId);
+    }
+
+    public function isFirstOrderEnabled(?int $websiteId = null): bool
+    {
+        return $this->websiteFlag(self::XML_PATH_FIRST_ORDER_ENABLED, $websiteId);
+    }
+
+    public function getFirstOrderWorkflow(?int $websiteId = null): int
+    {
+        return (int)$this->websiteValue(self::XML_PATH_FIRST_ORDER_WORKFLOW, $websiteId);
+    }
+
+    public function isAbandonedCartEnabled(?int $websiteId = null): bool
+    {
+        return $this->websiteFlag(self::XML_PATH_ABANDONED_ENABLED, $websiteId);
+    }
+
+    public function getAbandonedCartWorkflow(?int $websiteId = null): int
+    {
+        return (int)$this->websiteValue(self::XML_PATH_ABANDONED_WORKFLOW, $websiteId);
+    }
+
+    /**
+     * Get abandoned cart cutoff in minutes (never below the safe minimum).
+     */
+    public function getAbandonedCutoffMinutes(?int $websiteId = null): int
+    {
+        return max(
+            self::MIN_ABANDONED_CUTOFF_MINUTES,
+            (int)$this->websiteValue(self::XML_PATH_ABANDONED_CUTOFF, $websiteId)
+        );
+    }
+
+    /**
+     * Get enabled abandoned cart product fields.
+     *
+     * @return string[]
+     */
+    public function getAbandonedFields(?int $websiteId = null): array
+    {
+        $raw = (string)$this->websiteValue(self::XML_PATH_ABANDONED_FIELDS, $websiteId);
+
+        return $raw === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $raw))));
+    }
+
+    /**
+     * Whether the public product RSS feed is enabled for the current store.
+     */
+    public function isRssEnabled(int|string|null $storeId = null): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_RSS_ENABLED,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
+    private function websiteValue(string $path, ?int $websiteId): mixed
+    {
+        return $this->scopeConfig->getValue($path, ScopeInterface::SCOPE_WEBSITE, $websiteId);
+    }
+
+    private function websiteFlag(string $path, ?int $websiteId): bool
+    {
+        return $this->scopeConfig->isSetFlag($path, ScopeInterface::SCOPE_WEBSITE, $websiteId);
     }
 }

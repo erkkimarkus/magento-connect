@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <event name="newsletter_subscriber_save_after">
+        <observer name="smaily_connect_subscriber_save" instance="Smaily\Connect\Observer\SubscriberSaveAfter"/>
+    </event>
+    <event name="customer_save_after_data_object">
+        <observer name="smaily_connect_customer_save" instance="Smaily\Connect\Observer\CustomerSaveAfter"/>
+    </event>
+    <event name="sales_order_place_after">
+        <observer name="smaily_connect_order_placed" instance="Smaily\Connect\Observer\OrderPlaced"/>
+    </event>
+</config>

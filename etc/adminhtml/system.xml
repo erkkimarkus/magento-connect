@@ -35,6 +35,120 @@
                     <label>API Password</label>
                     <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
                 </field>
+                <field id="multilingual_mode" translate="label comment" type="select" sortOrder="40"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Multilingual Mode</label>
+                    <comment>How automation workflows are routed for multi-language stores. Single: one language. Per-language accounts: each store view has its own Smaily account (override credentials at store view scope). Per-language workflows: one account, a workflow per language. Single workflow: one workflow that branches by language inside Smaily.</comment>
+                    <source_model>Smaily\Connect\Model\Config\Source\MultilingualMode</source_model>
+                </field>
+            </group>
+            <group id="subscribers" translate="label comment" type="text" sortOrder="20"
+                   showInDefault="1" showInWebsite="1" showInStore="0">
+                <label>Subscriber Synchronization</label>
+                <comment>Synchronize newsletter subscribers between this store and Smaily.</comment>
+                <field id="sync_enabled" translate="label" type="select" sortOrder="10"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Enable Subscriber Synchronization</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="sync_mode" translate="label comment" type="select" sortOrder="20"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Contact Sync Mode</label>
+                    <comment>Lawful-basis preset. Subscribers only (default): sync only opted-in newsletter subscribers and mirror Smaily unsubscribes back. All customers (legitimate interest): sync every registered customer; Smaily manages suppression. Checkout opt-in only: no account sync, only customers who tick the checkout checkbox.</comment>
+                    <source_model>Smaily\Connect\Model\Config\Source\SyncMode</source_model>
+                    <depends><field id="sync_enabled">1</field></depends>
+                </field>
+                <field id="sync_fields" translate="label comment" type="multiselect" sortOrder="30"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Synchronized Fields</label>
+                    <comment>Optional customer fields sent to Smaily along with the email address. Empty source values are omitted so existing Smaily values are kept.</comment>
+                    <source_model>Smaily\Connect\Model\Config\Source\SyncFields</source_model>
+                    <can_be_empty>1</can_be_empty>
+                    <depends><field id="sync_enabled">1</field></depends>
+                </field>
+                <field id="include_guests" translate="label comment" type="select" sortOrder="40"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Include Guest Order Emails</label>
+                    <comment>Also sync emails from guest orders (always on in checkout opt-in mode).</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends><field id="sync_enabled">1</field></depends>
+                </field>
+                <field id="automation_force_opt_in" translate="label comment" type="select" sortOrder="50"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Automations May Re-Subscribe (Advanced)</label>
+                    <comment>Legitimate interest mode only: send force_opt_in on automation triggers, re-subscribing contacts who have unsubscribed in Smaily. Leave off to honour unsubscribes (GDPR Art. 21).</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends><field id="sync_mode">legitimate_interest</field></depends>
+                </field>
+                <field id="suppress_optin_emails" translate="label comment" type="select" sortOrder="60"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Let Smaily Send Opt-In Emails</label>
+                    <comment>Suppress Magento's own newsletter confirmation and unsubscription emails so Smaily automations handle them instead.</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+            </group>
+            <group id="automations" translate="label comment" type="text" sortOrder="30"
+                   showInDefault="1" showInWebsite="1" showInStore="0">
+                <label>Automations</label>
+                <comment>Trigger Smaily automation workflows on store events. Workflow lists load from your Smaily account after the API connection is saved. In per-language multilingual modes, per-language workflow mappings override these defaults.</comment>
+                <field id="welcome_enabled" translate="label" type="select" sortOrder="10"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Enable Welcome Automation</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="welcome_workflow" translate="label" type="select" sortOrder="20"
+                       showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Welcome Workflow</label>
+                    <source_model>Smaily\Connect\Model\Config\Source\Workflows</source_model>
+                    <depends><field id="welcome_enabled">1</field></depends>
+                </field>
+                <field id="first_order_enabled" translate="label" type="select" sortOrder="30"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Enable First Order Automation</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="first_order_workflow" translate="label" type="select" sortOrder="40"
+                       showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>First Order Workflow</label>
+                    <source_model>Smaily\Connect\Model\Config\Source\Workflows</source_model>
+                    <depends><field id="first_order_enabled">1</field></depends>
+                </field>
+                <field id="abandoned_enabled" translate="label" type="select" sortOrder="50"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Enable Abandoned Cart Automation</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="abandoned_workflow" translate="label" type="select" sortOrder="60"
+                       showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Abandoned Cart Workflow</label>
+                    <source_model>Smaily\Connect\Model\Config\Source\Workflows</source_model>
+                    <depends><field id="abandoned_enabled">1</field></depends>
+                </field>
+                <field id="abandoned_cutoff" translate="label comment" type="text" sortOrder="70"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Abandoned Cart Cutoff (Minutes)</label>
+                    <comment>How long a cart must be inactive before it counts as abandoned. Minimum 10 minutes. Carts older than 24 hours are never mailed.</comment>
+                    <validate>validate-digits digits-range-10-1440</validate>
+                    <depends><field id="abandoned_enabled">1</field></depends>
+                </field>
+                <field id="abandoned_fields" translate="label comment" type="multiselect" sortOrder="80"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Abandoned Cart Product Fields</label>
+                    <comment>Product data included for up to 10 cart items (product_name_1..10 etc.).</comment>
+                    <source_model>Smaily\Connect\Model\Config\Source\AbandonedFields</source_model>
+                    <can_be_empty>1</can_be_empty>
+                    <depends><field id="abandoned_enabled">1</field></depends>
+                </field>
+            </group>
+            <group id="rss" translate="label comment" type="text" sortOrder="40"
+                   showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Product RSS Feed</label>
+                <comment><![CDATA[The product feed for the Smaily template editor is served at <strong>{store URL}smaily/rss/feed</strong>. Optional query parameters: <em>category</em> (category ID), <em>limit</em> (1-250, default 50), <em>sort</em> (created_at, updated_at, name, price), <em>order</em> (asc, desc). Example: https://example.com/smaily/rss/feed?category=12&limit=100&sort=updated_at]]></comment>
+                <field id="enabled" translate="label" type="select" sortOrder="10"
+                       showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Enable RSS Feed</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
             </group>
             <group id="logging" translate="label" type="text" sortOrder="900"
                    showInDefault="1" showInWebsite="0" showInStore="0">
