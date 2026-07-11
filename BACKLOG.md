@@ -4,14 +4,21 @@ Deferred work items for the v3 line, in rough priority order.
 
 ## Hyvä support (separate work pack)
 
-Needs a real Hyvä environment to develop and verify:
+Compat module skeleton done (`compat/hyva/`, module `Hyva_SmailyConnect`):
+framework-free tracker/attribution delivery, Tailwind personalization form,
+Tailwind-build registration. Full audit, verification matrix and dev-store
+setup in [docs/HYVA_SUPPORT.md](docs/HYVA_SUPPORT.md). Remaining:
 
-- Framework-free delivery path for the browse tracker and attribution script
-  (Hyvä does not load RequireJS; the core logic is already vanilla JS).
-- Newsletter form template for Hyvä themes.
+- Run the verification matrix on a real Hyvä 1.4+ dev store (every surface
+  × Hyvä × strict CSP; `TODO(hyva-store)` markers in `compat/hyva/`).
+- Verify the `cart_add` submit-capture path against AJAX-add-to-cart compat
+  modules; fall back to a `private-content-loaded` cart diff if it gaps.
+- Publish the compat module as its own composer package (vendor/name is an
+  open release decision — see HYVA_SUPPORT.md).
 - Checkout opt-in checkbox for Hyvä Checkout (commercial product, own
-  integration surface — likely a separate `smaily/module-connect-hyva`
-  compat package, the usual pattern in the Hyvä ecosystem).
+  Magewire integration surface) — declared out of scope for the first
+  Hyvä-support release; the server-side opt-in endpoint is already
+  checkout-agnostic.
 
 ## Admin / UX
 

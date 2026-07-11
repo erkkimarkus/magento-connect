@@ -1,0 +1,51 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Tailwind-styled variant of the personalization opt-out form. Same
+ * behaviour and the exact same translated phrases as the base template
+ * (Smaily_Connect::privacy/form.phtml) — only the CSS classes differ,
+ * because Hyvä does not style Luma's fieldset/legend/actions-toolbar
+ * markup. Uses Hyvä's stock `btn btn-primary` + `form-checkbox` classes.
+ *
+ * TODO(hyva-store): eyeball on a real Hyvä store after
+ * `hyva:config:generate` + Tailwind rebuild (classes must survive the
+ * content scan; this module registers itself for it — see
+ * Observer/RegisterModuleForHyvaConfig.php).
+ *
+ * @var \Magento\Framework\View\Element\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\PrivacyForm $viewModel */
+$viewModel = $block->getData('view_model');
+$allowed = $viewModel->isProfilingAllowed();
+?>
+<form action="<?= $escaper->escapeUrl($block->getUrl('smaily/privacy/save')) ?>" method="post" class="w-full">
+    <?= $block->getBlockHtml('formkey') ?>
+    <fieldset class="card p-6 mb-6">
+        <legend class="text-xl font-medium mb-4">
+            <span><?= $escaper->escapeHtml(__('Personalized Recommendations')) ?></span>
+        </legend>
+        <p class="mb-4 text-gray-700">
+            <?= $escaper->escapeHtml(__('We use your shopping activity to personalize product recommendations in our newsletters. You can opt out at any time; newsletters will then show generic content.')) ?>
+        </p>
+        <div class="flex items-center gap-2">
+            <input type="checkbox"
+                   id="smaily-profiling-allowed"
+                   name="profiling_allowed"
+                   value="1"
+                   class="form-checkbox"
+                   <?= $allowed ? 'checked' : '' ?>/>
+            <label class="cursor-pointer select-none" for="smaily-profiling-allowed">
+                <span><?= $escaper->escapeHtml(__('Allow personalized recommendations')) ?></span>
+            </label>
+        </div>
+    </fieldset>
+    <div>
+        <button type="submit" class="btn btn-primary">
+            <span><?= $escaper->escapeHtml(__('Save Preference')) ?></span>
+        </button>
+    </div>
+</form>

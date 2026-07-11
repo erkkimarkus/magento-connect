@@ -156,10 +156,13 @@ button, exactly as it does today for 2.8.x.
   in-browser (the sandbox catalog has no products; its label is confirmed present
   in the storefront translation bundle). Both belong in the review plan before any
   release.
-- **Hyvä is not yet supported** — a scoped, separate work package (framework-free
-  tracker delivery, a Hyvä newsletter form template, a Hyvä Checkout opt-in
-  surface, likely as a compat package). Detailed in [BACKLOG.md](../BACKLOG.md).
-  Classic Luma/Blank themes are fully covered.
+- **Hyvä is not yet verified** — a compatibility module skeleton exists
+  (`compat/hyva/`, module `Hyva_SmailyConnect`: framework-free tracker and
+  attribution delivery, Tailwind templates, standard Hyvä compat-module
+  packaging) but has not run against a real Hyvä store yet. The audit,
+  verification matrix and remaining work are detailed in
+  [HYVA_SUPPORT.md](HYVA_SUPPORT.md). Classic Luma/Blank themes are fully
+  covered.
 - **Campaign Intelligence dependency**: the extension builds against engine
   contract v1.4.0; the engine repository is currently private, which is why the
   staleness check needs a read token. Everything engine-related is optional at

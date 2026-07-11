@@ -183,6 +183,25 @@ _Last updated: 2026-07-12 (PRO-1271 phase 2a)_
 - **Gates green:** 93 unit tests, 38 integration tests, phpcs clean, phpstan
   clean. `setup:upgrade` + `setup:di:compile` re-verified in the docker
   sandbox on the merged tree including PRO-1231.
+- **Hyvä compat skeleton + work package done (PRO-1201)** — full storefront
+  audit with file:line evidence, the work plan and the surface × Luma/Hyvä/
+  strict-CSP verification matrix live in `docs/HYVA_SUPPORT.md`. Compat
+  module `Hyva_SmailyConnect` under `compat/hyva/` (standard Hyvä pattern:
+  `hyva_` layout handles, composer `hyva-themes/magento2-smaily-connect`,
+  Tailwind registration observer for `hyva:config:generate`): vanilla-JS
+  ports of tracker + attribution delivered as static files + inert JSON
+  config blocks (no inline executable script — strict-CSP-safe; no
+  RequireJS/jQuery; `cart_add` captured from the `checkout/cart/add` form
+  submit since Hyvä has no `ajax:addToCart`), plus a Tailwind-styled
+  personalization form. Audit verdicts: tracker NEEDS-JS-PORT (done),
+  attribution NEEDS-COMPAT-TEMPLATE (done), context blocks / checkout
+  opt-in (Luma-fallback checkout) / newsletter / RSS / privacy form
+  WORKS-AS-IS, Hyvä Checkout OUT-OF-SCOPE. **Nothing has run on a real
+  Hyvä store yet** — `TODO(hyva-store)` markers flag what needs one (esp.
+  cart_add vs AJAX-add-to-cart modules, Tailwind class survival). The
+  compat dir is inert in the main package (nothing loads its
+  registration.php) and excluded from the release ZIP; main-module code
+  is untouched except docs.
 - **Upstream proposal package drafted (PRO-1198)** —
   `docs/UPSTREAM_PROPOSAL.md`: executive summary, 2.8.x compatibility story,
   staged review plan, Marketplace re-submission as "Smaily Connect",
@@ -211,7 +230,10 @@ PRO-1267 (engine: Magento product-identity contract note).
   confirmation emails) have only been exercised against failure paths;
   one click-through with a real Smaily account (and ideally a real engine
   tenant) is still owed before release.
-- **Hyvä untested** (PRO-1201).
+- **Hyvä unverified on a real store** (PRO-1201) — the compat skeleton and
+  plan exist (`docs/HYVA_SUPPORT.md`), but the verification matrix needs a
+  Hyvä 1.4+ dev store (free portal key or github source +
+  `hyva-themes/magento2-default-theme` + Node 20 Tailwind build).
 
 ## Questions / tasks for Erkki
 
@@ -219,3 +241,11 @@ PRO-1267 (engine: Magento product-identity contract note).
    release path). The proposal package is drafted
    (`docs/UPSTREAM_PROPOSAL.md`) and ready for your review; the decision
    checklist at its end lists the one-way doors in recommended order.
+2. PRO-1201 — Hyvä boundary decisions (see "Open release decisions" in
+   `docs/HYVA_SUPPORT.md`): (a) confirm Hyvä Checkout (commercial,
+   Magewire) stays out of scope for the first Hyvä release — free Hyvä's
+   Luma-fallback checkout is the supported path; (b) compat package
+   vendor/name (`hyva-themes/magento2-smaily-connect` needs adoption into
+   their tracker vs publishing under `smaily/`); (c) a Hyvä 1.4+ dev store
+   is needed to run the verification matrix — free portal license key
+   (registration required) or source from github.com/hyva-themes.

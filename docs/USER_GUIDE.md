@@ -331,8 +331,9 @@ one at checkout's email step); the cart must be idle past the cutoff but
 younger than 24 h; and each cart is only ever mailed once.
 
 **The checkout checkbox doesn't show.** It renders on the Luma/Knockout
-checkout payment step. Hyvä Checkout needs a separate compatibility package
-(see BACKLOG.md).
+checkout payment step — including Hyvä's default Luma-fallback checkout.
+The commercial Hyvä Checkout product is a different integration surface and
+is not supported (see [HYVA_SUPPORT.md](HYVA_SUPPORT.md)).
 
 **Where did the sync frequency setting go?** v3 syncs in near-real-time via
 observers plus a 15-minute consent reconcile; the old 4h/12h/daily presets

@@ -17,7 +17,7 @@ jobs:
         run: |
           zip -r smaily-connect-magento2.zip . \
             -x '.git/*' '.github/*' '.sandbox/*' '.vscode/*' \
-               'Test/*' 'vendor/*' 'var/*' \
+               'Test/*' 'compat/*' 'vendor/*' 'var/*' \
                'docker-compose.yaml' 'Dockerfile' \
                'phpcs.xml.dist' 'phpstan.neon.dist' 'phpunit.xml.dist' \
                'composer.lock' 'CONTRIBUTING.md' '.gitignore'
