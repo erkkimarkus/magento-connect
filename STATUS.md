@@ -103,6 +103,28 @@ _Last updated: 2026-07-12_
   has 2 seeded products (SMAILY-TEE/SMAILY-MUG), 2 guest test orders and
   completed backfill/queue history; engine config was restored to
   disconnected (`browse_tracking=0`) after the pass.
+- **Multilingual routing sandbox-verified end-to-end (spike for the Phase 2
+  wizard choice-cards)** — all four modes exercised against the sandbox with
+  a second store view (`et`, locale et_EE, kept in the sandbox for future
+  passes): store-view→language resolution (`Multilingual\LanguageResolver`),
+  mode A per-store-view credential selection (`SmailyClientProvider`), and
+  the `Automation\Router` matrix (single/c → config defaults; a/b →
+  per-language `smaily_automation_mapping` row, then `is_default_fallback`
+  row, then config default; unmapped trigger → terminal skip). Live event
+  path proven: a real subscriber save on the et store view enqueued
+  contact.sync (store_id-scoped credentials, `contact.language=et`) and an
+  automation.trigger whose payload routed to the per-language workflow via
+  the et account. Verdicts: single/C WORK, A works (credentials via
+  store-view config scope; wizard `accounts` save path exists server-side
+  but no UI feeds it), B routing works but per-language mapping rows have
+  NO admin write path (only the 2.8.x migration seeds `default` fallback
+  rows) — the mapping UI is the Phase 2 build. One user-facing defect fixed
+  in this pass: the wizard step-3 note falsely claimed per-language routing
+  is configured under Configuration > Automations — now points at the real
+  Multilingual Mode field (phtml + both i18n packs). Known divergence from
+  Woo, deferred to Phase 2: `account_key` on mapping rows is ignored
+  (credentials always follow the event's store view), so in mode A a
+  fallback row can send another account's workflow ID.
 - **Engine contract v1.4.0 adopted + verified** (commit d35bb96, byte-identical
   with the engine repo); **contract staleness CI added** (commit 5bc3767,
   `.github/workflows/contract-staleness.yaml` + `bin/check-contract-staleness.sh`).
