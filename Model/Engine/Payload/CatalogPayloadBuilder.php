@@ -37,7 +37,8 @@ class CatalogPayloadBuilder
         private readonly CategoryRepositoryInterface $categoryRepository,
         private readonly StockRegistryInterface $stockRegistry,
         private readonly ImageHelperFactory $imageHelperFactory,
-        private readonly LanguageResolver $languageResolver
+        private readonly LanguageResolver $languageResolver,
+        private readonly ParentProductResolver $parentProductResolver
     ) {
     }
 
@@ -276,7 +277,15 @@ class CatalogPayloadBuilder
      */
     private function tags(Product $product, string $categoryPath): array
     {
-        $tags = ['category_path' => $categoryPath];
+        $tags = [
+            'category_path' => $categoryPath,
+            // §3 identity: the platform parent product id — the configurable
+            // parent's entity id for a child, the product's own otherwise.
+            // Keys §3b product-level removal (PRO-1231); the `sku` keying
+            // itself is intentionally unchanged (PRO-1267: order lines and
+            // catalog rows must keep keying consistently).
+            'product_id' => $this->parentProductResolver->productIdOf((int)$product->getId()),
+        ];
 
         $brand = $product->getAttributeText('manufacturer');
         if (is_string($brand) && trim($brand) !== '') {

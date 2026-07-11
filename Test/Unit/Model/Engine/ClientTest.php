@@ -104,6 +104,43 @@ class ClientTest extends TestCase
         }
     }
 
+    public function testCatalogRemoveSendsProductIdsWrapperToMappedEndpoint(): void
+    {
+        $this->settings->method('getEndpoint')->with('ingest_catalog_remove')
+            ->willReturn('https://engine.example/api/v1/ingest/catalog/remove');
+        $client = $this->createClient([
+            new Response(200, [], '{"ok":true,"removed_products":1,"rows_tombstoned":2,"not_found":[]}'),
+        ]);
+
+        $response = $client->catalogRemove(['7620134', '7620135']);
+
+        self::assertSame(1, $response['removed_products']);
+        $request = $this->history[0]['request'];
+        self::assertSame('https://engine.example/api/v1/ingest/catalog/remove', (string)$request->getUri());
+        self::assertSame('Bearer sk_test_key', $request->getHeaderLine('Authorization'));
+        self::assertSame('{"product_ids":["7620134","7620135"]}', (string)$request->getBody());
+    }
+
+    public function testCatalogRemoveFallsBackToHardcodedPathWhenMapLacksTheKey(): void
+    {
+        // Tenants exchanged before contract v1.4.0 have no
+        // ingest_catalog_remove in their endpoints map (§1 "map age") — the
+        // hardcoded §3b path is the load-bearing fallback (mirrors Woo).
+        $this->settings->method('getEndpoint')->willReturn(null);
+        $this->settings->method('getEngineBaseUrl')->willReturn('https://engine.example/');
+        $client = $this->createClient([
+            new Response(200, [], '{"ok":true,"removed_products":0,"rows_tombstoned":0,"not_found":["9"]}'),
+        ]);
+
+        $response = $client->catalogRemove(['9']);
+
+        self::assertSame(['9'], $response['not_found']);
+        self::assertSame(
+            'https://engine.example/api/v1/ingest/catalog/remove',
+            (string)$this->history[0]['request']->getUri()
+        );
+    }
+
     public function testCustomerDeleteSubstitutesEmailPlaceholderAndTreats404AsSuccess(): void
     {
         $this->settings->method('getEndpoint')->with('customer_delete')

@@ -37,6 +37,17 @@ class Client
     public const DOMAIN_ORDERS = 'orders';
     public const DOMAIN_BROWSE = 'browse';
 
+    /**
+     * §3b product-level removal queue domain (PRO-1231). Deliberately NOT in
+     * DOMAIN_WRAPPERS/DOMAIN_BATCH_LIMITS: catalog/remove is not a D6 ingest
+     * route (no per-item errors[]) and is flushed by its own path in
+     * Cron\FlushIngestQueue, never by ingest().
+     */
+    public const DOMAIN_CATALOG_REMOVE = 'catalog_remove';
+
+    /** Spec-conservative §3b batch ceiling (the wrapper allows up to 1000 ids; mirrors Woo). */
+    public const CATALOG_REMOVE_BATCH_LIMIT = 100;
+
     public const DOMAIN_WRAPPERS = [
         self::DOMAIN_CATALOG => 'products',
         self::DOMAIN_CUSTOMERS => 'customers',
@@ -114,6 +125,38 @@ class Client
             'POST',
             $this->endpoint('ingest_' . $domain),
             [$wrapper => array_values($items)]
+        );
+    }
+
+    /**
+     * Product-level soft removal — POST /api/v1/ingest/catalog/remove
+     * (contract §3b, PRO-1231). Tombstones every catalog row whose
+     * `tags.product_id` matches (in_stock=false + recommendable=false; rows
+     * are kept — the engine never hard-deletes catalog). The path for a
+     * platform HARD delete, where the product's SKUs may no longer be
+     * enumerable.
+     *
+     * `$productIds` carry the RAW platform parent product ids — exactly the
+     * `tags.product_id` strings the catalog sync emits
+     * (ParentProductResolver::productIdOf()), never the `sku`.
+     *
+     * Idempotent: a re-removed or never-ingested id lands in the response's
+     * `not_found` — a contract-defined success, not an error. Response:
+     * {ok, removed_products, rows_tombstoned, not_found}. NOT a D6 shape.
+     *
+     * The endpoints map carries `ingest_catalog_remove` since contract
+     * v1.4.0; tenants exchanged earlier fall back to the hardcoded path
+     * (contract §1 "map age" — mirrors the Woo fallback).
+     *
+     * @param string[] $productIds 1..1000 raw parent product ids
+     * @return array<string, mixed>
+     */
+    public function catalogRemove(array $productIds): array
+    {
+        return $this->request(
+            'POST',
+            $this->endpoint('ingest_catalog_remove', '/api/v1/ingest/catalog/remove'),
+            ['product_ids' => array_values($productIds)]
         );
     }
 

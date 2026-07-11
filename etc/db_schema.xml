@@ -41,10 +41,10 @@
         </index>
     </table>
 
-    <!-- Durable outbound queue for Campaign Intelligence engine ingest (catalog|customers|orders|browse). -->
+    <!-- Durable outbound queue for Campaign Intelligence engine ingest (catalog|customers|orders|browse|catalog_remove). -->
     <table name="smaily_ingest_queue" resource="default" engine="innodb" comment="Smaily Connect Engine Ingest Queue">
         <column xsi:type="int" name="id" unsigned="true" nullable="false" identity="true" comment="Queue Row ID"/>
-        <column xsi:type="varchar" name="domain" nullable="false" length="16" comment="catalog|customers|orders|browse"/>
+        <column xsi:type="varchar" name="domain" nullable="false" length="16" comment="catalog|customers|orders|browse|catalog_remove"/>
         <column xsi:type="varchar" name="entity_id" nullable="true" length="64" comment="Source Entity ID"/>
         <column xsi:type="varchar" name="event_uuid" nullable="false" length="36" comment="Idempotency UUID (wire event_id)"/>
         <column xsi:type="smallint" name="store_id" unsigned="true" nullable="true" comment="Store View ID (i18n context)"/>

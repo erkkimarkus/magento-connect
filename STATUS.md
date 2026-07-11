@@ -55,8 +55,20 @@ _Last updated: 2026-07-11_
   Magento TestFramework (needs a whole app + search engine — trade-off
   documented in TESTING.md). New CI job `integration` with a MySQL 8.4
   service; unit/static jobs untouched.
-- **Gates green:** 70 unit tests, 35 integration tests, phpcs clean, phpstan
-  clean. `setup:upgrade` + `setup:di:compile` verified in the docker sandbox.
+- **Product delete → engine §3b done (PRO-1231)** — catalog payloads emit
+  `tags.product_id` (parent entity id via a new `ParentProductResolver`;
+  `sku` keying untouched per PRO-1267); a
+  parent/standalone hard-delete enqueues a `catalog_remove` queue row that
+  `FlushIngestQueue` drains through its own non-D6 path to
+  `POST /api/v1/ingest/catalog/remove` (endpoints-map key
+  `ingest_catalog_remove`, hardcoded-path fallback for pre-v1.4.0
+  exchanges; `not_found` = success). Configurable-child delete keeps the
+  per-SKU `in_stock=false` soft path; disabled products stay on the
+  ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
+- **Gates green:** 89 unit tests, 38 integration tests, phpcs clean, phpstan
+  clean. `setup:upgrade` + `setup:di:compile` verified in the docker sandbox
+  (pre-PRO-1231; the new code is observer/DI-only — re-verify with the next
+  sandbox pass).
 
 ## Open Linear issues
 
@@ -66,7 +78,7 @@ _Last updated: 2026-07-11_
 | PRO-1199 | Integration test suite + CI MySQL | Done in repo — close after review |
 | PRO-1200 | i18n: en_US / et_EE translation packs | Done in repo — close after review |
 | PRO-1201 | Hyvä theme work package | — |
-| PRO-1231 | Product-delete → engine catalog/remove (§3b) | Low / TBD |
+| PRO-1231 | Product-delete → engine catalog/remove (§3b) | Done in repo — close after review |
 
 ## Known gaps
 

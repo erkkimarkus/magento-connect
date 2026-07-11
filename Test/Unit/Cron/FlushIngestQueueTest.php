@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Test\Unit\Cron;
 
+use Magento\Framework\Serialize\Serializer\Json;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Smaily\Connect\Cron\FlushIngestQueue;
@@ -25,13 +26,18 @@ class FlushIngestQueueTest extends TestCase
     private Client&MockObject $client;
     private Settings&MockObject $settings;
 
+    /** @var array<int, array<string, mixed>> payloads by event id (decodePayload stub) */
+    private array $payloads = [];
+
     protected function setUp(): void
     {
         $this->queue = $this->createMock(IngestQueue::class);
         $this->client = $this->createMock(Client::class);
         $this->settings = $this->createMock(Settings::class);
         $this->settings->method('isConnected')->willReturn(true);
-        $this->queue->method('decodePayload')->willReturn(['sku' => 'X']);
+        $this->queue->method('decodePayload')->willReturnCallback(
+            fn (IngestEvent $event): array => $this->payloads[(int)$event->getId()] ?? ['sku' => 'X']
+        );
     }
 
     public function testD6ErrorsMapBackOntoBatchRowsByIndex(): void
@@ -104,8 +110,93 @@ class FlushIngestQueueTest extends TestCase
         $settings->method('isConnected')->willReturn(false);
         $this->queue->expects(self::never())->method('claimBatch');
 
-        (new FlushIngestQueue($settings, $this->queue, $this->client, $this->createMock(Logger::class)))
+        (new FlushIngestQueue($settings, $this->queue, $this->client, new Json(), $this->createMock(Logger::class)))
             ->execute();
+    }
+
+    /**
+     * §3b (PRO-1231): one wrapper of UNIQUE product ids; not D6 — a 2xx
+     * applies to every id, `not_found` is a contract-defined success
+     * recorded as the row's outcome, never a retry.
+     */
+    public function testCatalogRemoveSendsUniqueIdsAndRecordsPerRowOutcomes(): void
+    {
+        $first = $this->createEvent(21, Client::DOMAIN_CATALOG_REMOVE);
+        $duplicate = $this->createEvent(22, Client::DOMAIN_CATALOG_REMOVE);
+        $gone = $this->createEvent(23, Client::DOMAIN_CATALOG_REMOVE);
+        $this->payloads = [
+            21 => ['product_id' => '7'],
+            22 => ['product_id' => '7'],
+            23 => ['product_id' => '9'],
+        ];
+        $this->stubClaims([Client::DOMAIN_CATALOG_REMOVE => [$first, $duplicate, $gone]]);
+
+        $this->client->expects(self::never())->method('ingest');
+        $this->client->expects(self::once())->method('catalogRemove')
+            ->with(['7', '9'])
+            ->willReturn([
+                'ok' => true,
+                'removed_products' => 1,
+                'rows_tombstoned' => 3,
+                'not_found' => ['9'],
+            ]);
+
+        $sent = [];
+        $this->queue->method('markSent')->willReturnCallback(
+            static function (IngestEvent $event, ?string $response = null) use (&$sent): void {
+                $sent[(int)$event->getId()] = (array)json_decode((string)$response, true);
+            }
+        );
+        $this->queue->expects(self::never())->method('markFailed');
+
+        $this->createCron()->execute();
+
+        self::assertSame(['removed', 'removed', 'not_found'], array_column([$sent[21], $sent[22], $sent[23]], 'outcome'));
+        self::assertSame(3, $sent[21]['rows_tombstoned']);
+    }
+
+    public function testCatalogRemoveRowWithoutKeyIsTerminalObservableSkip(): void
+    {
+        $keyless = $this->createEvent(31, Client::DOMAIN_CATALOG_REMOVE);
+        $this->payloads = [31 => ['event_id' => 'u-31']];
+        $this->stubClaims([Client::DOMAIN_CATALOG_REMOVE => [$keyless]]);
+
+        $this->client->expects(self::never())->method('catalogRemove');
+        $this->queue->expects(self::once())->method('markFailed')
+            ->with($keyless, 'catalog/remove row has no product_id', true);
+
+        $this->createCron()->execute();
+    }
+
+    public function testCatalogRemoveTransportFailureReschedulesNonTerminally(): void
+    {
+        $event = $this->createEvent(41, Client::DOMAIN_CATALOG_REMOVE);
+        $this->payloads = [41 => ['product_id' => '7']];
+        $this->stubClaims([Client::DOMAIN_CATALOG_REMOVE => [$event]]);
+        $this->client->method('catalogRemove')
+            ->willThrowException(new EngineTransportException('engine down', 503));
+
+        $this->queue->expects(self::once())->method('markFailed')
+            ->with($event, 'engine down');
+        $this->queue->expects(self::never())->method('markSent');
+
+        $this->createCron()->execute();
+    }
+
+    public function testCatalogRemoveRequestErrorIsTerminal(): void
+    {
+        // A 404 here means the engine predates §3b ("not yet available") —
+        // parked, never retried; the periodic full re-sync reconciles.
+        $event = $this->createEvent(51, Client::DOMAIN_CATALOG_REMOVE);
+        $this->payloads = [51 => ['product_id' => '7']];
+        $this->stubClaims([Client::DOMAIN_CATALOG_REMOVE => [$event]]);
+        $this->client->method('catalogRemove')
+            ->willThrowException(new EngineRequestException('HTTP 404: not found', 404));
+
+        $this->queue->expects(self::once())->method('markFailed')
+            ->with($event, 'HTTP 404: not found', true);
+
+        $this->createCron()->execute();
     }
 
     /**
@@ -124,15 +215,16 @@ class FlushIngestQueueTest extends TestCase
             $this->settings,
             $this->queue,
             $this->client,
+            new Json(),
             $this->createMock(Logger::class)
         );
     }
 
-    private function createEvent(int $id): IngestEvent&MockObject
+    private function createEvent(int $id, string $domain = 'catalog'): IngestEvent&MockObject
     {
         $event = $this->createMock(IngestEvent::class);
         $event->method('getId')->willReturn($id);
-        $event->method('getDomain')->willReturn('catalog');
+        $event->method('getDomain')->willReturn($domain);
 
         return $event;
     }

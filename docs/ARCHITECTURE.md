@@ -66,7 +66,7 @@ Observer / cron ──enqueue──> smaily_event_queue ──cron flush (1 min)
 
 ```
 Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1 min)──> engine
-       (domain: catalog | customers | orders | browse)
+       (domain: catalog | customers | orders | browse | catalog_remove)
 ```
 
 - One wire item per row; the row UUID doubles as the wire `event_id`, so
@@ -75,6 +75,20 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   100/100/50/100 per the contract) and maps the D6 response's
   `errors[].index` back onto individual rows — a 200 is never treated as
   all-or-nothing.
+- Every catalog row carries `tags.product_id` — the platform parent product
+  id (`Engine\Payload\ParentProductResolver`: a configurable child resolves
+  to its parent's entity id, everything else to its own). It keys the
+  engine's product-level removal; the `sku` keying is untouched.
+- **Product delete** (`Observer/Engine/ProductDeleteBefore`): a
+  parent/standalone hard-delete enqueues one `catalog_remove` row; the
+  flusher drains those through its own non-D6 path to
+  `POST /api/v1/ingest/catalog/remove` (contract §3b — the engine
+  tombstones every row matching `tags.product_id`; `not_found` in the
+  response is a success, never a retry). A configurable child's deletion
+  keeps the per-SKU `in_stock=false` upsert instead — §3b is product-level
+  and would tombstone the surviving parent/siblings. A merely
+  disabled/hidden product flows through `ProductSaveAfter`'s soft
+  tombstone, never §3b.
 - Browse events are the exception: loss-tolerant by design, they are relayed
   synchronously (`Controller/Relay/Index`) and never queued.
 

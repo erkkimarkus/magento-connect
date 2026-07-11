@@ -27,6 +27,7 @@ Ground-up rewrite as module `Smaily_Connect`, targeting feature parity with the 
 - Unit tests, phpcs/phpstan static analysis and CI added [[#51](https://github.com/sendsmaily/smaily-magento-extension/issues/51)]
 - Integration test suite against a real MySQL (queue retry/backoff/claim semantics, the 2.8.x → v3 settings and schema migration, queue cron flows with stubbed HTTP transports), run in CI with a MySQL 8.4 service — see [TESTING.md](TESTING.md).
 - Ships the Campaign Intelligence engine wire contract (`docs/RECENGINE_API_CONTRACT.md`, v1.4.0, byte-synced across Smaily connect repositories): order amounts gross/tax-inclusive (`row_total_incl_tax` / `grand_total`), browse events tagged `source: plugin_magento`, and the browse beacon degrades to sender-side anonymous mode (identity hint omitted, events keep flowing) when cookie consent is absent.
+- Catalog rows carry the platform parent product id as `tags.product_id` (a configurable child resolves to its parent's entity id). A product hard-delete soft-removes the whole product engine-side via `POST /api/v1/ingest/catalog/remove` (contract §3b); a configurable child's deletion keeps the per-SKU out-of-stock path, and disabling a product remains a soft out-of-stock update.
 - Contract staleness guard in CI: a dedicated daily "Contract staleness" workflow (`bin/check-contract-staleness.sh`) fails when the vendored `docs/RECENGINE_API_CONTRACT.md` is no longer byte-identical with the engine repo's main branch.
 
 **Behavior changes**
