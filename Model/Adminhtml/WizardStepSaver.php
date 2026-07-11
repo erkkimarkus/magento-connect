@@ -50,7 +50,7 @@ class WizardStepSaver
             'automations' => $this->saveAutomations($data),
             'intelligence' => $this->saveIntelligence($data),
             'finish' => $this->saveFinish(),
-            default => [['field' => 'step', 'message' => sprintf('Unknown step "%s"', $step)]],
+            default => [['field' => 'step', 'message' => (string)__('Unknown wizard step "%1".', $step)]],
         };
 
         $this->cacheTypeList->cleanType(ConfigCache::TYPE_IDENTIFIER);

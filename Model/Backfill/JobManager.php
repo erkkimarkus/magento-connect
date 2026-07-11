@@ -34,7 +34,7 @@ class JobManager
     {
         if ($this->findActive($jobType, $target, $websiteId) !== null) {
             throw new \RuntimeException(
-                sprintf('A %s/%s backfill is already active for website %d', $jobType, $target, $websiteId)
+                (string)__('A "%1" import to %2 is already running for website %3.', $jobType, $target, $websiteId)
             );
         }
 

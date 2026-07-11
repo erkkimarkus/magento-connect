@@ -17,6 +17,13 @@ _Last updated: 2026-07-11_
   its settings carry over seamlessly.
 - **Native admin UX round 1 done** — setup wizard, AJAX config with instant
   feedback, engine automations embedded in the unified automations UI.
+- **i18n done (PRO-1200)** — `i18n/en_US.csv` (canonical inventory, 242
+  phrases) + `i18n/et_EE.csv` (full Estonian pack, Woo-plugin vocabulary);
+  covers system.xml, menu/ACL, layout/ui_component XML, phtml `__()`, JS
+  `$t()` and the KO `i18n:` binding. Two previously untranslatable
+  user-facing strings wrapped (backfill "already running" notice, wizard
+  unknown-step error). Translated rendering not yet eyeballed in the
+  sandbox (folded into the wizard click-through that is already owed).
 - **Engine contract v1.4.0 adopted + verified** (commit d35bb96, byte-identical
   with the engine repo); **contract staleness CI added** (commit 5bc3767,
   `.github/workflows/contract-staleness.yaml` + `bin/check-contract-staleness.sh`).
@@ -29,7 +36,7 @@ _Last updated: 2026-07-11_
 |---|---|---|
 | PRO-1198 | Release coordination with Smaily (upstream/Marketplace path) | High — Erkki's decision |
 | PRO-1199 | Integration test suite + CI MySQL | — |
-| PRO-1200 | i18n: en_US / et_EE translation packs | — |
+| PRO-1200 | i18n: en_US / et_EE translation packs | Done in repo — close after review |
 | PRO-1201 | Hyvä theme work package | — |
 | PRO-1231 | Product-delete → engine catalog/remove (§3b) | Low / TBD |
 
@@ -37,7 +44,8 @@ _Last updated: 2026-07-11_
 
 - **Wizard/UX JS flows not yet browser-tested** — verified only via
   `setup:di:compile` + code review; a manual click-through in the sandbox is
-  owed before any release.
+  owed before any release. Do the click-through once with the admin locale
+  set to `et_EE` to eyeball the new translations at the same time.
 - **Hyvä untested** (PRO-1201).
 - **GitHub secret `ENGINE_CONTRACT_READ_TOKEN` not yet set** — the contract
   staleness workflow fails with "CANNOT CHECK" until Erkki adds the

@@ -304,3 +304,8 @@ checkout payment step. Hyvä Checkout needs a separate compatibility package
 **Where did the sync frequency setting go?** v3 syncs in near-real-time via
 observers plus a 15-minute consent reconcile; the old 4h/12h/daily presets
 are obsolete.
+
+**What languages does the module speak?** English and Estonian — the admin
+and storefront follow the configured Magento locale (`et_EE` for Estonian).
+Translation packs live in the module's `i18n/` directory; contributions for
+other languages are welcome.

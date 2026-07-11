@@ -38,6 +38,7 @@ Plugin/             newsletter email suppression, config validation,
 Setup/Patch/        legacy schema cleanup (Schema/), config migration (Data/)
 ViewModel/          template data providers
 view/               adminhtml grids/templates, frontend JS + templates
+i18n/               translation packs (en_US canonical, et_EE)
 ```
 
 ## The two delivery pipelines

@@ -15,6 +15,7 @@ Ground-up rewrite as module `Smaily_Connect`, targeting feature parity with the 
 - Campaign Intelligence integration: catalog/customer/order/browse ingest, recommendation attribution, identity merge, engine-run automations admin, GDPR export/erase CLI and a shopper personalization opt-out page.
 - RSS feed improvements: category **ID** filter, limit/sort/order parameters, cache headers, enable/disable toggle [[#48](https://github.com/sendsmaily/smaily-magento-extension/issues/48), [#49](https://github.com/sendsmaily/smaily-magento-extension/issues/49), [#50](https://github.com/sendsmaily/smaily-magento-extension/issues/50), [#72](https://github.com/sendsmaily/smaily-magento-extension/issues/72)]
 - Configurable log verbosity on a dedicated log file [[#113](https://github.com/sendsmaily/smaily-magento-extension/issues/113)]
+- Translations: full English (`i18n/en_US.csv`) and Estonian (`i18n/et_EE.csv`) translation packs covering the admin (wizard, configuration, grids) and the storefront (checkout opt-in, personalization page).
 
 **Under the hood**
 
