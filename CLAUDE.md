@@ -1,14 +1,120 @@
-# CLAUDE.md
+# CLAUDE.md — Agent Working Guide (Smaily Connect for Magento 2)
 
+If you are a fresh agent picking up this repo: read this first, then `STATUS.md`
+(where we are now), then `docs/ARCHITECTURE.md` (how the module is built),
+`docs/RECENGINE_API_CONTRACT.md` (the engine contract you build against), and
+`BACKLOG.md`. README gives the 30-second orientation.
+
+## Mission
+
+**Smaily Connect for Magento 2** — a v3 greenfield rewrite of Smaily's Magento
+extension. Module `Smaily_Connect`, namespace `Smaily\Connect`, composer package
+`smaily/smailyformagento` (name unchanged on purpose — existing installs upgrade
+via a plain `composer update`). Target: feature parity with the UNION of the Woo
+(`../connect/`) and Shopify (`../shopify-connect/`) Smaily plugins, plus full
+Campaign Intelligence support. Aim: become Smaily's official upstream extension.
+Magento 2.4.4+ / PHP 8.1–8.4. GPL-3.0. Public product name "Smaily Connect".
+
+Fork: `erkkimarkus/magento-connect` (upstream
+`sendsmaily/smaily-magento-extension`). Work happens on branch `v3` (default).
+
+**Public facade:** README, CONTRIBUTING, CHANGELOG, TESTING and `docs/` are
+written as finished-product public documentation. Keep them in that tone —
+internal process talk (phases, agents, Linear) lives here and in STATUS.md only.
+
+## Sibling repos (read-only references)
+
+| Path | What it is |
+|---|---|
+| `../connect/` | The WP/Woo plugin — richest reference (patterns + `docs/LESSONS.md`, `docs/DECISIONS.md`). Never edit from here. |
+| `../shopify-connect/` | The hosted Shopify app — second parity source. |
+| `../re/` | The recommendation engine (`smaily-recommendations`). Engine team owns it; source of the contract. |
+
+## Working mode — autonomous with checkpoints
+
+- **Proceed without asking:** implementation, tests, refactors, doc upkeep, and
+  reversible technical decisions (record significant ones as you go).
+- **Queue for Erkki, don't block:** non-urgent strategic questions and
+  human-only tasks — collect them in STATUS.md under "Questions / tasks for
+  Erkki"; batch them, don't drip.
+- **Stop and ask first:** spending money; anything published externally
+  (Marketplace submission, a public release, contact with the Smaily or engine
+  team); proposing breaking changes to the engine contract; deleting store
+  data; security trade-offs.
+
+## Keeping the docs current — part of every change
+
+Same rule as the sibling repos, same wording on purpose: if your change makes a
+doc wrong, your change isn't finished until the doc is fixed in the same
+commit. **STATUS.md updates in the same commit that changes reality.** New
+operational gotchas go into this file. `docs/USER_GUIDE.md` is a doc too — a
+user-visible behaviour change updates it in the same commit.
+
+## Contract discipline
+
+`docs/RECENGINE_API_CONTRACT.md` is a **byte-identical copy** from the engine
+repo (`../re/`, `erkkimarkus/smaily-recommendations`) — never hand-edit it.
+The `Contract staleness` workflow (daily + push/PR) runs
+`bin/check-contract-staleness.sh` and goes red on drift; it needs the repo
+secret `ENGINE_CONTRACT_READ_TOKEN` (fine-grained PAT, contents:read on the
+engine repo). A sync is NOT code-complete: after any wire-shape change, carry
+it through code + test fixtures in the same pass (Woo LESSONS §2.7 — the scar
+is real). Datetimes are Z-suffix only; engine URL placeholders are `{email}`
+style (str_replace, never sprintf).
+
+## Build / test commands
+
+- Local PHP is 8.5 but the package requires ~8.1–8.4, so:
+  `composer install --ignore-platform-reqs`. Magento packages come from
+  `mirror.mage-os.org` (repo configured in composer.json).
+- Gates — ALL must pass before anything is "done" (CI runs the same):
+  - `vendor/bin/phpunit --testsuite unit`
+  - `vendor/bin/phpcs` (Magento2 standard; errors fail)
+  - `vendor/bin/phpstan analyse`
+- Sandbox: `docker compose up -d` — real Magento 2 at
+  `localhost:8080/admin` (admin / smailydev1, 2FA modules disabled). The repo
+  is bind-mounted as the module; `vendor/` inside the container is shadowed by
+  an anonymous volume (dev deps never leak into the Magento autoloader).
+  `bin/magento setup:upgrade && setup:di:compile` in the container is the
+  DI-correctness gate (see TESTING.md).
+- Release ZIP is built by `.github/workflows/release.yaml` on a published
+  GitHub release.
+
+## Language conventions
+
+Repo docs, code, commits, Linear content: English. Conversations with Erkki:
+Estonian.
 
 ## Linear discipline (Smaily process bridge)
 
-This repository is engineering truth — STATUS/DECISIONS/docs stay canonical here. Linear is the coordination and visibility layer. Full process: Outline → Processes → "Agent-Driven Development"; compact guide: Linear document "Linear workflow guide for AI agents" (attached to MGMT-5). Three rules for every agent working here:
+This repository is engineering truth — STATUS/docs stay canonical here. Linear
+is the coordination and visibility layer. Full process: Outline → Processes →
+"Agent-Driven Development"; compact guide: Linear document "Linear workflow
+guide for AI agents" (attached to MGMT-5). Three rules for every agent working
+here:
 
-1. **Anchor before work.** A Linear project must exist before substantive work starts — create it or link to it (minutes, not hours). This repo's project: [Smaily Connect for Magento 2 — v3 rewrite](https://linear.app/smaily/project/smaily-connect-for-magento-2-v3-rewrite-34e9fd6ca889), initiatives *Smaily E-Commerce native integrations* + *Campaign Intelligence*.
+1. **Anchor before work.** A Linear project must exist before substantive work
+   starts. This repo's project: [Smaily Connect for Magento 2 — v3
+   rewrite](https://linear.app/smaily/project/smaily-connect-for-magento-2-v3-rewrite-34e9fd6ca889),
+   team "Product Development", initiatives *Smaily E-Commerce native
+   integrations* + *Campaign Intelligence*. Cross-repo asks are filed as issues in the
+   sibling projects (Woo: "Smaily Connect for WooCommerce — v3 rewrite",
+   Shopify: "Smaily Connect for Shopify — hosted app", engine: "Campaign
+   Intelligence — recommendation engine").
 
-2. **One-way doors interrupt.** Before any irreversible or expensive-to-undo commitment — persistent data schema, public/integration API contracts (e.g. `RECENGINE_API_CONTRACT.md`), releases reaching real users or stores, anything touching deliverability/reputation, pricing, or legal/consent — halt, file a Linear issue in the project with the evidence and proposed action, and wait for Erkki's approval. Reversible work proceeds at full speed without asking.
+2. **One-way doors interrupt.** Before any irreversible or expensive-to-undo
+   commitment — persistent data schema, public/integration API contracts (e.g.
+   `RECENGINE_API_CONTRACT.md`), releases reaching real users or stores,
+   anything touching deliverability/reputation, pricing, or legal/consent —
+   halt, file a Linear issue in the project with the evidence and proposed
+   action, and wait for Erkki's approval. Reversible work proceeds at full
+   speed without asking.
 
-3. **Scribe pass at session end.** Before finishing a working session, distill it into Linear: post an honest project status update (onTrack/atRisk/offTrack), promote new backlog items to Linear issues, update the project's SDD document if architecture moved, close completed issues. Use the `/linear-project` skill if available, otherwise the Linear MCP tools directly.
+3. **Scribe pass at session end.** Before finishing a working session, distill
+   it into Linear: post an honest project status update (onTrack/atRisk/
+   offTrack), promote new backlog items to Linear issues, close completed
+   issues. Use the `/linear-project` skill if available, otherwise the Linear
+   MCP tools directly.
 
-Never duplicate repo documents into Linear — summarize and link. Linear content is written in English.
+Never duplicate repo documents into Linear — summarize and link. Linear content
+is written in English.
