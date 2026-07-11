@@ -12,6 +12,41 @@ vendor/bin/phpstan analyse  # level 6 with the bitexpert/phpstan-magento extensi
 CI (GitHub Actions) runs the unit suite on PHP 8.1 and 8.3 plus the static
 analysis job on every push and pull request.
 
+## Integration tests (real MySQL)
+
+The integration suite exercises the module against a real MySQL database:
+queue persistence and claim/backoff/parking semantics (`smaily_event_queue`,
+`smaily_ingest_queue`), the 2.8.x → v3 settings migration (real
+`core_config_data` rows, password re-encryption, automation mapping seeding),
+the legacy schema cleanup patch (real `quote` column drops with mailed-state
+carry-over) and the queue cron jobs with the HTTP transports stubbed.
+
+It needs a MySQL 8.x it can own a database on — any throwaway instance works:
+
+```bash
+docker run --rm -d --name smaily-it-mysql \
+  -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=smaily_connect_it \
+  -p 3316:3306 mysql:8.4
+
+SMAILY_IT_DB_PORT=3316 vendor/bin/phpunit -c phpunit.integration.xml.dist
+```
+
+Connection parameters come from environment variables (defaults in
+parentheses): `SMAILY_IT_DB_HOST` (127.0.0.1), `SMAILY_IT_DB_PORT` (3306),
+`SMAILY_IT_DB_USER` (root), `SMAILY_IT_DB_PASSWORD` (root),
+`SMAILY_IT_DB_NAME` (smaily_connect_it). The named database is dropped
+table-by-table and recreated on every run — never point it at data you care
+about. CI runs the suite in a dedicated job with a MySQL 8.4 service.
+
+**Scope note:** the suite boots a standalone `Magento\Framework` object graph
+(real DB adapter, model/resource/collection layer, encryptor, config writer)
+rather than Magento's full integration TestFramework, which requires a
+complete application install plus a search engine and is disproportionately
+heavy for a single module's CI. Module tables are installed by translating
+`etc/db_schema.xml` directly into DDL; the declarative-schema pipeline itself
+(plus DI compilation) is still verified by `setup:upgrade` /
+`setup:di:compile` in the sandbox below.
+
 ## Sandbox (manual / end-to-end)
 
 A Docker Magento 2.4.8-p4 with sample data, the module mounted at
@@ -42,6 +77,11 @@ Manual smoke checklist:
    Import, watch the Ingest Log drain.
 
 ## Upgrade migration test (2.8.x -> v3)
+
+The migration is covered automatically by the integration suite
+(`Test/Integration/Migration/`), which asserts the same outcomes as this
+procedure against a real database. The sandbox walkthrough below remains the
+full end-to-end check through Magento's real `setup:upgrade` patch pipeline.
 
 Scripted legacy-state simulation inside the sandbox (what the data patch must
 handle). Seed the legacy state, then upgrade:

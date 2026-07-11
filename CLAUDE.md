@@ -71,6 +71,10 @@ style (str_replace, never sprintf).
   - `vendor/bin/phpunit --testsuite unit`
   - `vendor/bin/phpcs` (Magento2 standard; errors fail)
   - `vendor/bin/phpstan analyse`
+  - `vendor/bin/phpunit -c phpunit.integration.xml.dist` — needs a throwaway
+    MySQL (`docker run --rm -d -e MYSQL_ROOT_PASSWORD=root -p 3316:3306
+    mysql:8.4` + `SMAILY_IT_DB_PORT=3316`, see TESTING.md); NEVER point
+    `SMAILY_IT_DB_*` at the sandbox DB — the suite drops/recreates tables.
 - Sandbox: `docker compose up -d` — real Magento 2 at
   `localhost:8080/admin` (admin / smailydev1, 2FA modules disabled). The repo
   is bind-mounted as the module; `vendor/` inside the container is shadowed by

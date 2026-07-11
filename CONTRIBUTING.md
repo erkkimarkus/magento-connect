@@ -38,6 +38,9 @@ Every pull request must pass CI (the same commands work locally):
 vendor/bin/phpunit --testsuite unit   # unit tests
 vendor/bin/phpcs                      # Magento2 coding standard (errors fail)
 vendor/bin/phpstan analyse            # level 6, with the Magento extension
+
+# Integration tests need a throwaway MySQL (see TESTING.md for setup):
+vendor/bin/phpunit -c phpunit.integration.xml.dist
 ```
 
 Additions to sync payloads or API clients must stay wire-compatible with

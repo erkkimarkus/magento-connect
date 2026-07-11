@@ -31,6 +31,46 @@ jobs:
       - name: Run unit tests
         run: vendor/bin/phpunit --testsuite unit
 
+  integration:
+    name: Integration tests (MySQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: smaily_connect_it
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, gd, intl, pdo_mysql, soap, sodium, xsl, zip
+          coverage: none
+
+      - name: Add Mage-OS mirror for Magento packages
+        run: composer config repositories.mage-os composer https://mirror.mage-os.org/
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Run integration tests
+        run: vendor/bin/phpunit -c phpunit.integration.xml.dist
+        env:
+          SMAILY_IT_DB_HOST: 127.0.0.1
+          SMAILY_IT_DB_PORT: '3306'
+          SMAILY_IT_DB_USER: root
+          SMAILY_IT_DB_PASSWORD: root
+          SMAILY_IT_DB_NAME: smaily_connect_it
+
   static:
     name: Static analysis (phpcs + phpstan)
     runs-on: ubuntu-latest

@@ -83,6 +83,7 @@ composer install          # Magento packages via the Mage-OS mirror
 vendor/bin/phpunit --testsuite unit
 vendor/bin/phpcs
 vendor/bin/phpstan analyse
+vendor/bin/phpunit -c phpunit.integration.xml.dist  # needs MySQL, see TESTING.md
 
 docker compose up -d      # Magento 2.4.8 sandbox on http://localhost:8080
 ```

@@ -27,15 +27,25 @@ _Last updated: 2026-07-11_
 - **Engine contract v1.4.0 adopted + verified** (commit d35bb96, byte-identical
   with the engine repo); **contract staleness CI added** (commit 5bc3767,
   `.github/workflows/contract-staleness.yaml` + `bin/check-contract-staleness.sh`).
-- **Gates green:** 73 unit tests, phpcs clean, phpstan clean. `setup:upgrade` +
-  `setup:di:compile` verified in the docker sandbox.
+- **Integration test suite + CI MySQL done (PRO-1199)** — 35 tests against a
+  real MySQL 8.4: 2.8.x settings/schema migration (config mapper on real
+  `core_config_data`, password re-encryption, mapping seeding, quote-column
+  cleanup), event/ingest queue semantics (idempotent enqueue, claim tokens,
+  backoff, parking, stale recovery, janitor retention) and the two flush
+  crons with stubbed transports. Harness = standalone `Magento\Framework`
+  object graph (`Test/Integration/Support/TestEnvironment.php`), NOT the full
+  Magento TestFramework (needs a whole app + search engine — trade-off
+  documented in TESTING.md). New CI job `integration` with a MySQL 8.4
+  service; unit/static jobs untouched.
+- **Gates green:** 70 unit tests, 35 integration tests, phpcs clean, phpstan
+  clean. `setup:upgrade` + `setup:di:compile` verified in the docker sandbox.
 
 ## Open Linear issues
 
 | Issue | What | Priority |
 |---|---|---|
 | PRO-1198 | Release coordination with Smaily (upstream/Marketplace path) | High — Erkki's decision |
-| PRO-1199 | Integration test suite + CI MySQL | — |
+| PRO-1199 | Integration test suite + CI MySQL | Done in repo — close after review |
 | PRO-1200 | i18n: en_US / et_EE translation packs | Done in repo — close after review |
 | PRO-1201 | Hyvä theme work package | — |
 | PRO-1231 | Product-delete → engine catalog/remove (§3b) | Low / TBD |
