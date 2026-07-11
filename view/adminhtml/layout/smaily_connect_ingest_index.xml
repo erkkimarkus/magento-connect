@@ -14,7 +14,7 @@
                    template="Smaily_Connect::intro.phtml"
                    before="-">
                 <arguments>
-                    <argument name="intro_text" xsi:type="string" translate="true">Every data delivery to Smaily Campaign Intelligence (catalog, customers, orders and browse events) lands here. The engine confirms each item individually, so a single bad product cannot block the rest of a batch. Failed rows can be selected and retried after fixing the underlying data.</argument>
+                    <argument name="intro_text" xsi:type="string">Every data delivery to Smaily Campaign Intelligence (catalog, customers, orders and browse events) lands here. The engine confirms each item individually, so a single bad product cannot block the rest of a batch. Failed rows can be selected and retried after fixing the underlying data.</argument>
                 </arguments>
             </block>
             <uiComponent name="smaily_ingest_grid"/>

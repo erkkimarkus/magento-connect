@@ -216,16 +216,23 @@ $urls = [
 </div>
 
 <script>
-require(['jquery', 'mage/translate'], function ($, $t) {
+require(['jquery'], function ($) {
     'use strict';
 
     var boot = <?= /* @noEscape */ $viewModel->getBootJson() ?>;
     var urls = <?= /* @noEscape */ json_encode(array_map('strval', $urls)) ?>;
+    // Translated server-side: Magento's js-translation.json dictionary is
+    // built from .js and .html files only — $t() inside a phtml inline
+    // script never gets collected, so it would always render English.
     var SYNC_FIELDS = [
-        ['first_name', $t('First name')], ['last_name', $t('Last name')],
-        ['prefix', $t('Name prefix')], ['gender', $t('Gender')],
-        ['birthday', $t('Date of birth')], ['customer_id', $t('Customer ID')],
-        ['customer_group', $t('Customer group')], ['subscription_type', $t('Subscription type')]
+        ['first_name', '<?= $escaper->escapeJs(__('First name')) ?>'],
+        ['last_name', '<?= $escaper->escapeJs(__('Last name')) ?>'],
+        ['prefix', '<?= $escaper->escapeJs(__('Name prefix')) ?>'],
+        ['gender', '<?= $escaper->escapeJs(__('Gender')) ?>'],
+        ['birthday', '<?= $escaper->escapeJs(__('Date of birth')) ?>'],
+        ['customer_id', '<?= $escaper->escapeJs(__('Customer ID')) ?>'],
+        ['customer_group', '<?= $escaper->escapeJs(__('Customer group')) ?>'],
+        ['subscription_type', '<?= $escaper->escapeJs(__('Subscription type')) ?>']
     ];
     var step = 1, connected = boot.connected;
 
@@ -259,7 +266,9 @@ require(['jquery', 'mage/translate'], function ($, $t) {
         $('.smaily-step-panel[data-step=' + step + ']').addClass('active');
         $('#smaily-w-back').toggle(step > 1 && step < 5);
         $('#smaily-w-next').toggle(step < 5);
-        $('#smaily-w-next span').text(step === 4 ? $t('Finish') : $t('Continue'));
+        $('#smaily-w-next span').text(step === 4
+            ? '<?= $escaper->escapeJs(__('Finish')) ?>'
+            : '<?= $escaper->escapeJs(__('Continue')) ?>');
         $('#smaily-w-save-result').text('');
         window.scrollTo(0, 0);
     }
@@ -267,7 +276,7 @@ require(['jquery', 'mage/translate'], function ($, $t) {
     function fillWorkflows(workflows) {
         $('.smaily-w-workflow').each(function () {
             var current = $(this).val() || $(this).data('saved') || '';
-            $(this).empty().append(new Option($t('-- Not Selected --'), ''));
+            $(this).empty().append(new Option('<?= $escaper->escapeJs(__('-- Not Selected --')) ?>', ''));
             (workflows || []).forEach(function (w) {
                 $(this).append(new Option(w.name + ' (' + w.id + ')', w.id));
             }.bind(this));
@@ -288,7 +297,7 @@ require(['jquery', 'mage/translate'], function ($, $t) {
         return post(urls.saveStep, {step: name, data: data}).then(function (response) {
             if (!response.saved) {
                 var message = (response.errors || []).map(function (e) { return e.message; }).join(' ');
-                throw new Error(message || $t('Saving failed.'));
+                throw new Error(message || '<?= $escaper->escapeJs(__('Saving failed.')) ?>');
             }
         });
     }
@@ -297,7 +306,9 @@ require(['jquery', 'mage/translate'], function ($, $t) {
         1: function () {
             var creds = credentials();
             if (!connected && (!creds.subdomain || !creds.username || !creds.password)) {
-                return Promise.reject(new Error($t('Fill in the credentials and press Test Connection first.')));
+                return Promise.reject(new Error(
+                    '<?= $escaper->escapeJs(__('Fill in the credentials and press Test Connection first.')) ?>'
+                ));
             }
             return saveStep('connect', {
                 subdomain: creds.subdomain,
@@ -342,7 +353,7 @@ require(['jquery', 'mage/translate'], function ($, $t) {
         $('#smaily-w-password-note').show();
     }
     if (connected) {
-        result('#smaily-w-test-result', $t('Connected with the saved credentials.'), true);
+        result('#smaily-w-test-result', '<?= $escaper->escapeJs(__('Connected with the saved credentials.')) ?>', true);
     }
 
     SYNC_FIELDS.forEach(function (field) {
@@ -367,7 +378,8 @@ require(['jquery', 'mage/translate'], function ($, $t) {
         $('#smaily-w-engine-disconnected').hide();
         $('#smaily-w-engine-connected').show();
         $('#smaily-w-engine-status').text(
-            $t('Connected: %1 (engine %2)').replace('%1', boot.intelligence.tenantName).replace('%2', boot.intelligence.engineVersion)
+            '<?= $escaper->escapeJs(__('Connected: %1 (engine %2)')) ?>'
+                .replace('%1', boot.intelligence.tenantName).replace('%2', boot.intelligence.engineVersion)
         );
         $('#smaily-w-browse').prop('checked', boot.intelligence.browseTracking);
     }
@@ -381,12 +393,12 @@ require(['jquery', 'mage/translate'], function ($, $t) {
 
     // --- Step 1 actions ---------------------------------------------------
     $('#smaily-w-test').on('click', function () {
-        result('#smaily-w-test-result', $t('Testing…'), true);
+        result('#smaily-w-test-result', '<?= $escaper->escapeJs(__('Testing…')) ?>', true);
         post(urls.test, credentials()).then(function (data) {
             connected = !!data.connected;
             result('#smaily-w-test-result', data.connected
-                ? $t('Connected! Continue to the next step.')
-                : (data.error || $t('Connection failed.')), data.connected);
+                ? '<?= $escaper->escapeJs(__('Connected! Continue to the next step.')) ?>'
+                : (data.error || '<?= $escaper->escapeJs(__('Connection failed.')) ?>'), data.connected);
         });
     });
 
@@ -398,13 +410,17 @@ require(['jquery', 'mage/translate'], function ($, $t) {
             if (data.status === 'running') {
                 $bar.show().val(data.percent);
                 result('#smaily-w-backfill-result',
-                    $t('Importing… %1 / %2').replace('%1', data.processed).replace('%2', data.total || '?'), true);
+                    '<?= $escaper->escapeJs(__('Importing… %1 / %2')) ?>'
+                        .replace('%1', data.processed).replace('%2', data.total || '?'), true);
                 backfillTimer = setTimeout(function () { pollBackfill(false); }, 4000);
             } else if (data.status === 'completed') {
                 $bar.show().val(100);
-                result('#smaily-w-backfill-result', $t('Import completed (%1 contacts).').replace('%1', data.processed), true);
+                result('#smaily-w-backfill-result',
+                    '<?= $escaper->escapeJs(__('Import completed (%1 contacts).')) ?>'
+                        .replace('%1', data.processed), true);
             } else if (data.status === 'failed') {
-                result('#smaily-w-backfill-result', $t('Import failed — see the Event Log for details.'), false);
+                result('#smaily-w-backfill-result',
+                    '<?= $escaper->escapeJs(__('Import failed — see the Event Log for details.')) ?>', false);
             }
         });
     }
@@ -418,16 +434,18 @@ require(['jquery', 'mage/translate'], function ($, $t) {
 
     // --- Step 4 engine --------------------------------------------------------
     $('#smaily-w-engine-connect').on('click', function () {
-        result('#smaily-w-engine-result', $t('Connecting…'), true);
+        result('#smaily-w-engine-result', '<?= $escaper->escapeJs(__('Connecting…')) ?>', true);
         post(urls.engineExchange, {setup_url: $('#smaily-w-setup-url').val()}).then(function (data) {
             if (data.connected) {
                 $('#smaily-w-engine-disconnected').hide();
                 $('#smaily-w-engine-connected').show();
                 $('#smaily-w-engine-status').text(
-                    $t('Connected: %1 (engine %2)').replace('%1', data.tenantName).replace('%2', data.engineVersion)
+                    '<?= $escaper->escapeJs(__('Connected: %1 (engine %2)')) ?>'
+                        .replace('%1', data.tenantName).replace('%2', data.engineVersion)
                 );
             } else {
-                result('#smaily-w-engine-result', data.message || $t('Connection failed.'), false);
+                result('#smaily-w-engine-result',
+                    data.message || '<?= $escaper->escapeJs(__('Connection failed.')) ?>', false);
             }
         });
     });
@@ -435,7 +453,7 @@ require(['jquery', 'mage/translate'], function ($, $t) {
     // --- Navigation -----------------------------------------------------------
     $('#smaily-w-next').on('click', function () {
         var $button = $(this).prop('disabled', true);
-        result('#smaily-w-save-result', $t('Saving…'), true);
+        result('#smaily-w-save-result', '<?= $escaper->escapeJs(__('Saving…')) ?>', true);
         stepSavers[step]().then(function () {
             result('#smaily-w-save-result', '', true);
             if (step === 3) {

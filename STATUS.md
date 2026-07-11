@@ -19,11 +19,29 @@ _Last updated: 2026-07-11_
   feedback, engine automations embedded in the unified automations UI.
 - **i18n done (PRO-1200)** — `i18n/en_US.csv` (canonical inventory, 242
   phrases) + `i18n/et_EE.csv` (full Estonian pack, Woo-plugin vocabulary);
-  covers system.xml, menu/ACL, layout/ui_component XML, phtml `__()`, JS
-  `$t()` and the KO `i18n:` binding. Two previously untranslatable
-  user-facing strings wrapped (backfill "already running" notice, wizard
-  unknown-step error). Translated rendering not yet eyeballed in the
-  sandbox (folded into the wizard click-through that is already owed).
+  covers system.xml, menu/ACL, layout/ui_component XML, phtml `__()` and the
+  KO `i18n:` binding. Two previously untranslatable user-facing strings
+  wrapped (backfill "already running" notice, wizard unknown-step error).
+  Estonian rendering eyeballed in the sandbox (admin wizard/config/grids/menu
+  + storefront personalization page); two rendering bugs found and fixed —
+  see the browser-validation entry below.
+- **Admin UX browser-validated end-to-end** (Playwright vs the sandbox):
+  login, menu, wizard all 5 steps (per-step AJAX saves verified in
+  `core_config_data`, step gating, non-blocking bad-credential Test
+  Connection, backfill start + progress polling, graceful engine-exchange
+  failure), config page (Test Connection without save, AJAX workflow
+  dropdowns, embedded engine automations block), event/ingest/backfill grids
+  with intro blocks, zero module JS console errors, and the et_EE locale
+  pass. Two i18n rendering bugs fixed in that pass: (1) grid intro texts
+  used layout-XML `translate="true"`, whose evaluation is frozen into the
+  locale-agnostic admin layout cache — now translated at render time in
+  `intro.phtml`; (2) all `$t()` strings in phtml inline scripts (wizard,
+  config assist, engine automations) never reach `js-translation.json`
+  (Magento only collects from `.js`/`.html`) so they always rendered
+  English — now translated server-side with `__()` + `escapeJs`. Not
+  browser-verified: happy paths against real Smaily/engine services, the
+  checkout opt-in checkbox rendering (sandbox catalog has no products; its
+  label is confirmed present in the storefront `js-translation.json`).
 - **Engine contract v1.4.0 adopted + verified** (commit d35bb96, byte-identical
   with the engine repo); **contract staleness CI added** (commit 5bc3767,
   `.github/workflows/contract-staleness.yaml` + `bin/check-contract-staleness.sh`).
@@ -52,10 +70,11 @@ _Last updated: 2026-07-11_
 
 ## Known gaps
 
-- **Wizard/UX JS flows not yet browser-tested** — verified only via
-  `setup:di:compile` + code review; a manual click-through in the sandbox is
-  owed before any release. Do the click-through once with the admin locale
-  set to `et_EE` to eyeball the new translations at the same time.
+- **Happy paths against real services untested** — all admin UX flows were
+  browser-validated against failure/empty paths (no real Smaily or engine
+  credentials in the sandbox); a click-through with real credentials is
+  still owed before release. Checkout opt-in checkbox rendering also
+  unverified in-browser (sandbox catalog has no products).
 - **Hyvä untested** (PRO-1201).
 - **GitHub secret `ENGINE_CONTRACT_READ_TOKEN` not yet set** — the contract
   staleness workflow fails with "CANNOT CHECK" until Erkki adds the

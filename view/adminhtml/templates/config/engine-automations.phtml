@@ -97,8 +97,10 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
         <span id="smaily-engine-automations-result" class="note" style="margin-left: 1rem;"></span>
     </div>
     <script>
-    require(['jquery', 'mage/translate'], function ($, $t) {
+    require(['jquery'], function ($) {
         'use strict';
+        // Strings translated server-side with __(): $t() inside phtml inline
+        // scripts is never collected into js-translation.json.
 
         $('#smaily-engine-automations-save').on('click', function () {
             var params = new URLSearchParams();
@@ -121,7 +123,7 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
             });
 
             var $result = $('#smaily-engine-automations-result');
-            $result.text($t('Saving…')).css('color', '');
+            $result.text('<?= $escaper->escapeJs(__('Saving…')) ?>').css('color', '');
             fetch('<?= $escaper->escapeJs($saveUrl) ?>', {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -132,12 +134,13 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
                 body: params.toString()
             }).then(function (response) { return response.json(); }).then(function (data) {
                 if (data.saved) {
-                    $result.text($t('Saved.')).css('color', '#006400');
+                    $result.text('<?= $escaper->escapeJs(__('Saved.')) ?>').css('color', '#006400');
                 } else {
-                    $result.text((data.errors || []).join(' ') || $t('Saving failed.')).css('color', '#e22626');
+                    $result.text((data.errors || []).join(' ')
+                        || '<?= $escaper->escapeJs(__('Saving failed.')) ?>').css('color', '#e22626');
                 }
             }).catch(function () {
-                $result.text($t('Saving failed.')).css('color', '#e22626');
+                $result.text('<?= $escaper->escapeJs(__('Saving failed.')) ?>').css('color', '#e22626');
             });
         });
     });

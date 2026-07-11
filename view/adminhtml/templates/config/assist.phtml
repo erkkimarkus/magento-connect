@@ -20,8 +20,11 @@ $workflowsUrl = $block->getUrl('smaily_connect/api/workflows');
 $storeParam = (int)$block->getRequest()->getParam('store');
 ?>
 <script>
-require(['jquery', 'mage/translate'], function ($, $t) {
+require(['jquery'], function ($) {
     'use strict';
+    // Strings are translated server-side with __(): the js-translation.json
+    // dictionary is built from .js/.html files only, never from $t() inside
+    // a phtml inline script.
 
     var FIELDS = {
         subdomain: '#smaily_connect_connection_subdomain',
@@ -86,7 +89,7 @@ require(['jquery', 'mage/translate'], function ($, $t) {
                     return;
                 }
                 var selected = current[selector];
-                $select.empty().append(new Option($t('-- Not Selected --'), ''));
+                $select.empty().append(new Option('<?= $escaper->escapeJs(__('-- Not Selected --')) ?>', ''));
                 data.workflows.forEach(function (workflow) {
                     $select.append(new Option(workflow.name + ' (' + workflow.id + ')', workflow.id));
                 });
@@ -101,19 +104,22 @@ require(['jquery', 'mage/translate'], function ($, $t) {
         $('#smaily-test-connection').on('click', function () {
             var creds = credentials();
             if (!creds.subdomain || !creds.username) {
-                setResult($t('Fill in the subdomain and username first.'), false);
+                setResult('<?= $escaper->escapeJs(__('Fill in the subdomain and username first.')) ?>', false);
                 return;
             }
-            setResult($t('Testing…'), true);
+            setResult('<?= $escaper->escapeJs(__('Testing…')) ?>', true);
             post('<?= $escaper->escapeJs($testUrl) ?>', creds).then(function (data) {
                 if (data.connected) {
-                    setResult($t('Connected! The workflow dropdowns below are now up to date.'), true);
+                    setResult(
+                        '<?= $escaper->escapeJs(__('Connected! The workflow dropdowns below are now up to date.')) ?>',
+                        true
+                    );
                     refreshWorkflows();
                 } else {
-                    setResult(data.error || $t('Connection failed.'), false);
+                    setResult(data.error || '<?= $escaper->escapeJs(__('Connection failed.')) ?>', false);
                 }
             }).catch(function () {
-                setResult($t('Connection failed.'), false);
+                setResult('<?= $escaper->escapeJs(__('Connection failed.')) ?>', false);
             });
         });
 
