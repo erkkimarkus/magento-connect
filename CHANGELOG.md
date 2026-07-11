@@ -24,6 +24,7 @@ Ground-up rewrite as module `Smaily_Connect`, targeting feature parity with the 
 - Store-timezone-safe scheduling (the hardcoded Europe/Tallinn timezone is gone); Guzzle-based API clients with timeouts and typed errors.
 - Legacy custom captcha replaced by Magento's native reCAPTCHA module (admin notice on upgrade).
 - Unit tests, phpcs/phpstan static analysis and CI added [[#51](https://github.com/sendsmaily/smaily-magento-extension/issues/51)]
+- Ships the Campaign Intelligence engine wire contract (`docs/RECENGINE_API_CONTRACT.md`, v1.4.0, byte-synced across Smaily connect repositories): order amounts gross/tax-inclusive (`row_total_incl_tax` / `grand_total`), browse events tagged `source: plugin_magento`, and the browse beacon degrades to sender-side anonymous mode (identity hint omitted, events keep flowing) when cookie consent is absent.
 
 **Behavior changes**
 

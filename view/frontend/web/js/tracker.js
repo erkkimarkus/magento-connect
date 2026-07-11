@@ -6,8 +6,12 @@
  * relay (smaily/relay), which forwards them to the Campaign Intelligence
  * engine — the API key never reaches the browser. Loss-tolerant by design.
  *
- * Consent: when Magento cookie restriction mode is on, no events are sent
- * until the visitor has allowed cookies (user_allowed_save_cookie).
+ * Consent (contract §6 sender-side anonymous mode): when Magento cookie
+ * restriction mode is on and the visitor has not allowed cookies
+ * (user_allowed_save_cookie), events still flow but omit the identity hint
+ * (smaily_visitor_token) — session_id + event_id only, so anonymous events
+ * keep feeding popularity/co-view signals. The engine-side profiling
+ * opt-out gate is the guarantee; this is the data-minimization layer.
  */
 define(['jquery', 'Smaily_Connect/js/attribution'], function ($, attribution) {
     'use strict';
@@ -42,7 +46,10 @@ define(['jquery', 'Smaily_Connect/js/attribution'], function ($, attribution) {
                 recId = helper.getCookie(config.attribution.cookieRecId),
                 ctx = helper.getCookie(config.attribution.cookieContext);
 
-            if (visitorToken) {
+            // Identity hint only with consent (sender-side anonymous mode);
+            // rec id/ctx are campaign-click attribution, not identity, and
+            // stay on par with attribution.js (functional first-party).
+            if (visitorToken && consentGiven()) {
                 event.smaily_visitor_token = visitorToken;
             }
             if (recId) {
@@ -57,7 +64,7 @@ define(['jquery', 'Smaily_Connect/js/attribution'], function ($, attribution) {
         }
 
         function push(event) {
-            if (!consentGiven() || !event.session_id) {
+            if (!event.session_id) {
                 return;
             }
             queue.push(event);

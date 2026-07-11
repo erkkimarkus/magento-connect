@@ -17,10 +17,10 @@ use Magento\Sales\Model\Order;
  *
  * Status maps onto the closed engine enum; orders in transient states
  * (payment review, pending payment, hold) are never sent — build() returns
- * null for them. Amounts are order-currency values; items carry pre-discount
- * unit prices and post-discount line totals. Deliberate divergence: Magento
- * sends tax-INCLUSIVE amounts (what the shopper saw), while Woo sends
- * ex-tax subtotals — both are valid engine inputs. Attribution fields come
+ * null for them. All money fields are GROSS (tax-inclusive) order-currency
+ * values per contract v1.4.0 amount semantics: row_total_incl_tax for
+ * lines, grand_total for total_amount; items carry pre-discount unit
+ * prices and post-discount line totals. Attribution fields come
  * from the smaily_order_attribution side table. NB: the order wire key is
  * smaily_rec_ctx while browse events use smaily_ctx — never unify them.
  */

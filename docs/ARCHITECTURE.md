@@ -161,14 +161,19 @@ vanilla for a future Hyvä path) reads page context from
 events for 5 s, and posts to `smaily/relay`. The relay
 (`Controller/Relay/Index`) is CSRF-exempt (anonymous beacon), strictly
 sanitized (`Engine\BrowseEventValidator` — UUID v4 event ids, event-type
-enum, **no client-asserted `customer_email`**), rate-limited per IP, and
-forwards server-side so the API key never reaches the browser.
+enum, **no client-asserted `customer_email`**), rate-limited per IP, stamps
+`source: plugin_magento` server-side, and forwards so the API key never
+reaches the browser. Under Magento cookie restriction mode without cookie
+consent the tracker runs in sender-side anonymous mode (contract §6):
+events still flow with `session_id` + `event_id` but the
+`smaily_visitor_token` identity hint is omitted.
 
 ## Wire contracts
 
-The authoritative engine contract is `RECENGINE_API_CONTRACT.md` in the
-Smaily connect repositories (byte-synced across platforms). Load-bearing
-invariants implemented here:
+The authoritative engine contract is
+[RECENGINE_API_CONTRACT.md](RECENGINE_API_CONTRACT.md) (v1.4.0, byte-synced
+across the Smaily connect repositories). Load-bearing invariants
+implemented here:
 
 - Endpoint URLs always come from the stored endpoints map
   (`Engine\Settings`), never concatenated; `{email}` placeholders are
