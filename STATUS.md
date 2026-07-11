@@ -104,6 +104,12 @@ _Last updated: 2026-07-12_
 - **Gates green:** 93 unit tests, 38 integration tests, phpcs clean, phpstan
   clean. `setup:upgrade` + `setup:di:compile` re-verified in the docker
   sandbox on the merged tree including PRO-1231.
+- **Upstream proposal package drafted (PRO-1198)** —
+  `docs/UPSTREAM_PROPOSAL.md`: executive summary, 2.8.x compatibility story,
+  staged review plan, Marketplace re-submission as "Smaily Connect",
+  pipeline/secret hand-over, honest open items, and the one-way-door decision
+  checklist. Awaiting Erkki's review; NOTHING sent or published — the release
+  decision and all contact with Smaily are Erkki's alone.
 
 ## Open Linear issues
 
@@ -131,4 +137,6 @@ PRO-1267 (engine: Magento product-identity contract note).
 ## Questions / tasks for Erkki
 
 1. PRO-1198 — release coordination with Smaily (High; blocks any public
-   release path).
+   release path). The proposal package is drafted
+   (`docs/UPSTREAM_PROPOSAL.md`) and ready for your review; the decision
+   checklist at its end lists the one-way doors in recommended order.
