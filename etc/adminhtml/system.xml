@@ -11,6 +11,13 @@
         <tab id="smaily" translate="label" sortOrder="400">
             <label>Smaily</label>
         </tab>
+        <!--
+            Merchant documentation (user guide) for this section:
+            https://github.com/erkkimarkus/magento-connect/blob/v3/docs/USER_GUIDE.md
+            (hosted on GitHub for now — update the URL here, in the setup
+            wizard Done step and in Setup/Patch/Data/AddSetupNotice.php once
+            a hosted docs site exists).
+        -->
         <section id="smaily_connect" translate="label" type="text" sortOrder="10"
                  showInDefault="1" showInWebsite="1" showInStore="1">
             <label>Smaily Connect</label>
@@ -165,6 +172,12 @@
                        showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Enable RSS Feed</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="url_builder" translate="label" type="label" sortOrder="20"
+                       showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Feed URL Builder</label>
+                    <frontend_model>Smaily\Connect\Block\Adminhtml\Config\RssUrlBuilder</frontend_model>
+                    <depends><field id="enabled">1</field></depends>
                 </field>
             </group>
             <group id="intelligence" translate="label comment" type="text" sortOrder="50"

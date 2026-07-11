@@ -29,6 +29,8 @@ use Smaily\Connect\Model\ModuleInfo;
  *   429 (honouring retry_after_seconds from the body) and 5xx; other 4xx
  *   never retry.
  * - D6 ingest responses are per-item: a 200 is never all-or-nothing.
+ * - Exception messages are translated with __(): they surface in the admin
+ *   UI (wizard step 4, automations form, health notices).
  */
 class Client
 {
@@ -88,7 +90,7 @@ class Client
     {
         [$baseUrl, $token] = $this->parseSetupInput($setupInput);
         if ($token === '') {
-            throw new EngineRequestException('Setup token is empty or unrecognized', 400);
+            throw new EngineRequestException((string)__('Setup token is empty or unrecognized'), 400);
         }
 
         return $this->request('POST', $baseUrl . '/api/setup/exchange', [
@@ -118,7 +120,7 @@ class Client
     {
         $wrapper = self::DOMAIN_WRAPPERS[$domain] ?? null;
         if ($wrapper === null) {
-            throw new EngineRequestException(sprintf('Unknown ingest domain "%s"', $domain), 400);
+            throw new EngineRequestException((string)__('Unknown ingest domain "%1"', $domain), 400);
         }
 
         return $this->request(
@@ -264,7 +266,7 @@ class Client
             return $baseUrl . $fallbackPath;
         }
 
-        throw new EngineRequestException(sprintf('Engine endpoint "%s" is not available', $key), 400);
+        throw new EngineRequestException((string)__('Engine endpoint "%1" is not available', $key), 400);
     }
 
     /**
@@ -292,7 +294,7 @@ class Client
         if ($authenticated) {
             $apiKey = $this->settings->getApiKey();
             if ($apiKey === '') {
-                throw new EngineRequestException('Campaign Intelligence is not connected', 401);
+                throw new EngineRequestException((string)__('Campaign Intelligence is not connected'), 401);
             }
             $options[RequestOptions::HEADERS]['Authorization'] = 'Bearer ' . $apiKey;
         }
@@ -316,8 +318,8 @@ class Client
 
                 if ($status !== 429 && $status < 500) {
                     throw new EngineRequestException(
-                        sprintf(
-                            'Engine request failed with HTTP %d: %s',
+                        (string)__(
+                            'Engine request failed with HTTP %1: %2',
                             $status,
                             (string)($errorBody['message'] ?? $errorBody['error'] ?? 'unknown error')
                         ),
@@ -328,7 +330,7 @@ class Client
 
                 if ($attempt >= count(self::RETRY_DELAYS_SECONDS)) {
                     throw new EngineTransportException(
-                        sprintf('Engine request failed with HTTP %d after retries', $status),
+                        (string)__('Engine request failed with HTTP %1 after retries', $status),
                         $status,
                         $exception
                     );
@@ -343,7 +345,7 @@ class Client
             } catch (GuzzleException $exception) {
                 if ($attempt >= count(self::RETRY_DELAYS_SECONDS)) {
                     throw new EngineTransportException(
-                        'Engine request failed: ' . $exception->getMessage(),
+                        (string)__('Engine request failed: %1', $exception->getMessage()),
                         0,
                         $exception
                     );
@@ -443,7 +445,7 @@ class Client
     {
         $decoded = json_decode($body, true);
         if (!is_array($decoded)) {
-            throw new EngineTransportException('Engine returned a malformed response body');
+            throw new EngineTransportException((string)__('Engine returned a malformed response body'));
         }
 
         return $decoded;

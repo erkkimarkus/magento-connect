@@ -56,9 +56,11 @@ class EngineExchange extends AbstractJsonAction implements HttpPostActionInterfa
                 'engineVersion' => (string)($response['engine_version'] ?? ''),
             ]);
         } catch (EngineException $exception) {
+            // Frame the (possibly technical) engine message in a translated
+            // sentence so the failure is understandable in any admin locale.
             return $this->jsonResponse([
                 'connected' => false,
-                'message' => $exception->getMessage(),
+                'message' => (string)__('Could not connect to Campaign Intelligence: %1', $exception->getMessage()),
             ]);
         }
     }

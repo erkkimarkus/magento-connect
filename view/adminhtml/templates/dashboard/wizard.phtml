@@ -16,6 +16,23 @@
 /** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
 $viewModel = $block->getData('view_model');
 $totals = $viewModel->getStoreTotals();
+
+// Hosted on GitHub for now — update this URL once a hosted docs site exists.
+$userGuideUrl = 'https://github.com/erkkimarkus/magento-connect/blob/v3/docs/USER_GUIDE.md';
+
+// Optional contact fields, server-rendered into step 2 (same values the
+// Configuration page multiselect edits).
+$syncFieldLabels = [
+    'first_name' => __('First name'),
+    'last_name' => __('Last name'),
+    'prefix' => __('Name prefix'),
+    'gender' => __('Gender'),
+    'birthday' => __('Date of birth'),
+    'customer_id' => __('Customer ID'),
+    'customer_group' => __('Customer group'),
+    'subscription_type' => __('Subscription type'),
+];
+$selectedSyncFields = $viewModel->getSelectedSyncFields();
 $urls = [
     'test' => $block->getUrl('smaily_connect/api/testsmaily'),
     'workflows' => $block->getUrl('smaily_connect/api/workflows'),
@@ -27,30 +44,8 @@ $urls = [
     'events' => $block->getUrl('smaily_connect/events'),
 ];
 ?>
-<div id="smaily-wizard" class="smaily-wizard" style="max-width: 76rem;">
-    <style>
-        .smaily-wizard .smaily-steps { display: flex; gap: 0; margin: 0 0 3rem; padding: 0; list-style: none; }
-        .smaily-wizard .smaily-steps li { flex: 1; text-align: center; padding: 1rem 0.5rem; border-bottom: 3px solid #d0d0d0; color: #666; cursor: default; }
-        .smaily-wizard .smaily-steps li.active { border-color: #eb5202; color: #333; font-weight: 600; }
-        .smaily-wizard .smaily-steps li.done { border-color: #79a22e; color: #333; cursor: pointer; }
-        .smaily-wizard .smaily-step-panel { display: none; }
-        .smaily-wizard .smaily-step-panel.active { display: block; }
-        .smaily-wizard .smaily-card { background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 2rem; margin-bottom: 2rem; }
-        .smaily-wizard .smaily-field { margin-bottom: 1.6rem; max-width: 44rem; }
-        .smaily-wizard .smaily-field label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
-        .smaily-wizard .smaily-field .note { margin-top: 0.4rem; }
-        .smaily-wizard input[type=text], .smaily-wizard input[type=password], .smaily-wizard input[type=number], .smaily-wizard select { width: 100%; max-width: 40rem; }
-        .smaily-wizard .smaily-choice { display: block; padding: 1.2rem; border: 1px solid #e3e3e3; border-radius: 4px; margin-bottom: 1rem; cursor: pointer; }
-        .smaily-wizard .smaily-choice input { margin-right: 0.8rem; }
-        .smaily-wizard .smaily-choice.selected { border-color: #eb5202; background: #fff8f3; }
-        .smaily-wizard .smaily-footer { display: flex; justify-content: space-between; margin-top: 2rem; }
-        .smaily-wizard .smaily-result { margin-left: 1rem; }
-        .smaily-wizard .smaily-result.ok { color: #006400; }
-        .smaily-wizard .smaily-result.err { color: #e22626; }
-        .smaily-wizard .smaily-inline-toggle { margin-bottom: 1rem; }
-        .smaily-wizard progress { width: 100%; max-width: 40rem; height: 1.4rem; }
-    </style>
-
+<div id="smaily-wizard" class="smaily-wizard">
+    <!-- Styles live in view/adminhtml/web/css/wizard.css (loaded via the dashboard layout XML). -->
     <ul class="smaily-steps">
         <li data-step="1"><?= $escaper->escapeHtml(__('1. Connect')) ?></li>
         <li data-step="2"><?= $escaper->escapeHtml(__('2. Subscribers')) ?></li>
@@ -108,7 +103,16 @@ $urls = [
 
             <div class="smaily-field" style="margin-top:2rem;">
                 <label><?= $escaper->escapeHtml(__('Extra fields to sync with each contact')) ?></label>
-                <div id="smaily-w-fields"></div>
+                <div id="smaily-w-fields">
+                    <?php foreach ($syncFieldLabels as $fieldValue => $fieldLabel): ?>
+                    <label>
+                        <input type="checkbox"
+                               value="<?= $escaper->escapeHtmlAttr($fieldValue) ?>"
+                               <?= in_array($fieldValue, $selectedSyncFields, true) ? 'checked' : '' ?>/>
+                        <?= $escaper->escapeHtml($fieldLabel) ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
                 <p class="note"><?= $escaper->escapeHtml(__('Empty values are never sent, so existing Smaily data is not wiped.')) ?></p>
             </div>
             <div class="smaily-inline-toggle">
@@ -200,7 +204,10 @@ $urls = [
             <ul style="line-height:2.2;">
                 <li><a href="<?= $escaper->escapeUrl($urls['config']) ?>"><?= $escaper->escapeHtml(__('Configuration')) ?></a> — <?= $escaper->escapeHtml(__('every setting from this wizard, plus RSS feed, logging and per-website overrides')) ?></li>
                 <li><a href="<?= $escaper->escapeUrl($urls['events']) ?>"><?= $escaper->escapeHtml(__('Event Log')) ?></a> — <?= $escaper->escapeHtml(__('every delivery to Smaily with retry; check here first if something seems off')) ?></li>
-                <li><?= $escaper->escapeHtml(__('Product RSS feed for the Smaily template editor:')) ?> <code><?= $escaper->escapeHtml($block->getBaseUrl() . 'smaily/rss/feed') ?></code></li>
+                <li><?= $escaper->escapeHtml(__('Product RSS feed for the Smaily template editor:')) ?> <code><?= $escaper->escapeHtml($block->getBaseUrl() . 'smaily/rss/feed') ?></code><br/>
+                    <span class="note"><?= $escaper->escapeHtml(__('Need a category-filtered or sorted feed? Use the URL builder under Configuration > Product RSS Feed.')) ?>
+                        <a href="<?= $escaper->escapeUrl($urls['config'] . '#smaily_connect_rss-link') ?>"><?= $escaper->escapeHtml(__('Open the URL builder')) ?></a></span></li>
+                <li><a href="<?= $escaper->escapeUrl($userGuideUrl) ?>" target="_blank" rel="noopener noreferrer"><?= $escaper->escapeHtml(__('User Guide')) ?></a> — <?= $escaper->escapeHtml(__('the full merchant documentation: every feature, setting and troubleshooting steps')) ?></li>
             </ul>
             <p class="note"><?= $escaper->escapeHtml(__('Tip: make sure the Magento cron runs every minute — deliveries are queued and flushed by the smaily_connect cron group.')) ?></p>
         </div>
@@ -221,20 +228,16 @@ require(['jquery'], function ($) {
 
     var boot = <?= /* @noEscape */ $viewModel->getBootJson() ?>;
     var urls = <?= /* @noEscape */ json_encode(array_map('strval', $urls)) ?>;
-    // Translated server-side: Magento's js-translation.json dictionary is
-    // built from .js and .html files only — $t() inside a phtml inline
-    // script never gets collected, so it would always render English.
-    var SYNC_FIELDS = [
-        ['first_name', '<?= $escaper->escapeJs(__('First name')) ?>'],
-        ['last_name', '<?= $escaper->escapeJs(__('Last name')) ?>'],
-        ['prefix', '<?= $escaper->escapeJs(__('Name prefix')) ?>'],
-        ['gender', '<?= $escaper->escapeJs(__('Gender')) ?>'],
-        ['birthday', '<?= $escaper->escapeJs(__('Date of birth')) ?>'],
-        ['customer_id', '<?= $escaper->escapeJs(__('Customer ID')) ?>'],
-        ['customer_group', '<?= $escaper->escapeJs(__('Customer group')) ?>'],
-        ['subscription_type', '<?= $escaper->escapeJs(__('Subscription type')) ?>']
-    ];
-    var step = 1, connected = boot.connected;
+    // Strings are translated server-side: Magento's js-translation.json
+    // dictionary is built from .js and .html files only — $t() inside a
+    // phtml inline script never gets collected, so it would always render
+    // English.
+    //
+    // step = the step currently shown; maxStep = the furthest step ever
+    // reached (from the saved config on load, then per-step saves). The
+    // stepper derives "done" (unlocked, clickable) from maxStep, so going
+    // Back never re-locks steps that were already completed.
+    var step = 1, maxStep = 1, connected = boot.connected;
 
     function post(url, data) {
         return fetch(url + '?form_key=' + encodeURIComponent(window.FORM_KEY), {
@@ -260,7 +263,7 @@ require(['jquery'], function ($) {
     function render() {
         $('.smaily-steps li').each(function () {
             var s = $(this).data('step');
-            $(this).toggleClass('active', s === step).toggleClass('done', s < step);
+            $(this).toggleClass('active', s === step).toggleClass('done', s !== step && s <= maxStep);
         });
         $('.smaily-step-panel').removeClass('active');
         $('.smaily-step-panel[data-step=' + step + ']').addClass('active');
@@ -356,12 +359,8 @@ require(['jquery'], function ($) {
         result('#smaily-w-test-result', '<?= $escaper->escapeJs(__('Connected with the saved credentials.')) ?>', true);
     }
 
-    SYNC_FIELDS.forEach(function (field) {
-        var checked = boot.subscribers.syncFields.indexOf(field[0]) !== -1 ? 'checked' : '';
-        $('#smaily-w-fields').append(
-            '<label style="display:inline-block;width:16rem;"><input type="checkbox" value="' + field[0] + '" ' + checked + '/> ' + field[1] + '</label>'
-        );
-    });
+    // Step-2 sync-field checkboxes are server-rendered (see #smaily-w-fields
+    // in the markup above) — no client-side HTML building.
     $('input[name=smaily-w-mode][value=' + boot.subscribers.syncMode + ']').prop('checked', true);
     $('#smaily-w-checkout-optin').prop('checked', boot.subscribers.checkoutOptin);
     $('#smaily-w-suppress').prop('checked', boot.subscribers.suppressOptinEmails);
@@ -463,6 +462,7 @@ require(['jquery'], function ($) {
             } else {
                 step += 1;
             }
+            maxStep = Math.max(maxStep, step);
             if (step === 3) {
                 loadWorkflows();
             }
@@ -486,10 +486,13 @@ require(['jquery'], function ($) {
     });
 
     if (boot.setupCompleted) {
+        // Setup finished earlier: every step was completed, keep them all
+        // unlocked for revisits.
         step = 5;
     } else if (connected) {
         step = 2;
     }
+    maxStep = step;
     if (step === 3) {
         loadWorkflows();
     }

@@ -86,6 +86,16 @@ class WizardData implements ArgumentInterface
     }
 
     /**
+     * Saved sync-field selection for the server-rendered step-2 checkboxes.
+     *
+     * @return string[]
+     */
+    public function getSelectedSyncFields(): array
+    {
+        return $this->config->getSyncFields();
+    }
+
+    /**
      * @return array{customers: int, orders: int, products: int}
      */
     public function getStoreTotals(): array

@@ -1,0 +1,30 @@
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Setup wizard styles (Marketing > Smaily Connect > Setup Wizard).
+ * Loaded via view/adminhtml/layout/smaily_connect_dashboard_index.xml.
+ */
+
+.smaily-wizard { max-width: 76rem; }
+.smaily-wizard .smaily-steps { display: flex; gap: 0; margin: 0 0 3rem; padding: 0; list-style: none; }
+.smaily-wizard .smaily-steps li { flex: 1; text-align: center; padding: 1rem 0.5rem; border-bottom: 3px solid #d0d0d0; color: #666; cursor: default; }
+.smaily-wizard .smaily-steps li.active { border-color: #eb5202; color: #333; font-weight: 600; }
+.smaily-wizard .smaily-steps li.done { border-color: #79a22e; color: #333; cursor: pointer; }
+.smaily-wizard .smaily-step-panel { display: none; }
+.smaily-wizard .smaily-step-panel.active { display: block; }
+.smaily-wizard .smaily-card { background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 2rem; margin-bottom: 2rem; }
+.smaily-wizard .smaily-field { margin-bottom: 1.6rem; max-width: 44rem; }
+.smaily-wizard .smaily-field label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
+.smaily-wizard .smaily-field .note { margin-top: 0.4rem; }
+.smaily-wizard input[type=text], .smaily-wizard input[type=password], .smaily-wizard input[type=number], .smaily-wizard select { width: 100%; max-width: 40rem; }
+.smaily-wizard .smaily-choice { display: block; padding: 1.2rem; border: 1px solid #e3e3e3; border-radius: 4px; margin-bottom: 1rem; cursor: pointer; }
+.smaily-wizard .smaily-choice input { margin-right: 0.8rem; }
+.smaily-wizard .smaily-choice.selected { border-color: #eb5202; background: #fff8f3; }
+.smaily-wizard .smaily-footer { display: flex; justify-content: space-between; margin-top: 2rem; }
+.smaily-wizard .smaily-result { margin-left: 1rem; }
+.smaily-wizard .smaily-result.ok { color: #006400; }
+.smaily-wizard .smaily-result.err { color: #e22626; }
+.smaily-wizard .smaily-inline-toggle { margin-bottom: 1rem; }
+.smaily-wizard progress { width: 100%; max-width: 40rem; height: 1.4rem; }
+.smaily-wizard #smaily-w-fields label { display: inline-block; width: 16rem; }

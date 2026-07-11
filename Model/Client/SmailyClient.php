@@ -29,6 +29,9 @@ use Smaily\Connect\Model\ModuleInfo;
  *
  * Instances are scope-bound (credentials are fixed at construction); use
  * SmailyClientProvider to obtain a client for a store view.
+ *
+ * Exception messages are translated with __(): they surface in the admin UI
+ * (wizard step 1, config assist, workflow loading).
  */
 class SmailyClient
 {
@@ -129,10 +132,10 @@ class SmailyClient
                 'status' => $status,
             ]);
             if (in_array($status, [401, 403], true)) {
-                throw new AuthenticationException('Smaily API credentials were rejected', $status, $exception);
+                throw new AuthenticationException((string)__('Smaily API credentials were rejected'), $status, $exception);
             }
             throw new TransportException(
-                sprintf('Smaily API request failed with HTTP %d', $status),
+                (string)__('Smaily API request failed with HTTP %1', $status),
                 $status,
                 $exception
             );
@@ -142,13 +145,13 @@ class SmailyClient
                 'endpoint' => $uri,
                 'error' => $exception->getMessage(),
             ]);
-            throw new TransportException('Smaily API request failed: ' . $exception->getMessage(), 0, $exception);
+            throw new TransportException((string)__('Smaily API request failed: %1', $exception->getMessage()), 0, $exception);
         }
 
         $body = (string)$response->getBody();
         $decoded = json_decode($body, true);
         if (!is_array($decoded)) {
-            throw new TransportException('Smaily API returned a malformed response body');
+            throw new TransportException((string)__('Smaily API returned a malformed response body'));
         }
 
         // Summarized on purpose: full bodies would put contact PII in logs.
@@ -160,8 +163,8 @@ class SmailyClient
 
         if (isset($decoded['code']) && (int)$decoded['code'] !== ApiException::CODE_SUCCESS) {
             throw new ApiException(
-                sprintf(
-                    'Smaily API returned code %d: %s',
+                (string)__(
+                    'Smaily API returned code %1: %2',
                     (int)$decoded['code'],
                     (string)($decoded['message'] ?? 'unknown error')
                 ),

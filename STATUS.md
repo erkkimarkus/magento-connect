@@ -17,6 +17,31 @@ _Last updated: 2026-07-12_
   its settings carry over seamlessly.
 - **Native admin UX round 1 done** — setup wizard, AJAX config with instant
   feedback, engine automations embedded in the unified automations UI.
+- **UI/UX parity phase 1 done (PRO-1270)** — six quick wins from the parity
+  analysis: (B1) wizard stepper no longer re-locks completed steps on Back
+  and supports forward-clicks through reached steps (session `maxStep`,
+  seeded from saved connection/setup-completed state); (B2) all our own
+  exception messages that surface in the admin (engine client, Smaily API
+  client, provider) are wrapped in `__()`, and the raw passthroughs
+  (EngineExchange, Workflows, EnginePing) got translated framing sentences —
+  37 new phrases in both CSV packs (invariants held: unique sources, en↔et
+  1:1, placeholder parity); (A4) live Feed URL Builder frontend_model on the
+  Product RSS Feed config group (category/limit/sort/order → URL +
+  copy-to-clipboard with execCommand fallback), linked from the wizard Done
+  step; (A5) user-guide links on the wizard Done step, in the post-install
+  admin notice (Read Details URL) and as a system.xml section-header comment
+  (GitHub URL for now, marked to move to a hosted docs site); (B5) step-2
+  sync-field checkboxes are server-rendered instead of jQuery string-built
+  HTML; (B6) wizard inline `<style>` extracted to
+  `view/adminhtml/web/css/wizard.css` loaded via layout XML. Browser
+  re-validated with Playwright in en_US AND et_EE (36+15 checks green:
+  stepper behavior, server-rendered labels, builder URL correctness + a live
+  200 RSS response for the built URL, clipboard copy, docs links, no module
+  JS console errors; before/after screenshot diff of wizard steps 1-2 shows
+  only the intended stepper unlock). One pre-existing noise finding: the
+  sandbox's bundled `paypal/module-braintree-core` `system.js` throws
+  `locations.each is not a function` on the system-config page — third-party,
+  not ours.
 - **i18n done (PRO-1200)** — `i18n/en_US.csv` (canonical inventory, 242
   phrases) + `i18n/et_EE.csv` (full Estonian pack, Woo-plugin vocabulary);
   covers system.xml, menu/ACL, layout/ui_component XML, phtml `__()` and the

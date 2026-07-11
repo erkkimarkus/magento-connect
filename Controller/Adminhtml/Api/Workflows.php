@@ -69,9 +69,11 @@ class Workflows extends AbstractJsonAction implements HttpPostActionInterface
 
             return $this->jsonResponse(['workflows' => $workflows]);
         } catch (SmailyClientException $exception) {
+            // Frame the client message in a translated sentence so the
+            // failure is understandable in any admin locale.
             return $this->jsonResponse([
                 'workflows' => [],
-                'error' => $exception->getMessage(),
+                'error' => (string)__('Could not load the workflow list: %1', $exception->getMessage()),
             ]);
         }
     }

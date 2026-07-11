@@ -35,7 +35,7 @@ class SmailyClientProvider
     {
         if (!$this->config->isConnected($storeId)) {
             throw new SmailyClientException(
-                sprintf('Smaily API credentials are not configured (store scope: %s)', $storeId ?? 'default')
+                (string)__('Smaily API credentials are not configured (store scope: %1)', $storeId ?? 'default')
             );
         }
 

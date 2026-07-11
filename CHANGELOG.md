@@ -14,8 +14,10 @@ Ground-up rewrite as module `Smaily_Connect`, targeting feature parity with the 
 - Historical import (backfill) of subscribers, catalog, customers and orders — admin one-click or CLI.
 - Campaign Intelligence integration: catalog/customer/order/browse ingest, recommendation attribution, identity merge, engine-run automations admin, GDPR export/erase CLI and a shopper personalization opt-out page.
 - RSS feed improvements: category **ID** filter, limit/sort/order parameters, cache headers, enable/disable toggle [[#48](https://github.com/sendsmaily/smaily-magento-extension/issues/48), [#49](https://github.com/sendsmaily/smaily-magento-extension/issues/49), [#50](https://github.com/sendsmaily/smaily-magento-extension/issues/50), [#72](https://github.com/sendsmaily/smaily-magento-extension/issues/72)]
+- Feed URL Builder in the Product RSS Feed configuration group: pick category/limit/sorting and copy the ready feed URL with one click; the wizard's Done step links to it.
+- In-admin documentation: the setup wizard's Done step and the post-install notice link to the full user guide.
 - Configurable log verbosity on a dedicated log file [[#113](https://github.com/sendsmaily/smaily-magento-extension/issues/113)]
-- Translations: full English (`i18n/en_US.csv`) and Estonian (`i18n/et_EE.csv`) translation packs covering the admin (wizard, configuration, grids) and the storefront (checkout opt-in, personalization page).
+- Translations: full English (`i18n/en_US.csv`) and Estonian (`i18n/et_EE.csv`) translation packs covering the admin (wizard, configuration, grids) and the storefront (checkout opt-in, personalization page). API and engine error messages surfaced in the admin are translated too, framed in sentences that stay understandable even when the remote service's own message is technical.
 
 **Under the hood**
 

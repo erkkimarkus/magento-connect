@@ -53,7 +53,12 @@ class EnginePing extends AbstractJsonAction implements HttpPostActionInterface
                 'engineVersion' => $this->settings->getEngineVersion(),
             ]);
         } catch (EngineException $exception) {
-            return $this->jsonResponse(['ok' => false, 'message' => $exception->getMessage()]);
+            // Frame the (possibly technical) engine message in a translated
+            // sentence so the failure is understandable in any admin locale.
+            return $this->jsonResponse([
+                'ok' => false,
+                'message' => (string)__('Could not reach Campaign Intelligence: %1', $exception->getMessage()),
+            ]);
         }
     }
 }

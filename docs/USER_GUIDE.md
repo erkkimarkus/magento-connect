@@ -55,8 +55,10 @@ Just update the package and run `bin/magento setup:upgrade` — see
 The fastest path is the guided wizard: **Marketing > Smaily Connect >
 Setup Wizard** — five steps (Connect, Subscribers, Automations,
 Intelligence, Done), each saved separately, with connection testing and
-live workflow lists built in. Everything the wizard writes lands in the
-regular configuration, so you can fine-tune it later at
+live workflow lists built in. Completed steps stay unlocked in the step
+bar, so you can move back and forward between them freely — also when
+revisiting the wizard after finishing it. Everything the wizard writes
+lands in the regular configuration, so you can fine-tune it later at
 **Stores > Configuration > Smaily > Smaily Connect > API Connection**
 
 | Field | Notes |
@@ -176,6 +178,11 @@ Optional query parameters:
 | `limit` | 1–250 | 50 |
 | `sort` | `created_at`, `updated_at`, `name`, `price` | `created_at` |
 | `order` | `asc`, `desc` | `desc` |
+
+You do not need to build the URL by hand: the **Feed URL Builder** in the
+**Product RSS Feed** config group assembles it live as you pick the
+category, limit and sorting, with a one-click **Copy** button. The
+wizard's Done step links straight to it.
 
 Items include `smly:price` / `smly:old_price` / `smly:discount` (prices as
 shown in your storefront, tax included). Only catalog-visible, enabled

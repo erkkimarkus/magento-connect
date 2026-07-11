@@ -47,7 +47,10 @@ class AddSetupNotice implements DataPatchInterface
             (string)__(
                 'Open Marketing > Smaily Connect > Setup Wizard to connect your Smaily account'
                 . ' in a few guided steps. Existing settings from an earlier version were migrated automatically.'
-            )
+                . ' The full user guide is linked below under Read Details.'
+            ),
+            // Hosted on GitHub for now — update once a hosted docs site exists.
+            'https://github.com/erkkimarkus/magento-connect/blob/v3/docs/USER_GUIDE.md'
         );
 
         return $this;
