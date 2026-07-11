@@ -66,19 +66,20 @@ _Last updated: 2026-07-11_
   per-SKU `in_stock=false` soft path; disabled products stay on the
   ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
 - **Gates green:** 89 unit tests, 38 integration tests, phpcs clean, phpstan
-  clean. `setup:upgrade` + `setup:di:compile` verified in the docker sandbox
-  (pre-PRO-1231; the new code is observer/DI-only — re-verify with the next
-  sandbox pass).
+  clean. `setup:upgrade` + `setup:di:compile` re-verified in the docker
+  sandbox on the merged tree including PRO-1231.
 
 ## Open Linear issues
 
 | Issue | What | Priority |
 |---|---|---|
 | PRO-1198 | Release coordination with Smaily (upstream/Marketplace path) | High — Erkki's decision |
-| PRO-1199 | Integration test suite + CI MySQL | Done in repo — close after review |
-| PRO-1200 | i18n: en_US / et_EE translation packs | Done in repo — close after review |
 | PRO-1201 | Hyvä theme work package | — |
-| PRO-1231 | Product-delete → engine catalog/remove (§3b) | Done in repo — close after review |
+
+Closed 2026-07-11: PRO-1199 (integration suite), PRO-1200 (i18n), PRO-1202 /
+PRO-1242 (contract v1.4.0), PRO-1231 (product-delete §3b), PRO-1252
+(staleness CI). Cross-repo asks filed: PRO-1266 (Shopify contract sync),
+PRO-1267 (engine: Magento product-identity contract note).
 
 ## Known gaps
 
@@ -88,12 +89,8 @@ _Last updated: 2026-07-11_
   still owed before release. Checkout opt-in checkbox rendering also
   unverified in-browser (sandbox catalog has no products).
 - **Hyvä untested** (PRO-1201).
-- **GitHub secret `ENGINE_CONTRACT_READ_TOKEN` not yet set** — the contract
-  staleness workflow fails with "CANNOT CHECK" until Erkki adds the
-  fine-grained PAT (contents:read on `erkkimarkus/smaily-recommendations`).
 
 ## Questions / tasks for Erkki
 
 1. PRO-1198 — release coordination with Smaily (High; blocks any public
    release path).
-2. Set the `ENGINE_CONTRACT_READ_TOKEN` repo secret (see Known gaps).
