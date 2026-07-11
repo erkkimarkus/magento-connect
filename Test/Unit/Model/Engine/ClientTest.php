@@ -174,6 +174,24 @@ class ClientTest extends TestCase
     }
 
     /**
+     * Scheme and explicit port are preserved (mirrors Woo parse_setup_url):
+     * dropping the port would break any engine not served on 443.
+     */
+    public function testSetupExchangePreservesSchemeAndPort(): void
+    {
+        $client = $this->createClient([
+            new Response(200, [], '{"tenant_id":"t1","api_key":"sk_x","endpoints":{}}'),
+        ]);
+
+        $client->setupExchange('http://172.20.0.1:9876/setup/tok_dev');
+
+        $request = $this->history[0]['request'];
+        self::assertSame('http://172.20.0.1:9876/api/setup/exchange', (string)$request->getUri());
+        $body = json_decode((string)$request->getBody(), true);
+        self::assertSame('tok_dev', $body['setup_token']);
+    }
+
+    /**
      * @param array<int, Response> $responses
      */
     private function createClient(array $responses): Client

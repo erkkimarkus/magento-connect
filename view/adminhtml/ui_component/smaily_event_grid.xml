@@ -20,6 +20,14 @@
     </settings>
     <dataSource name="smaily_event_grid_data_source" component="Magento_Ui/js/grid/provider">
         <settings>
+            <!-- The client-side grid data storage keys rows by entity_id
+                 unless told otherwise; these tables' primary key is `id`
+                 (and the queue tables carry an unrelated entity_id payload
+                 column), so without this the grid renders colliding,
+                 duplicated rows. -->
+            <storageConfig>
+                <param name="indexField" xsi:type="string">id</param>
+            </storageConfig>
             <updateUrl path="mui/index/render"/>
         </settings>
         <aclResource>Smaily_Connect::event_log</aclResource>

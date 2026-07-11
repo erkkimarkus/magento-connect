@@ -5,6 +5,7 @@
  *
  * @var \Magento\Framework\View\Element\Template $block
  * @var \Magento\Framework\Escaper $escaper
+ * @var \Magento\Framework\View\Helper\SecureHtmlRenderer $secureRenderer
  */
 
 /** @var \Smaily\Connect\ViewModel\ProductContext $viewModel */
@@ -13,7 +14,13 @@ $context = $viewModel->getContextJson();
 if ($context === null) {
     return;
 }
+// Rendered through SecureHtmlRenderer so the inline script is whitelisted
+// with CSP — Magento enforces (not just reports) CSP on checkout pages by
+// default, and a plain inline <script> is silently blocked there.
 ?>
-<script>
-    window.smailyPageContext = <?= /* @noEscape */ $context ?>;
-</script>
+<?= /* @noEscape */ $secureRenderer->renderTag(
+    'script',
+    ['type' => 'text/javascript'],
+    'window.smailyPageContext = ' . $context . ';',
+    false
+) ?>

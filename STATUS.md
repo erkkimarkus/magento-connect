@@ -5,7 +5,7 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-11_
+_Last updated: 2026-07-12_
 
 ## Where we are
 
@@ -24,7 +24,9 @@ _Last updated: 2026-07-11_
   wrapped (backfill "already running" notice, wizard unknown-step error).
   Estonian rendering eyeballed in the sandbox (admin wizard/config/grids/menu
   + storefront personalization page); two rendering bugs found and fixed —
-  see the browser-validation entry below.
+  see the browser-validation entry below. The checkout opt-in checkbox is
+  now also verified in-browser on the et_EE storefront ("Liitu meie
+  uudiskirjaga") — see the engine happy-path entry.
 - **Admin UX browser-validated end-to-end** (Playwright vs the sandbox):
   login, menu, wizard all 5 steps (per-step AJAX saves verified in
   `core_config_data`, step gating, non-blocking bad-credential Test
@@ -38,10 +40,44 @@ _Last updated: 2026-07-11_
   `intro.phtml`; (2) all `$t()` strings in phtml inline scripts (wizard,
   config assist, engine automations) never reach `js-translation.json`
   (Magento only collects from `.js`/`.html`) so they always rendered
-  English — now translated server-side with `__()` + `escapeJs`. Not
-  browser-verified: happy paths against real Smaily/engine services, the
-  checkout opt-in checkbox rendering (sandbox catalog has no products; its
-  label is confirmed present in the storefront `js-translation.json`).
+  English — now translated server-side with `__()` + `escapeJs`.
+- **Engine happy paths sandbox-verified against the mock engine** (Playwright
+  + the shopify-connect `packages/mock-engine` served on the docker bridge):
+  wizard step-4 setup exchange (credentials/endpoints map/config stored,
+  ping ok, health-check flags clear), embedded engine-automations form
+  (catalog §11 loads, PUT §13 all-8-keys upsert lands with
+  `configured_via=plugin`, state persists across reload), storefront
+  browse tracking end-to-end (product_view / cart_add / checkout_start /
+  checkout_complete through the `smaily/relay` proxy to engine browse
+  ingest; a campaign-click landing carries `smaily_visitor_token` + rec id
+  + ctx; cookie-restriction-ON sender-side anonymous mode verified both
+  without and with the consent cookie), live catalog/order ingest + engine
+  catalog/customers/orders backfills (queue rows drain to `sent`,
+  `tags.product_id` present in catalog payloads), §3b hard-delete →
+  `catalog_remove` row → `POST ingest/catalog/remove` (PRO-1231), and
+  guest checkout opt-in checkbox rendering + toggle persistence
+  (`smaily/checkout/optin` → `smaily_abandoned_cart.newsletter_optin`),
+  incl. the et_EE label "Liitu meie uudiskirjaga". Four real bugs found
+  and fixed in that pass: (1) `parseSetupInput` forced https and DROPPED
+  the port from a pasted setup URL — any engine not on 443 was
+  unreachable; now preserves the pasted scheme+port like Woo's
+  `parse_setup_url`; (2) the tracker's `consentRequired` flag serialized
+  as string `"0"` (truthy in JS), so with cookie restriction OFF the
+  identity hint was dropped from every browse event — cast to bool
+  (Magento's cookie helper lies about `@return bool`); (3) the
+  page-context inline `<script>` was blocked by CSP on checkout (Magento
+  enforces CSP there by default), silently losing every `checkout_start`
+  event — now rendered via `SecureHtmlRenderer`; (4) all three admin
+  grids rendered colliding/duplicated rows because Magento's client-side
+  grid storage keys rows by `entity_id` (our PK is `id`, and the queue
+  tables carry an unrelated `entity_id` payload column) — fixed with
+  `storageConfig.indexField=id` in the three listing XMLs. Not covered by
+  the mock: the Smaily campaign-API side (workflow lists, contact sync —
+  the sandbox keeps deliberately fake Smaily credentials), so those flows
+  still ended in their previously validated failure paths. Sandbox now
+  has 2 seeded products (SMAILY-TEE/SMAILY-MUG), 2 guest test orders and
+  completed backfill/queue history; engine config was restored to
+  disconnected (`browse_tracking=0`) after the pass.
 - **Engine contract v1.4.0 adopted + verified** (commit d35bb96, byte-identical
   with the engine repo); **contract staleness CI added** (commit 5bc3767,
   `.github/workflows/contract-staleness.yaml` + `bin/check-contract-staleness.sh`).
@@ -65,7 +101,7 @@ _Last updated: 2026-07-11_
   exchanges; `not_found` = success). Configurable-child delete keeps the
   per-SKU `in_stock=false` soft path; disabled products stay on the
   ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
-- **Gates green:** 89 unit tests, 38 integration tests, phpcs clean, phpstan
+- **Gates green:** 93 unit tests, 38 integration tests, phpcs clean, phpstan
   clean. `setup:upgrade` + `setup:di:compile` re-verified in the docker
   sandbox on the merged tree including PRO-1231.
 
@@ -83,11 +119,13 @@ PRO-1267 (engine: Magento product-identity contract note).
 
 ## Known gaps
 
-- **Happy paths against real services untested** — all admin UX flows were
-  browser-validated against failure/empty paths (no real Smaily or engine
-  credentials in the sandbox); a click-through with real credentials is
-  still owed before release. Checkout opt-in checkbox rendering also
-  unverified in-browser (sandbox catalog has no products).
+- **Real-Smaily-credentials click-through still owed** — the engine side is
+  now fully happy-path-verified against the mock engine (see above), but
+  the Smaily campaign-API flows (Test Connection success, workflow
+  dropdowns populating, contact sync/backfill delivery, opt-in
+  confirmation emails) have only been exercised against failure paths;
+  one click-through with a real Smaily account (and ideally a real engine
+  tenant) is still owed before release.
 - **Hyvä untested** (PRO-1201).
 
 ## Questions / tasks for Erkki

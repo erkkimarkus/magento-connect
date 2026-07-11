@@ -48,7 +48,12 @@ class EngineState implements ArgumentInterface
     {
         return $this->serializer->serialize([
             'relayUrl' => $this->urlBuilder->getUrl('smaily/relay'),
-            'consentRequired' => $this->cookieHelper->isCookieRestrictionModeEnabled(),
+            // Cast deliberately: the helper is annotated @return bool but
+            // actually returns the raw config value — the string "0" when
+            // restriction mode is off, which is truthy in JS and would make
+            // the tracker demand consent (and drop the identity hint) on
+            // every store.
+            'consentRequired' => (bool)$this->cookieHelper->isCookieRestrictionModeEnabled(),
             'attribution' => $this->attributionManager->getClientConfig(),
         ]);
     }

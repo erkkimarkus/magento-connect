@@ -389,8 +389,21 @@ class Client
             $segments = array_values(array_filter(explode('/', $path)));
             $token = $segments !== [] ? end($segments) : '';
 
-            // Always https — the one-time token must never travel plaintext.
-            return [$host !== '' ? 'https://' . $host : self::DEFAULT_SETUP_BASE_URL, $token];
+            if ($host === '') {
+                return [self::DEFAULT_SETUP_BASE_URL, $token];
+            }
+
+            // Preserve the pasted scheme and port (mirrors the Woo plugin's
+            // parse_setup_url): Smaily's production setup URLs are always
+            // https, and dropping an explicit port breaks any engine that is
+            // not on 443 (self-hosted/dev deploys).
+            $scheme = (string)($parts['scheme'] ?? 'https');
+            $base = $scheme . '://' . $host;
+            if (isset($parts['port'])) {
+                $base .= ':' . $parts['port'];
+            }
+
+            return [$base, $token];
         }
 
         return [self::DEFAULT_SETUP_BASE_URL, $input];
