@@ -41,21 +41,41 @@ $selectedSyncFields = $viewModel->getSelectedSyncFields();
     <?php endif; ?>
     <div id="smaily-w-subscribers-body">
         <p><?= $escaper->escapeHtml(__('This is a lawful-basis choice. Pick the preset that matches how you have asked your customers for permission — you can change it later under Configuration.')) ?></p>
-        <label class="smaily-choice">
-            <input type="radio" name="smaily-w-mode" value="consent" checked/>
-            <strong><?= $escaper->escapeHtml(__('Subscribers only (consent)')) ?></strong> — <?= $escaper->escapeHtml(__('recommended')) ?>
-            <p class="note"><?= $escaper->escapeHtml(__('Only customers who opted into the newsletter are synced. Unsubscribes in Smaily are mirrored back to Magento automatically (two-way sync).')) ?></p>
+        <?php
+        $subscriberModes = [
+            'consent' => [
+                'title' => __('Subscribers only (consent)'),
+                'desc' => __('Only customers who opted into the newsletter are synced. Unsubscribes in Smaily are mirrored back to Magento automatically (two-way sync).'),
+                'recommended' => true,
+            ],
+            'legitimate_interest' => [
+                'title' => __('All customers (legitimate interest)'),
+                'desc' => __('Every registered customer is synced; Smaily manages suppression. Make sure your privacy policy covers this basis.'),
+                'recommended' => false,
+            ],
+            'checkout_optin' => [
+                'title' => __('Checkout opt-in only'),
+                'desc' => __('Nobody is synced automatically — only shoppers who tick the newsletter checkbox at checkout.'),
+                'recommended' => false,
+            ],
+        ];
+        ?>
+        <?php foreach ($subscriberModes as $modeValue => $card): ?>
+        <label class="smaily-choice<?= $modeValue === 'consent' ? ' is-selected' : '' ?>">
+            <input class="smaily-choice__input" type="radio" name="smaily-w-mode"
+                   value="<?= $escaper->escapeHtmlAttr($modeValue) ?>" <?= $modeValue === 'consent' ? 'checked' : '' ?>/>
+            <span class="smaily-choice__radio"></span>
+            <span class="smaily-choice__body">
+                <span class="smaily-choice__title-row">
+                    <span class="smaily-choice__title"><?= $escaper->escapeHtml($card['title']) ?></span>
+                    <?php if ($card['recommended']): ?>
+                        <span class="smaily-choice__badge"><?= $escaper->escapeHtml(__('Recommended')) ?></span>
+                    <?php endif; ?>
+                </span>
+                <span class="smaily-choice__desc"><?= $escaper->escapeHtml($card['desc']) ?></span>
+            </span>
         </label>
-        <label class="smaily-choice">
-            <input type="radio" name="smaily-w-mode" value="legitimate_interest"/>
-            <strong><?= $escaper->escapeHtml(__('All customers (legitimate interest)')) ?></strong>
-            <p class="note"><?= $escaper->escapeHtml(__('Every registered customer is synced; Smaily manages suppression. Make sure your privacy policy covers this basis.')) ?></p>
-        </label>
-        <label class="smaily-choice">
-            <input type="radio" name="smaily-w-mode" value="checkout_optin"/>
-            <strong><?= $escaper->escapeHtml(__('Checkout opt-in only')) ?></strong>
-            <p class="note"><?= $escaper->escapeHtml(__('Nobody is synced automatically — only shoppers who tick the newsletter checkbox at checkout.')) ?></p>
-        </label>
+        <?php endforeach; ?>
 
         <div class="smaily-field" style="margin-top:2rem;">
             <label><?= $escaper->escapeHtml(__('Extra fields to sync with each contact')) ?></label>
@@ -91,6 +111,8 @@ $selectedSyncFields = $viewModel->getSelectedSyncFields();
             <span><?= $escaper->escapeHtml(__('Cancel import')) ?></span>
         </button>
         <span class="smaily-result" id="smaily-w-backfill-result"></span>
-        <progress id="smaily-w-backfill-bar" value="0" max="100" style="display:none;"></progress>
+        <div class="smaily-progress" id="smaily-w-backfill-bar" style="display:none;">
+            <div class="smaily-progress__track"><div class="smaily-progress__fill"></div></div>
+        </div>
     </div>
 </div>

@@ -56,8 +56,31 @@ window.smailyPanelsInit = function ($) {
         }).then(function (r) { return r.json(); });
     }
 
+    // Shared AJAX status channel, rendered with the Stage A inline-status
+    // vocabulary (CSS-only glyphs). State is inferred so no call site changes:
+    // in-progress copy carries an ellipsis (spinner), ok = check, error = error
+    // glyph, empty = idle/hidden. The .ok/.err classes are kept for any legacy
+    // hook, but the color now comes from the inline-status roles.
     function result(selector, text, ok, link) {
-        var $el = $(selector).text(text).removeClass('ok err').addClass(ok ? 'ok' : 'err');
+        var $el = $(selector);
+        text = text || '';
+        var working = text.indexOf('…') !== -1; // ellipsis = still working
+        var state = text === '' ? 'idle' : (working ? 'working' : (ok ? 'saved' : 'error'));
+        $el.empty()
+            .removeClass('ok err is-idle is-working is-saved is-error')
+            .addClass('smaily-inline-status')
+            .addClass(ok ? 'ok' : 'err')
+            .addClass('is-' + state);
+        if (text !== '') {
+            if (state === 'working') {
+                $el.append($('<span></span>').addClass('smaily-inline-status__spinner'));
+            } else if (state === 'saved') {
+                $el.append($('<span></span>').addClass('smaily-inline-status__check'));
+            } else if (state === 'error') {
+                $el.append($('<span></span>').addClass('smaily-inline-status__error').text('!'));
+            }
+            $el.append($('<span></span>').text(text));
+        }
         if (link) {
             $el.append(' ').append($('<a></a>').attr('href', link.href).text(link.label));
         }
@@ -138,8 +161,8 @@ window.smailyPanelsInit = function ($) {
         $('#smaily-ml-mapping-off').toggle(isMultilingual && !mapping);
         $('#smaily-ml-mapping .smaily-ml-hint-a').toggle(mode === 'a');
         $('#smaily-ml-mapping .smaily-ml-hint-b').toggle(mode === 'b');
-        $('#smaily-ml-modes .smaily-choice').removeClass('selected');
-        $('input[name=smaily-w-mlmode][value=' + mode + ']').closest('.smaily-choice').addClass('selected');
+        $('#smaily-ml-modes .smaily-choice').removeClass('is-selected');
+        $('input[name=smaily-w-mlmode][value=' + mode + ']').closest('.smaily-choice').addClass('is-selected');
     }
 
     function mlAccountFields($block) {
@@ -224,10 +247,21 @@ window.smailyPanelsInit = function ($) {
         return data.finished_at ? text + ' (' + data.finished_at + ')' : text;
     }
 
+    // Drives the Stage A .smaily-progress component: width lives on __fill,
+    // the state class picks the color (running = striped accent; done/failed/
+    // stopped recolor and stop animating).
+    function setProgress(ui, percent, state) {
+        var pct = Math.max(0, Math.min(100, parseInt(percent, 10) || 0));
+        ui.bar.show()
+            .removeClass('is-running is-done is-failed is-stopped')
+            .addClass('is-' + state)
+            .find('.smaily-progress__fill').css('width', pct + '%');
+    }
+
     function renderBackfill(jobType, data, ui) {
         var text;
         if (data.status === 'running') {
-            ui.bar.show().val(data.percent);
+            setProgress(ui, data.percent, 'running');
             ui.cancel.show();
             result(ui.result,
                 '<?= $escaper->escapeJs(__('Importing… %1 / %2')) ?>'
@@ -239,12 +273,12 @@ window.smailyPanelsInit = function ($) {
         }
         ui.cancel.hide();
         if (data.status === 'completed' && !data.failed) {
-            ui.bar.show().val(100);
+            setProgress(ui, 100, 'done');
             text = '<?= $escaper->escapeJs(__('Done, %1 of %2 synced.')) ?>'
                 .replace('%1', data.processed).replace('%2', data.total || data.processed);
             result(ui.result, withDate(text, data), true);
         } else if (data.status === 'completed') {
-            ui.bar.show().val(data.percent);
+            setProgress(ui, data.percent, 'failed');
             text = '<?= $escaper->escapeJs(__('Done, %1 of %2 synced — %3 failed.')) ?>'
                 .replace('%1', data.processed)
                 .replace('%2', data.total || data.processed + data.failed)
@@ -252,6 +286,7 @@ window.smailyPanelsInit = function ($) {
             result(ui.result, withDate(text, data), false,
                 {label: '<?= $escaper->escapeJs(__('View them in the Log')) ?>', href: urls.logFailed});
         } else if (data.status === 'failed') {
+            setProgress(ui, data.percent, 'failed');
             text = '<?= $escaper->escapeJs(__('Stopped before an error — %1 of %2 synced so far. Press the import button to run it again.')) ?>'
                 .replace('%1', data.processed).replace('%2', data.total || '?');
             if (data.error) {
@@ -259,6 +294,7 @@ window.smailyPanelsInit = function ($) {
             }
             result(ui.result, withDate(text, data), false);
         } else if (data.status === 'cancelled') {
+            setProgress(ui, data.percent, 'stopped');
             text = '<?= $escaper->escapeJs(__('Cancelled — %1 of %2 synced. Starting again begins a fresh import.')) ?>'
                 .replace('%1', data.processed).replace('%2', data.total || '?');
             result(ui.result, withDate(text, data), true);
@@ -363,10 +399,11 @@ window.smailyPanelsInit = function ($) {
         // RSS (Settings only).
         $('#smaily-w-rss-enabled').prop('checked', boot.rss.enabled);
 
-        // Radio-card highlight.
+        // Radio-card highlight (scoped to the lawful-basis cards so it never
+        // clears the multilingual mode cards' selection).
         $(document).on('change', 'input[name=smaily-w-mode]', function () {
-            $('.smaily-choice').removeClass('selected');
-            $(this).closest('.smaily-choice').addClass('selected');
+            $('input[name=smaily-w-mode]').closest('.smaily-choice').removeClass('is-selected');
+            $(this).closest('.smaily-choice').addClass('is-selected');
         });
         $('input[name=smaily-w-mode]:checked').trigger('change');
 
@@ -466,7 +503,7 @@ window.smailyPanelsInit = function ($) {
             var $row = $(this),
                 jobType = $row.data('job-type'),
                 ui = {
-                    bar: $row.find('progress'),
+                    bar: $row.find('.smaily-progress'),
                     result: $row.find('.smaily-result'),
                     cancel: $row.find('.smaily-w-engine-cancel')
                 };

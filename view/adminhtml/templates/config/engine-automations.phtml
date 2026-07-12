@@ -15,97 +15,114 @@
 $viewModel = $block->getData('view_model');
 $saveUrl = $block->getUrl('smaily_connect/automations/save');
 ?>
-<div class="smaily-engine-automations">
+<div class="smaily-engine-automations<?= $viewModel->isEngineConnected() && $viewModel->getLoadError() !== null ? ' is-degraded' : '' ?>">
     <h3><?= $escaper->escapeHtml(__('Campaign Intelligence Automations')) ?></h3>
 <?php if (!$viewModel->isEngineConnected()): ?>
-    <p class="note">
-        <?= $escaper->escapeHtml(__('These engine-run automations (replenishment reminders, win-back and more) become available once Campaign Intelligence is connected.')) ?>
-    </p>
-<?php elseif ($viewModel->getLoadError() !== null): ?>
-    <div class="message message-error">
-        <?= $escaper->escapeHtml(__('Could not load the automation catalog: %1', $viewModel->getLoadError())) ?>
+    <div class="smaily-engine-empty">
+        <div class="smaily-engine-empty__icon">i</div>
+        <div class="smaily-engine-empty__title"><?= $escaper->escapeHtml(__('Connect Smaily to set up automations')) ?></div>
+        <div class="smaily-engine-empty__body">
+            <?= $escaper->escapeHtml(__('These engine-run automations (replenishment reminders, win-back and more) become available once Campaign Intelligence is connected.')) ?>
+        </div>
     </div>
 <?php else: ?>
+    <?php $loadError = $viewModel->getLoadError(); ?>
+    <?php if ($loadError !== null): ?>
+    <div class="smaily-banner smaily-banner--warning">
+        <span class="smaily-banner__icon">&#9888;</span>
+        <div class="smaily-banner__body">
+            <div class="smaily-banner__title"><?= $escaper->escapeHtml(__('Could not load the automation catalog')) ?></div>
+            <div class="smaily-banner__message"><?= $escaper->escapeHtml(__('%1 Your saved automations are unchanged.', $loadError)) ?></div>
+        </div>
+    </div>
+    <?php endif; ?>
     <?php $workflows = $viewModel->getWorkflows(); ?>
     <?php $workflowIds = array_map(static fn ($w) => (string)$w['id'], $workflows); ?>
     <p class="note"><?= $escaper->escapeHtml(__('These automations run inside the Campaign Intelligence engine and fire the mapped Smaily workflow. Every trigger starts disabled and in test mode — nothing reaches real customers without your explicit action.')) ?></p>
-    <div class="admin__table-wrapper">
-        <table class="admin__table-secondary" id="smaily-engine-automations-table">
-            <thead>
-                <tr>
-                    <th><?= $escaper->escapeHtml(__('Enabled')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Trigger')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Smaily Workflow')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Cooldown (days)')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Daily Cap')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Test Mode')) ?></th>
-                    <th><?= $escaper->escapeHtml(__('Test Emails')) ?></th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php foreach ($viewModel->getRows() as $row): ?>
-                <?php $key = $escaper->escapeHtmlAttr($row['key']); ?>
-                <tr data-trigger="<?= /* @noEscape */ $key ?>">
-                    <td>
-                        <input type="checkbox" data-field="enabled" <?= $row['enabled'] ? 'checked' : '' ?>/>
-                        <input type="hidden" data-field="language_mode"
-                               value="<?= $escaper->escapeHtmlAttr($row['language_mode']) ?>"/>
-                        <input type="hidden" data-field="original_map"
-                               value="<?= $escaper->escapeHtmlAttr($row['original_map']) ?>"/>
-                    </td>
-                    <td>
-                        <strong><?= $escaper->escapeHtml($row['name']) ?></strong><br/>
-                        <small><?= $escaper->escapeHtml($row['description']) ?></small>
-                    </td>
-                    <td>
-                        <select data-field="workflow_id">
-                            <option value=""><?= $escaper->escapeHtml(__('-- Not Selected --')) ?></option>
-                            <?php foreach ($workflows as $workflow): ?>
-                                <option value="<?= (int)$workflow['id'] ?>"
-                                    <?= (string)$workflow['id'] === $row['workflow_id'] ? 'selected' : '' ?>>
-                                    <?= $escaper->escapeHtml($workflow['title']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                            <?php // Saved workflow missing from the current Smaily list: keep it
-                                // as a selected option so the binding is visible and survives the
-                                // save (the server also refuses to drop it — PRO-1268).
-                            if ($row['workflow_id'] !== '' && !in_array($row['workflow_id'], $workflowIds, true)): ?>
-                                <option value="<?= $escaper->escapeHtmlAttr($row['workflow_id']) ?>" selected>
-                                    <?= $escaper->escapeHtml(
-                                        __('Workflow #%1 (not in your Smaily list — kept)', $row['workflow_id'])
-                                    ) ?>
-                                </option>
-                            <?php endif; ?>
-                        </select>
-                    </td>
-                    <td>
-                        <input type="number" min="1" max="365" style="width: 6rem;"
-                               data-field="cooldown_days" value="<?= (int)$row['cooldown_days'] ?>"/>
-                    </td>
-                    <td>
-                        <input type="number" min="1" max="100000" style="width: 7rem;"
-                               data-field="daily_cap"
-                               value="<?= $row['daily_cap'] === null ? '' : (int)$row['daily_cap'] ?>"
-                               placeholder="<?= $escaper->escapeHtmlAttr(__('No cap')) ?>"/>
-                    </td>
-                    <td>
-                        <input type="checkbox" data-field="test_mode" <?= $row['test_mode'] ? 'checked' : '' ?>/>
-                    </td>
-                    <td>
-                        <input type="text" style="width: 14rem;" data-field="test_emails"
-                               value="<?= $escaper->escapeHtmlAttr($row['test_emails']) ?>"
-                               placeholder="a@example.com, b@example.com"/>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+    <div class="smaily-engine-triggers" id="smaily-engine-automations-table">
+        <?php foreach ($viewModel->getRows() as $row): ?>
+            <?php
+            $key = $escaper->escapeHtmlAttr($row['key']);
+            if (!$row['enabled']) {
+                $modeClass = 'is-off';
+                $pillVariant = 'off';
+                $pillLabel = __('Off');
+            } elseif ($row['test_mode']) {
+                $modeClass = 'is-test';
+                $pillVariant = 'test';
+                $pillLabel = __('Test mode');
+            } else {
+                $modeClass = 'is-active';
+                $pillVariant = 'active';
+                $pillLabel = __('Active');
+            }
+            ?>
+            <div class="smaily-engine-trigger <?= /* @noEscape */ $modeClass ?>" data-trigger="<?= /* @noEscape */ $key ?>">
+                <input type="hidden" data-field="language_mode" value="<?= $escaper->escapeHtmlAttr($row['language_mode']) ?>"/>
+                <input type="hidden" data-field="original_map" value="<?= $escaper->escapeHtmlAttr($row['original_map']) ?>"/>
+                <div class="smaily-engine-trigger__top">
+                    <div class="smaily-engine-trigger__head">
+                        <div class="smaily-engine-trigger__name-row">
+                            <span class="smaily-engine-trigger__name"><?= $escaper->escapeHtml($row['name']) ?></span>
+                            <span class="smaily-pill smaily-pill--<?= $escaper->escapeHtmlAttr($pillVariant) ?>"><span class="smaily-pill__dot"></span><?= $escaper->escapeHtml($pillLabel) ?></span>
+                        </div>
+                        <div class="smaily-engine-trigger__desc"><?= $escaper->escapeHtml($row['description']) ?></div>
+                        <div class="smaily-engine-trigger__controls" style="margin-top:8px;">
+                            <span class="smaily-engine-trigger__ctrl"><label><input type="checkbox" data-field="enabled" <?= $row['enabled'] ? 'checked' : '' ?>/> <?= $escaper->escapeHtml(__('Enabled')) ?></label></span>
+                            <span class="smaily-engine-trigger__ctrl"><label><input type="checkbox" data-field="test_mode" <?= $row['test_mode'] ? 'checked' : '' ?>/> <?= $escaper->escapeHtml(__('Test mode')) ?></label></span>
+                        </div>
+                    </div>
+                    <div class="smaily-engine-trigger__controls">
+                        <label class="smaily-engine-trigger__ctrl">
+                            <span><?= $escaper->escapeHtml(__('Smaily Workflow')) ?></span>
+                            <select data-field="workflow_id" style="min-width:16rem;">
+                                <option value=""><?= $escaper->escapeHtml(__('-- Not Selected --')) ?></option>
+                                <?php foreach ($workflows as $workflow): ?>
+                                    <option value="<?= (int)$workflow['id'] ?>"
+                                        <?= (string)$workflow['id'] === $row['workflow_id'] ? 'selected' : '' ?>>
+                                        <?= $escaper->escapeHtml($workflow['title']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                                <?php // Saved workflow missing from the current Smaily list: keep it
+                                    // as a selected option so the binding is visible and survives the
+                                    // save (the server also refuses to drop it — PRO-1268).
+                                if ($row['workflow_id'] !== '' && !in_array($row['workflow_id'], $workflowIds, true)): ?>
+                                    <option value="<?= $escaper->escapeHtmlAttr($row['workflow_id']) ?>" selected>
+                                        <?= $escaper->escapeHtml(
+                                            __('Workflow #%1 (not in your Smaily list — kept)', $row['workflow_id'])
+                                        ) ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
+                        </label>
+                        <label class="smaily-engine-trigger__ctrl">
+                            <span><?= $escaper->escapeHtml(__('Cooldown (days)')) ?></span>
+                            <input type="number" min="1" max="365" style="width: 6rem;"
+                                   data-field="cooldown_days" value="<?= (int)$row['cooldown_days'] ?>"/>
+                        </label>
+                        <label class="smaily-engine-trigger__ctrl">
+                            <span><?= $escaper->escapeHtml(__('Daily Cap')) ?></span>
+                            <input type="number" min="1" max="100000" style="width: 7rem;"
+                                   data-field="daily_cap"
+                                   value="<?= $row['daily_cap'] === null ? '' : (int)$row['daily_cap'] ?>"
+                                   placeholder="<?= $escaper->escapeHtmlAttr(__('No cap')) ?>"/>
+                        </label>
+                        <label class="smaily-engine-trigger__ctrl">
+                            <span><?= $escaper->escapeHtml(__('Test Emails')) ?></span>
+                            <input type="text" style="width: 14rem;" data-field="test_emails"
+                                   value="<?= $escaper->escapeHtmlAttr($row['test_emails']) ?>"
+                                   placeholder="a@example.com, b@example.com"/>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
     </div>
-    <div style="margin-top: 1rem;">
-        <button type="button" id="smaily-engine-automations-save" class="action-secondary">
+    <div style="margin-top: 1rem; display:flex; align-items:center; gap:1rem;">
+        <button type="button" id="smaily-engine-automations-save" class="action-primary">
             <span><?= $escaper->escapeHtml(__('Save Intelligence Automations')) ?></span>
         </button>
-        <span id="smaily-engine-automations-result" class="note" style="margin-left: 1rem;"></span>
+        <span id="smaily-engine-automations-result" class="smaily-inline-status"></span>
     </div>
     <script>
     require(['jquery'], function ($) {
@@ -116,7 +133,7 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
         $('#smaily-engine-automations-save').on('click', function () {
             var params = new URLSearchParams();
             params.set('form_key', window.FORM_KEY);
-            $('#smaily-engine-automations-table tbody tr').each(function () {
+            $('#smaily-engine-automations-table .smaily-engine-trigger').each(function () {
                 var key = $(this).data('trigger'),
                     prefix = 'triggers[' + key + ']';
 

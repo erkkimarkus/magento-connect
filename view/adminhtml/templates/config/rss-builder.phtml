@@ -40,7 +40,8 @@
         </label>
     </div>
     <div style="display: flex; gap: 0.5rem; align-items: center;">
-        <input type="text" id="smaily-rss-url" readonly style="flex: 1;"
+        <input type="text" id="smaily-rss-url" readonly
+               style="flex: 1; font-family: var(--mono); background: var(--s-surface-3); color: var(--s-text);"
                onclick="this.select();"/>
         <button type="button" id="smaily-rss-copy" class="action-default scalable">
             <span><?= $escaper->escapeHtml(__('Copy')) ?></span>

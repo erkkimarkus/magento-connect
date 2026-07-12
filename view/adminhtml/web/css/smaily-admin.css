@@ -125,11 +125,7 @@
 .smaily-dashboard .smaily-connection.is-off .smaily-dot { background: #d0d0d0; }
 .smaily-dashboard .smaily-connection-state { color: #666; margin-left: auto; text-align: right; }
 .smaily-dashboard .smaily-tiles { display: flex; gap: 2rem; margin-bottom: 2rem; flex-wrap: wrap; }
-.smaily-dashboard .smaily-tile { flex: 1 1 14rem; background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 1.6rem; }
-.smaily-dashboard .smaily-tile-value { display: block; font-size: 3.2rem; font-weight: 600; line-height: 1.2; }
-.smaily-dashboard .smaily-tile-label { color: #666; }
-.smaily-dashboard .smaily-tile-attention { border-color: #e22626; background: #fff5f5; }
-.smaily-dashboard .smaily-tile-attention .smaily-tile-value { color: #e22626; }
+/* Tiles use the Stage A .smaily-tile component (BEM); layout only lives here. */
 .smaily-dashboard .smaily-columns { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
 .smaily-dashboard .smaily-activity { flex: 2 1 40rem; min-width: 0; }
 .smaily-dashboard .smaily-activity .admin__table-wrapper { overflow-x: auto; }
@@ -418,3 +414,108 @@
 .smaily-progress.is-failed .smaily-progress__fill { background: var(--s-danger); }
 .smaily-progress.is-stopped .smaily-progress__fill { background: var(--s-neutral); }
 @keyframes smaily-stripe { from { background-position: 0 0; } to { background-position: 28px 0; } }
+
+/* ========================================================================= *
+ * PRO-1281 Stage B — the visual system applied to the screens.
+ *
+ * Screen-application CSS only: consumes the Stage A tokens + component classes
+ * above (never redefines them) to wire Dashboard / Wizard / Settings / Engine
+ * Automations / Log / Backfill onto the design system. Primary buttons stay
+ * Magento action-orange (untouched); accent (#e91e63) drives selection, the
+ * stepper/tab indicators and progress, per the token sheet.
+ * ========================================================================= */
+
+/* --- Choice card glue: the real radio is visually hidden; the .smaily-choice
+ * __radio span is the indicator. Kept focusable for keyboard users. --------- */
+.smaily-choice { width: 100%; margin-bottom: var(--sp-2); }
+.smaily-choice__input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+.smaily-choice__input:focus-visible ~ .smaily-choice__radio { box-shadow: 0 0 0 3px var(--s-accent-soft); }
+.smaily-choice__desc .note { margin: 0; }
+
+/* --- InlineStatus wired into the shared AJAX result span. The result() helper
+ * builds a glyph + text; these map the legacy .ok/.err channel onto the
+ * inline-status roles so wizard, settings and backfill share one treatment. -- */
+.smaily-result.smaily-inline-status { margin-left: var(--sp-3); }
+.smaily-inline-status:empty { display: none; }
+.smaily-inline-status a { color: inherit; text-decoration: underline; font-weight: 600; }
+
+/* --- Wizard stepper: accent for active, success for completed (token-driven,
+ * overrides the legacy literals above). --------------------------------------*/
+.smaily-wizard .smaily-steps li { border-bottom-color: var(--s-border-2); color: var(--s-text-2); }
+.smaily-wizard .smaily-steps li.active { border-bottom-color: var(--s-accent); color: var(--s-text); }
+.smaily-wizard .smaily-steps li.done { border-bottom-color: var(--s-success); color: var(--s-text); }
+.smaily-wizard .smaily-steps li .smaily-step-index {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; margin-right: var(--sp-2); border-radius: 50%;
+    background: var(--s-surface-3); color: var(--s-text-3);
+    border: 1px solid var(--s-border-2); font: 700 var(--fs-12)/1 var(--font); vertical-align: middle;
+}
+.smaily-wizard .smaily-steps li.active .smaily-step-index { background: var(--s-surface); color: var(--s-accent); border-color: var(--s-accent); }
+.smaily-wizard .smaily-steps li.done .smaily-step-index { background: var(--s-accent); color: #fff; border-color: var(--s-accent); }
+.smaily-wizard .smaily-steps li.done .smaily-step-index::before { content: "\2713"; }
+.smaily-wizard .smaily-steps li.done .smaily-step-index .smaily-step-num { display: none; }
+
+/* --- Settings tabs: accent underline for the active tab. -------------------- */
+.smaily-settings .smaily-tabs li { color: var(--s-text-2); }
+.smaily-settings .smaily-tabs li.active { border-bottom-color: var(--s-accent); color: var(--s-text); }
+
+/* --- Dashboard ------------------------------------------------------------- */
+.smaily-dashboard .smaily-verdict { align-items: flex-start; gap: var(--sp-4); border-left-width: 5px; box-shadow: var(--shadow-1); }
+.smaily-dashboard .smaily-verdict-dot { flex: 0 0 auto; width: 14px; height: 14px; margin-top: 4px; border-radius: 50%; background: var(--s-neutral); }
+.smaily-dashboard .smaily-verdict-body { flex: 1; min-width: 0; }
+.smaily-dashboard .smaily-verdict-kicker { font: 700 var(--fs-11)/1 var(--font); letter-spacing: .6px; text-transform: uppercase; margin-bottom: 5px; }
+.smaily-dashboard .smaily-verdict-text { font-size: var(--fs-16); font-weight: 700; color: var(--s-text); line-height: 1.35; }
+.smaily-dashboard .smaily-verdict-ok { background: var(--s-success-soft); border-color: var(--s-success-border); border-left-color: var(--s-bar-success); }
+.smaily-dashboard .smaily-verdict-ok .smaily-verdict-dot { background: var(--s-bar-success); }
+.smaily-dashboard .smaily-verdict-ok .smaily-verdict-kicker { color: var(--s-success); }
+.smaily-dashboard .smaily-verdict-degraded { background: var(--s-warning-soft); border-color: var(--s-warning-border); border-left-color: var(--s-bar-warning); }
+.smaily-dashboard .smaily-verdict-degraded .smaily-verdict-dot { background: var(--s-bar-warning); }
+.smaily-dashboard .smaily-verdict-degraded .smaily-verdict-kicker { color: var(--s-warning); }
+.smaily-dashboard .smaily-verdict-incomplete { background: var(--s-info-soft); border-color: var(--s-info-border); border-left-color: var(--s-bar-info); }
+.smaily-dashboard .smaily-verdict-incomplete .smaily-verdict-dot { background: var(--s-bar-info); }
+.smaily-dashboard .smaily-verdict-incomplete .smaily-verdict-kicker { color: var(--s-info); }
+.smaily-dashboard .smaily-verdict-action { align-self: center; }
+
+.smaily-dashboard .smaily-connections { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.smaily-dashboard .smaily-connection { align-items: flex-start; flex-direction: column; gap: var(--sp-1); box-shadow: var(--shadow-1); }
+.smaily-dashboard .smaily-connection-head { display: flex; align-items: center; gap: var(--sp-2); width: 100%; }
+.smaily-dashboard .smaily-connection-sub { font-size: var(--fs-12); color: var(--s-text-3); }
+.smaily-dashboard .smaily-connection .smaily-dot { width: 12px; height: 12px; }
+.smaily-dashboard .smaily-connection.is-on .smaily-dot { background: var(--s-bar-success); box-shadow: 0 0 0 3px var(--s-success-soft); }
+.smaily-dashboard .smaily-connection.is-off .smaily-dot { background: var(--s-border-2); }
+
+.smaily-dashboard .smaily-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+
+.smaily-dashboard .smaily-activity-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.smaily-dashboard .smaily-activity-head h2 { margin: 0; }
+
+/* --- Engine automations: trigger cards + run-mode pill --------------------- */
+.smaily-engine-triggers { display: flex; flex-direction: column; gap: var(--sp-3); margin: var(--sp-4) 0; }
+.smaily-engine-trigger { background: var(--s-surface); border: 1px solid var(--s-border); border-radius: var(--r-3); padding: 15px 17px; box-shadow: var(--shadow-1); }
+.smaily-engine-trigger.is-off { background: var(--s-surface-2); }
+.smaily-engine-trigger.is-test { border-left: 3px solid var(--s-info-border); }
+.smaily-engine-trigger.is-active { border-left: 3px solid var(--s-success-border); }
+.smaily-engine-trigger__top { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.smaily-engine-trigger__head { flex: 1; min-width: 220px; }
+.smaily-engine-trigger__name-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: 3px; }
+.smaily-engine-trigger__name { font-size: var(--fs-14); font-weight: 700; color: var(--s-text); }
+.smaily-engine-trigger__desc { font-size: var(--fs-12); color: var(--s-text-3); }
+.smaily-engine-trigger__controls { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: flex-end; }
+.smaily-engine-trigger__ctrl { display: flex; flex-direction: column; gap: var(--sp-1); }
+.smaily-engine-trigger__ctrl > span { font-size: var(--fs-11); font-weight: 700; color: var(--s-text-3); text-transform: uppercase; letter-spacing: .4px; }
+.smaily-engine-trigger__ctrl label { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--s-text-2); font-size: var(--fs-13); }
+.smaily-engine-empty { text-align: center; background: var(--s-surface); border: 1px solid var(--s-border); border-radius: var(--r-3); padding: 32px 24px; }
+.smaily-engine-empty__icon { width: 44px; height: 44px; border-radius: 50%; background: var(--s-info-soft); border: 1px solid var(--s-info-border); color: var(--s-info); font: 700 22px/44px var(--font); margin: 0 auto var(--sp-3); }
+.smaily-engine-empty__title { font-size: var(--fs-16); font-weight: 700; margin-bottom: 5px; }
+.smaily-engine-empty__body { font-size: var(--fs-13); color: var(--s-text-2); max-width: 40ch; margin: 0 auto var(--sp-4); line-height: 1.5; }
+.smaily-engine-automations.is-degraded .smaily-engine-triggers { opacity: .55; }
+
+/* --- Log details slide-out: attempt timeline ------------------------------ */
+.smaily-log-details-retry { display: flex; gap: var(--sp-2); align-items: center; background: var(--s-info-soft); border: 1px solid var(--s-info-border); color: var(--s-info); border-radius: var(--r-3); padding: 11px 14px; font-size: var(--fs-13); line-height: 1.45; }
+.smaily-log-details-retry.is-terminal { background: var(--s-neutral-soft); border-color: var(--s-neutral-border); color: var(--s-text-2); }
+.smaily-log-redact-tag { display: inline-block; font-size: 10px; font-weight: 700; color: var(--s-parked); background: var(--s-parked-soft); border: 1px solid var(--s-parked-border); border-radius: var(--r-2); padding: 0 6px; text-transform: uppercase; letter-spacing: .3px; margin-left: 6px; vertical-align: middle; }
+
+/* --- Backfill: progress + terminal verdict line --------------------------- */
+.smaily-import-row { align-items: flex-start; }
+.smaily-backfill-verdict { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--fs-13); line-height: 1.45; }
+.smaily-backfill-verdict__icon { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 700 var(--fs-12)/1 var(--font); }

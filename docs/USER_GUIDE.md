@@ -240,10 +240,12 @@ Optional query parameters:
 | `sort` | `created_at`, `updated_at`, `name`, `price` | `created_at` |
 | `order` | `asc`, `desc` | `desc` |
 
-You do not need to build the URL by hand: the **Feed URL Builder** in the
-**Product RSS Feed** config group assembles it live as you pick the
-category, limit and sorting, with a one-click **Copy** button. The
-wizard's Done step links straight to it.
+You do not need to build the URL by hand: the **Feed URL Builder** — on the
+**Settings > RSS** tab and in the **Product RSS Feed** config group —
+assembles it live as you pick the category, limit and sorting, with a
+one-click **Copy** button. The wizard's Done step links straight to it. The
+**Advanced RSS options** link on the RSS tab opens Stores > Configuration
+with the Product RSS Feed group already expanded.
 
 Items include `smly:price` / `smly:old_price` / `smly:discount` (prices as
 shown in your storefront, tax included). Only catalog-visible, enabled

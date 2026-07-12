@@ -24,11 +24,17 @@ $logUrl = $block->getUrl('smaily_connect/log');
 <div id="smaily-wizard" class="smaily-ui smaily-wizard">
     <!-- Styles live in view/adminhtml/web/css/smaily-admin.css (loaded via the wizard layout XML). -->
     <ul class="smaily-steps">
-        <li data-step="1"><?= $escaper->escapeHtml(__('1. Connect')) ?></li>
-        <li data-step="2"><?= $escaper->escapeHtml(__('2. Subscribers')) ?></li>
-        <li data-step="3"><?= $escaper->escapeHtml(__('3. Automations')) ?></li>
-        <li data-step="4"><?= $escaper->escapeHtml(__('4. Intelligence')) ?></li>
-        <li data-step="5"><?= $escaper->escapeHtml(__('5. Done')) ?></li>
+        <?php foreach ([
+            1 => __('Connect'),
+            2 => __('Subscribers'),
+            3 => __('Automations'),
+            4 => __('Intelligence'),
+            5 => __('Done'),
+        ] as $stepNo => $stepLabel): ?>
+        <li data-step="<?= (int)$stepNo ?>">
+            <span class="smaily-step-index"><span class="smaily-step-num"><?= (int)$stepNo ?></span></span><?= $escaper->escapeHtml($stepLabel) ?>
+        </li>
+        <?php endforeach; ?>
     </ul>
 
     <div class="smaily-step-panel" data-step="1"><?= $block->getChildHtml('panel.connection') ?></div>

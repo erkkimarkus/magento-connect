@@ -81,7 +81,8 @@ $lastError = $redactor->redact(trim((string)($row['last_error'] ?? '')));
         <?php endif; ?>
         <tr>
             <th><?= $escaper->escapeHtml(__('Status')) ?></th>
-            <td><span class="smaily-status smaily-status-<?= $escaper->escapeHtmlAttr($status) ?>"><?= $escaper->escapeHtml((string)($statusLabels[$status] ?? $status)) ?></span></td>
+            <?php $statusPill = ['pending' => 'pending', 'sending' => 'pending', 'sent' => 'sent', 'failed' => 'failed'][$status] ?? 'neutral'; ?>
+            <td><span class="smaily-pill smaily-pill--<?= $escaper->escapeHtmlAttr($statusPill) ?>"><span class="smaily-pill__dot"></span><?= $escaper->escapeHtml((string)($statusLabels[$status] ?? $status)) ?></span></td>
         </tr>
         <tr>
             <th><?= $escaper->escapeHtml(__('Attempts')) ?></th>
@@ -97,21 +98,24 @@ $lastError = $redactor->redact(trim((string)($row['last_error'] ?? '')));
         </tr>
     </table>
 
-    <p class="smaily-log-details-retry"><?= $escaper->escapeHtml($retryText) ?></p>
+    <?php $retryTerminal = $status === 'sent' || $status === 'failed'; ?>
+    <div class="smaily-log-details-retry<?= $retryTerminal ? ' is-terminal' : '' ?>">
+        <span>&#8635;</span><span><?= $escaper->escapeHtml($retryText) ?></span>
+    </div>
 
     <?php if ($lastError !== ''): ?>
-    <h3><?= $escaper->escapeHtml(__('Last error')) ?></h3>
+    <h3><?= $escaper->escapeHtml(__('Last error')) ?><span class="smaily-log-redact-tag"><?= $escaper->escapeHtml(__('redacted')) ?></span></h3>
     <pre class="smaily-log-details-pre smaily-log-details-error"><?= $escaper->escapeHtml($lastError) ?></pre>
     <?php endif; ?>
 
-    <h3><?= $escaper->escapeHtml($payloadTitle) ?></h3>
+    <h3><?= $escaper->escapeHtml($payloadTitle) ?><span class="smaily-log-redact-tag"><?= $escaper->escapeHtml(__('PII redacted')) ?></span></h3>
     <?php if ($payload !== ''): ?>
         <pre class="smaily-log-details-pre"><?= $escaper->escapeHtml($payload) ?></pre>
     <?php else: ?>
         <p class="note"><?= $escaper->escapeHtml(__('No payload stored for this row.')) ?></p>
     <?php endif; ?>
 
-    <h3><?= $escaper->escapeHtml(__('Last response')) ?></h3>
+    <h3><?= $escaper->escapeHtml(__('Last response')) ?><span class="smaily-log-redact-tag"><?= $escaper->escapeHtml(__('PII redacted')) ?></span></h3>
     <?php if ($response !== ''): ?>
         <pre class="smaily-log-details-pre"><?= $escaper->escapeHtml($response) ?></pre>
     <?php else: ?>

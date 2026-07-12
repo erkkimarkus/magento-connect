@@ -67,7 +67,9 @@ $isSettings = $block->getData('context') === 'settings';
                     <span><?= $escaper->escapeHtml(__('Cancel import')) ?></span>
                 </button>
                 <span class="smaily-result"></span>
-                <progress value="0" max="100" style="display:none;"></progress>
+                <div class="smaily-progress" style="display:none;">
+                    <div class="smaily-progress__track"><div class="smaily-progress__fill"></div></div>
+                </div>
             </div>
             <?php endforeach; ?>
         </div>

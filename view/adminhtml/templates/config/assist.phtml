@@ -131,6 +131,36 @@ require(['jquery'], function ($) {
             clearTimeout(timer);
             timer = setTimeout(refreshWorkflows, 1200);
         });
+
+        // Carry-over polish: a deep link to a collapsed Smaily config group
+        // (e.g. #smaily_connect_rss from the RSS surfaces) lands with that
+        // group expanded and scrolled into view. Magento renders config
+        // groups collapsed and only toggles `.active` on the header click, so
+        // we open it once the collapsible JS has wired up.
+        var hash = window.location.hash;
+        if (hash && hash.indexOf('#smaily_connect_') === 0) {
+            setTimeout(function () {
+                var $group = $(hash);
+                if (!$group.length) {
+                    return;
+                }
+                // Config groups are expanded by default in some Magento builds
+                // and collapsed in others. Only toggle when the group's fields
+                // are actually hidden, and support both the legacy
+                // .entry-edit-head header and the newer collapsible title.
+                var $content = $group.find('.form-list, fieldset').first();
+                if ($content.length && !$content.is(':visible')) {
+                    var $trigger = $group.children('.entry-edit-head').find('a').first();
+                    if (!$trigger.length) {
+                        $trigger = $group.find('.admin__collapsible-title, [data-toggle="collapse"]').first();
+                    }
+                    $trigger.trigger('click');
+                }
+                if ($group[0].scrollIntoView) {
+                    $group[0].scrollIntoView({block: 'start'});
+                }
+            }, 300);
+        }
     });
 });
 </script>

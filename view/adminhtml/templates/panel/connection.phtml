@@ -49,12 +49,20 @@ $modeCards = [
     <h2><?= $escaper->escapeHtml(__('How is Smaily organised for your store languages?')) ?></h2>
     <p><?= $escaper->escapeHtml(__('Your store views speak %1 languages (%2). Pick how contacts and automations should route between them — the sections below adapt right away.', count($languages), strtoupper(implode(', ', $languages)))) ?></p>
     <?php foreach ($modeCards as $modeValue => $card): ?>
-    <label class="smaily-choice">
-        <input type="radio" name="smaily-w-mlmode"
+    <label class="smaily-choice<?= $modeValue === $mode ? ' is-selected' : '' ?>">
+        <input class="smaily-choice__input" type="radio" name="smaily-w-mlmode"
                value="<?= $escaper->escapeHtmlAttr($modeValue) ?>"
                <?= $modeValue === $mode ? 'checked' : '' ?>/>
-        <strong><?= $escaper->escapeHtml($card['label']) ?></strong>
-        <p class="note"><?= $escaper->escapeHtml($card['note']) ?></p>
+        <span class="smaily-choice__radio"></span>
+        <span class="smaily-choice__body">
+            <span class="smaily-choice__title-row">
+                <span class="smaily-choice__title"><?= $escaper->escapeHtml($card['label']) ?></span>
+                <?php if ($modeValue === 'b'): ?>
+                    <span class="smaily-choice__badge"><?= $escaper->escapeHtml(__('Most common')) ?></span>
+                <?php endif; ?>
+            </span>
+            <span class="smaily-choice__desc"><?= $escaper->escapeHtml($card['note']) ?></span>
+        </span>
     </label>
     <?php endforeach; ?>
 </div>

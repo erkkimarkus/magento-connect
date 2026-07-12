@@ -20,7 +20,11 @@ if ($failed < 1) {
 
 $failedUrl = $block->getUrl('smaily_connect/log', ['_query' => ['filters' => ['status' => 'failed']]]);
 ?>
-<div class="message message-warning smaily-log-failed-banner">
-    <?= $escaper->escapeHtml(__('%1 failed delivery(ies) in the last 24 hours.', $failed)) ?>
-    <a href="<?= $escaper->escapeUrl($failedUrl) ?>"><?= $escaper->escapeHtml(__('View failed deliveries')) ?></a>
+<div class="smaily-banner smaily-banner--warning smaily-log-failed-banner">
+    <span class="smaily-banner__icon">&#9888;</span>
+    <div class="smaily-banner__body">
+        <div class="smaily-banner__title"><?= $escaper->escapeHtml(__('%1 events failed in the last 24 hours', $failed)) ?></div>
+        <div class="smaily-banner__message"><?= $escaper->escapeHtml(__('Most retry automatically with backoff; anything still failed can be retried manually from the grid.')) ?></div>
+    </div>
+    <a class="smaily-banner__action" href="<?= $escaper->escapeUrl($failedUrl) ?>"><?= $escaper->escapeHtml(__('Show failed (24h)')) ?></a>
 </div>

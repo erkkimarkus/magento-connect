@@ -5,13 +5,63 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1281 Stage A — design foundation: :root token sheet + six reusable component classes landed in smaily-admin.css; Stage B screens pending)_
+_Last updated: 2026-07-12 (PRO-1281 Stage B — the visual system applied to all six screens; Playwright-validated en_US + et_EE, di:compile green; PRO-1281 complete)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **PRO-1281 Stage B done — the visual system applied to the screens (PRO-1281
+  complete).** Consumed the Stage A tokens + six component classes across the
+  real admin templates (a Stage B application section was appended to
+  `smaily-admin.css` — screen glue only, tokens/components untouched); no
+  functional/behavioral changes. Per screen: **Dashboard** — verdict hero
+  (dot + role kicker + text, healthy/degraded/incomplete states via the
+  existing verdict logic), connection strip now carries `.smaily-pill`
+  (active/off/failed/pending) + sub-lines, metric tiles rebuilt on the
+  `.smaily-tile` BEM component (`__label`/`__value`/`__caption`/`__badge`,
+  `--attention` on failures), activity status as pills; the legacy single-dash
+  tile CSS was removed so the component wins. **Setup Wizard** — stepper gained
+  accent circle indices (done = accent check, active = accent ring, via
+  tokens); the lawful-basis + multilingual mode cards migrated to the
+  `.smaily-choice`/`.is-selected` BEM component (native radio visually hidden
+  but focusable, `__radio` indicator, Recommended/Most-common `__badge`); the
+  JS `.selected`→`.is-selected` rename is scoped so the two card groups don't
+  clear each other. **Settings** — tab strip active-underline recolored to
+  accent; per-tab save result rendered through the shared inline-status. The
+  shared `result()` helper now renders the Stage A **inline-status** vocabulary
+  (CSS-only spinner/check/error glyphs) with state inferred from the message
+  (ellipsis = working, ok = saved, else error) — one change covers wizard,
+  settings, per-account tests and backfill with zero call-site edits.
+  **Engine Automations** — the dense table became `.smaily-engine-trigger`
+  cards with a computed run-mode pill (active/test/off from enabled+test_mode);
+  the not-connected state is a centered empty-state, the catalog-load-failed
+  state a `.smaily-banner--warning` over dimmed saved rows; all `[data-field]`
+  hooks preserved (save JS selector updated to `.smaily-engine-trigger`).
+  **Log** — native grid untouched; failed-24h banner rebuilt as
+  `.smaily-banner--warning`; Details slide-out gained a status pill, an
+  info/terminal retry line and PII-redaction tags. **Backfill** — the native
+  `<progress>` replaced by the `.smaily-progress` component (track + fill),
+  driven by a new `setProgress()` that maps running→striped-accent /
+  done→success / done-with-failures & stopped→danger / cancelled→neutral.
+  **Carry-over (item 7)** — a deep link to a Smaily config group
+  (`#smaily_connect_rss`, reachable from a new "Advanced RSS options" link on
+  the RSS tab) lands with the group open; the config assist now opens a
+  genuinely-collapsed group defensively (works with either Magento collapsible
+  pattern) — in this 2.4.8 build the groups render expanded, so it lands open
+  natively. i18n +32 phrases in BOTH packs (en↔et parity, canonical casefold
+  sort; 395 each). **Verification:** phpcs 0 errors, phpstan clean, 124 unit
+  tests; sandbox `setup:upgrade` + `setup:di:compile` green on the merged
+  tree; Playwright drove all six screens in **en_US AND et_EE** — 22/22 checks
+  pass (stepper + choice-cards, tab switch + save inline-status, choice-card
+  reactivity, backfill progress component, engine empty-state, log Details
+  pill + redaction, dashboard tiles/pills/verdict, RSS deep-link opens the
+  group, wizard step nav) with **zero module JS console errors** in both
+  locales; sandbox admin locale restored to en_US. Not driven live: the engine
+  trigger-card active/test/off + validation-error states (the sandbox engine is
+  deliberately disconnected, so the not-connected empty-state is what renders —
+  the card markup is code-complete and di-compiled).
 - **PRO-1281 Stage A done — Phase 3 design foundation (CSS only, no screens
   touched).** Landed the Design agent's visual system into
   `view/adminhtml/web/css/smaily-admin.css` (already loaded on all four admin
@@ -500,7 +550,7 @@ _Last updated: 2026-07-12 (PRO-1281 Stage A — design foundation: :root token s
 |---|---|---|
 | PRO-1198 | Release coordination with Smaily (upstream/Marketplace path) | High — Erkki's decision |
 | PRO-1201 | Hyvä theme work package | — |
-| PRO-1281 | Phase 3 design-led polish — Stage A (tokens + components) done; Stage B (apply to screens + Playwright en/et) pending | — |
+| PRO-1281 | Phase 3 design-led polish — DONE (Stage A tokens/components + Stage B screens; Playwright en/et green) | — |
 
 Closed 2026-07-11: PRO-1199 (integration suite), PRO-1200 (i18n), PRO-1202 /
 PRO-1242 (contract v1.4.0), PRO-1231 (product-delete §3b), PRO-1252
