@@ -5,12 +5,34 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (real-Smaily-credentials walk executed — all 8 surfaces pass; workflow-listing endpoint bug + store_group bug fixed)_
+_Last updated: 2026-07-12 (PRO-1268 fixed — engine-automations save no longer silently wipes a binding whose workflow id is missing from the Smaily list)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
+
+- **PRO-1268 fixed — engine-automations save preserves a binding whose
+  workflow id is missing from the Smaily list.** The Campaign Intelligence
+  automations block (`config/engine-automations.phtml` → `Automations\Save`)
+  rendered its workflow `<select>` only from the freshly loaded Smaily
+  workflow list; when a previously saved workflow id was absent (deleted in
+  Smaily, or the list failed to load) the option was gone, so an empty post
+  silently dropped the binding on save. The `per_language` branch already
+  reconstructed its map from the `original_map` hidden field — the
+  single-mode branch did not. The per-row normalization was extracted to a
+  pure, unit-tested `Model\Automation\ConfigRowNormalizer`; its single-mode
+  branch now keeps the saved id (from `original_map`) whenever the posted
+  workflow id is empty and the saved id is NOT in the current Smaily list
+  (`Automations\Save` fetches that list once via `SmailyClientProvider`; an
+  unloadable list = every saved id treated as missing = kept). A saved id
+  that IS in the list but was cleared to "-- Not Selected --" is still an
+  honest clear. The template also renders the missing id as a visible
+  selected option ("Workflow #123 (not in your Smaily list — kept)", new
+  i18n phrase in both packs, 363 each). New unit test
+  `Test/Unit/Model/Automation/ConfigRowNormalizerTest.php` (8 cases: missing
+  id preserved, list-load-failure preserved, deliberate clear honored, new
+  selection stored, per_language preserve/collapse, numeric clamps).
 
 - **Real-Smaily-credentials walk done — the last unverified pre-release
   surface is green.** All Smaily campaign-API happy paths exercised against
@@ -350,9 +372,11 @@ _Last updated: 2026-07-12 (real-Smaily-credentials walk executed — all 8 surfa
   exchanges; `not_found` = success). Configurable-child delete keeps the
   per-SKU `in_stock=false` soft path; disabled products stay on the
   ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
-- **Gates green:** 109 unit tests, 45 integration tests, phpcs clean,
+- **Gates green:** 117 unit tests, 45 integration tests, phpcs clean,
   phpstan clean. `setup:upgrade` + `setup:di:compile` re-verified in the
-  docker sandbox on the fully merged tree (2b + 2c included).
+  docker sandbox on the fully merged tree (2b + 2c included; the PRO-1268
+  ConfigRowNormalizer fix is pure PHP + template + DI-autowired constructor
+  args, no new di.xml, so it needs no re-compile beyond the standard gate).
 - **Hyvä compat skeleton + work package done (PRO-1201)** — full storefront
   audit with file:line evidence in `docs/HYVA_SUPPORT.md`. Compat
   module `Hyva_SmailyConnect` under `compat/hyva/` (standard Hyvä pattern:

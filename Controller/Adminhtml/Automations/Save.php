@@ -15,6 +15,9 @@ use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\ResultFactory;
+use Smaily\Connect\Model\Automation\ConfigRowNormalizer;
+use Smaily\Connect\Model\Client\Exception\SmailyClientException;
+use Smaily\Connect\Model\Client\SmailyClientProvider;
 use Smaily\Connect\Model\Engine\Client;
 use Smaily\Connect\Model\Engine\Exception\EngineException;
 use Smaily\Connect\Model\Engine\Exception\EngineRequestException;
@@ -29,7 +32,9 @@ class Save extends Action implements HttpPostActionInterface
 
     public function __construct(
         Context $context,
-        private readonly Client $client
+        private readonly Client $client,
+        private readonly SmailyClientProvider $smailyClientProvider,
+        private readonly ConfigRowNormalizer $normalizer
     ) {
         parent::__construct($context);
     }
@@ -63,46 +68,18 @@ class Save extends Action implements HttpPostActionInterface
      */
     private function save(array &$errors): bool
     {
+        // The currently loadable Smaily workflow ids — a saved id absent here
+        // was not offered in the dropdown, so the normalizer must not treat an
+        // empty single-mode post as a deliberate clear (PRO-1268).
+        $availableWorkflowIds = $this->availableWorkflowIds();
+
         $triggers = (array)$this->getRequest()->getParam('triggers', []);
         $rows = [];
         foreach ($triggers as $key => $data) {
             if (!is_array($data)) {
                 continue;
             }
-            $workflowId = trim((string)($data['workflow_id'] ?? ''));
-            $dailyCap = trim((string)($data['daily_cap'] ?? ''));
-            $testEmails = array_values(array_filter(array_map(
-                'trim',
-                explode(',', (string)($data['test_emails'] ?? ''))
-            )));
-
-            // Preserve a per_language row (saved from another platform on the
-            // same tenant) as long as the merchant did not change the
-            // workflow here — a save must never silently wipe language maps.
-            $originalMode = (string)($data['language_mode'] ?? 'single');
-            $originalMap = json_decode((string)($data['original_map'] ?? ''), true);
-            $originalMap = is_array($originalMap) ? $originalMap : [];
-            if ($originalMode === 'per_language'
-                && $workflowId === (string)($originalMap['fallback'] ?? '')
-            ) {
-                $languageMode = 'per_language';
-                $map = $originalMap;
-            } else {
-                $languageMode = 'single';
-                $map = $workflowId !== '' ? ['id' => $workflowId] : [];
-            }
-
-            $rows[] = [
-                'trigger_key' => (string)$key,
-                'enabled' => !empty($data['enabled']) && $map !== [],
-                'language_mode' => $languageMode,
-                // An empty map must serialize as a JSON object, not [].
-                'automation_map' => $map === [] ? new \stdClass() : $map,
-                'cooldown_days' => max(1, min(365, (int)($data['cooldown_days'] ?? 7))),
-                'daily_cap' => $dailyCap === '' ? null : max(1, min(100000, (int)$dailyCap)),
-                'test_mode' => !empty($data['test_mode']),
-                'test_emails' => array_slice($testEmails, 0, 50),
-            ];
+            $rows[] = $this->normalizer->normalize((string)$key, $data, $availableWorkflowIds);
         }
 
         if (!$rows) {
@@ -139,5 +116,24 @@ class Save extends Action implements HttpPostActionInterface
         }
 
         return false;
+    }
+
+    /**
+     * Workflow ids the Smaily API can currently list, as strings. An empty
+     * array (credentials missing or the listing failed) means "unknown" — the
+     * normalizer then keeps every saved binding rather than dropping ids it
+     * cannot confirm are gone.
+     *
+     * @return array<int, string>
+     */
+    private function availableWorkflowIds(): array
+    {
+        try {
+            $workflows = $this->smailyClientProvider->forStore(null)->getAutomationWorkflows();
+        } catch (SmailyClientException) {
+            return [];
+        }
+
+        return array_map(static fn (array $workflow): string => (string)$workflow['id'], $workflows);
     }
 }

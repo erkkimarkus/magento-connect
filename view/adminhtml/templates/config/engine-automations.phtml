@@ -27,6 +27,7 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
     </div>
 <?php else: ?>
     <?php $workflows = $viewModel->getWorkflows(); ?>
+    <?php $workflowIds = array_map(static fn ($w) => (string)$w['id'], $workflows); ?>
     <p class="note"><?= $escaper->escapeHtml(__('These automations run inside the Campaign Intelligence engine and fire the mapped Smaily workflow. Every trigger starts disabled and in test mode — nothing reaches real customers without your explicit action.')) ?></p>
     <div class="admin__table-wrapper">
         <table class="admin__table-secondary" id="smaily-engine-automations-table">
@@ -65,6 +66,16 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
                                     <?= $escaper->escapeHtml($workflow['title']) ?>
                                 </option>
                             <?php endforeach; ?>
+                            <?php // Saved workflow missing from the current Smaily list: keep it
+                                // as a selected option so the binding is visible and survives the
+                                // save (the server also refuses to drop it — PRO-1268).
+                            if ($row['workflow_id'] !== '' && !in_array($row['workflow_id'], $workflowIds, true)): ?>
+                                <option value="<?= $escaper->escapeHtmlAttr($row['workflow_id']) ?>" selected>
+                                    <?= $escaper->escapeHtml(
+                                        __('Workflow #%1 (not in your Smaily list — kept)', $row['workflow_id'])
+                                    ) ?>
+                                </option>
+                            <?php endif; ?>
                         </select>
                     </td>
                     <td>

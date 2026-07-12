@@ -354,6 +354,7 @@
 "Welcome — fires when someone becomes a subscriber","Tervitus — käivitub, kui keegi saab tellijaks"
 "Who should be synced to Smaily?","Keda peaks Smailysse sünkroonima?"
 "Workflow","Töövoog"
+"Workflow #%1 (not in your Smaily list — kept)","Töövoog #%1 (pole sinu Smaily loendis — säilitatud)"
 "You are all set!","Kõik on valmis!"
 "You can find or create API credentials in Smaily under Preferences > API. The password is stored encrypted and never leaves your server.","API kasutajaandmed leiad või lood Smailys menüüst Preferences > API. Parool salvestatakse krüpteeritult ega lahku kunagi sinu serverist."
 "Your personalization preference has been saved.","Sinu personaliseerimise eelistus on salvestatud."

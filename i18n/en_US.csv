@@ -354,6 +354,7 @@
 "Welcome — fires when someone becomes a subscriber","Welcome — fires when someone becomes a subscriber"
 "Who should be synced to Smaily?","Who should be synced to Smaily?"
 "Workflow","Workflow"
+"Workflow #%1 (not in your Smaily list — kept)","Workflow #%1 (not in your Smaily list — kept)"
 "You are all set!","You are all set!"
 "You can find or create API credentials in Smaily under Preferences > API. The password is stored encrypted and never leaves your server.","You can find or create API credentials in Smaily under Preferences > API. The password is stored encrypted and never leaves your server."
 "Your personalization preference has been saved.","Your personalization preference has been saved."
