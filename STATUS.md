@@ -5,13 +5,36 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1269 fixed — catalog `product_url` is now generated under forced frontend store emulation, so it is the clean storefront URL in any execution context — never one embedding the CLI/cron PHP entry script path)_
+_Last updated: 2026-07-12 (PRO-1280 — contract synced to v1.4.1 byte-identical (engine `945b7ad`) + catalog↔order-line `mag-<entity_id>` fallback symmetry closed)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **PRO-1280 done — contract v1.4.1 synced + catalog/order-line identity
+  fallback made symmetric.** (1) `docs/RECENGINE_API_CONTRACT.md` overwritten
+  byte-identical from engine `945b7ad` (version header now **1.4.1**, Appendix E
+  has the `v1.4.1` block; staleness check green). The v1.4.1 changes are
+  documentation-only (no wire/schema change): §3 catalog `tags` example gains
+  `"product_id": "7620134"`, the cross-variant-grouping bullet is now "live",
+  and the §3 identity rule now states Magento's catalog `sku` field IS the
+  platform-canonical key (mandatory + store-unique) with `mag-<entity_id>` as a
+  fallback ONLY when the SKU field is empty — the "never the merchant SKU field"
+  rule is Shopify/Woo-specific. No fixture drift: catalog already emits
+  `tags.product_id` as a string (PRO-1231), matching the documented example
+  shape. (2) Symmetric-fallback fix: `CatalogPayloadBuilder::sku()` keys an
+  empty-SKU product on `mag-<entity_id>`, but `OrderPayloadBuilder` emitted the
+  raw `getSku()` (i.e. `""`) with no equivalent — so a pathological empty-SKU
+  product's catalog row and order line would key on `mag-<id>` vs `""`, never
+  join (broken attribution + cadence), and `""` is a cross-product collision
+  magnet. `OrderPayloadBuilder` now routes the line `sku` through a `sku()`
+  helper that falls back to `mag-<product_id>` when `getSku()` is empty;
+  `sales_order_item.product_id` IS the catalog `entity_id`, so the two paths
+  now emit the identical key (contract §3 "Same key from every path"). Pure
+  defensive plugin-side change, no engine change. 2 new unit tests
+  (empty SKU + whitespace-only SKU → `mag-<product_id>`). Gates: 124 unit
+  tests green, phpcs 0 errors, phpstan clean.
 - **PRO-1269 fixed — catalog `product_url` is always the clean storefront
   URL, in any execution context.** `getProductUrl()` resolves against the
   *current* app environment, so when the catalog payload is built under
@@ -393,8 +416,9 @@ _Last updated: 2026-07-12 (PRO-1269 fixed — catalog `product_url` is now gener
   divergence from Woo found here (mapping rows' account ignored, mode-A
   fallback rows firing through the wrong account) is FIXED in phase 2c —
   see the PRO-1273 entry above.
-- **Engine contract v1.4.0 adopted + verified** (commit d35bb96, byte-identical
-  with the engine repo); **contract staleness CI added** (commit 5bc3767,
+- **Engine contract v1.4.1 adopted + verified** (engine commit `945b7ad`,
+  byte-identical with the engine repo; PRO-1280 — documentation-only bump over
+  v1.4.0/d35bb96); **contract staleness CI added** (commit 5bc3767,
   `.github/workflows/contract-staleness.yaml` + `bin/check-contract-staleness.sh`).
 - **Integration test suite + CI MySQL done (PRO-1199)** — 35 tests against a
   real MySQL 8.4: 2.8.x settings/schema migration (config mapper on real
@@ -416,7 +440,7 @@ _Last updated: 2026-07-12 (PRO-1269 fixed — catalog `product_url` is now gener
   exchanges; `not_found` = success). Configurable-child delete keeps the
   per-SKU `in_stock=false` soft path; disabled products stay on the
   ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
-- **Gates green:** 121 unit tests, 45 integration tests, phpcs clean,
+- **Gates green:** 124 unit tests, 45 integration tests, phpcs clean,
   phpstan clean. `setup:upgrade` + `setup:di:compile` re-verified in the
   docker sandbox on the fully merged tree (2b + 2c included; the PRO-1268
   ConfigRowNormalizer fix is pure PHP + template + DI-autowired constructor

@@ -10,6 +10,7 @@ namespace Smaily\Connect\Model\Engine\Payload;
 
 use Magento\Framework\App\ResourceConnection;
 use Magento\Sales\Api\Data\OrderInterface;
+use Magento\Sales\Api\Data\OrderItemInterface;
 use Magento\Sales\Model\Order;
 
 /**
@@ -95,7 +96,7 @@ class OrderPayloadBuilder
             $itemDiscount = abs((float)$orderItem->getDiscountAmount());
 
             $row = [
-                'sku' => (string)$orderItem->getSku(),
+                'sku' => $this->sku($orderItem),
                 // Integer when whole (contract examples use ints); a genuinely
                 // fractional qty (e.g. 1.5 kg) wires as a float.
                 'qty' => $qty == (int)$qty ? (int)$qty : $qty,
@@ -109,6 +110,27 @@ class OrderPayloadBuilder
         }
 
         return $items;
+    }
+
+    /**
+     * The order-line identity key, symmetric with the catalog builder.
+     *
+     * Magento's catalog `sku` field IS the platform-canonical key (mandatory +
+     * store-unique), so it is normally emitted verbatim. When the SKU field is
+     * empty — pathological, but possible — the catalog builder keys the row on
+     * `mag-<entity_id>` (CatalogPayloadBuilder::sku). The order item's
+     * `product_id` (`sales_order_item.product_id`) IS that same catalog
+     * `entity_id`, so an empty order-line SKU must key the SAME way, or the
+     * catalog row (`mag-<entity_id>`) and the order line (`""`) diverge onto
+     * different keys and never join — breaking attribution + cadence, and an
+     * empty `sku` is a cross-product collision magnet (contract §3, "Same key
+     * from every path" / catalog↔order-line fallback symmetry, PRO-1280).
+     */
+    private function sku(OrderItemInterface $orderItem): string
+    {
+        $sku = trim((string)$orderItem->getSku());
+
+        return $sku !== '' ? $sku : 'mag-' . (int)$orderItem->getProductId();
     }
 
     /**

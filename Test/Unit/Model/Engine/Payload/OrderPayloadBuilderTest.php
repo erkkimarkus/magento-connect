@@ -85,6 +85,47 @@ class OrderPayloadBuilderTest extends TestCase
     }
 
     /**
+     * Symmetric mag-<entity_id> fallback (PRO-1280): an empty order-line SKU
+     * must key on `mag-<product_id>` — the same token the catalog builder emits
+     * for the same empty-SKU product (`mag-<entity_id>`, and
+     * `sales_order_item.product_id` IS that catalog entity_id) — so catalog and
+     * order rows join instead of diverging onto `mag-...` vs `""`.
+     */
+    public function testEmptySkuOrderLineFallsBackToMagProductId(): void
+    {
+        $item = $this->item('', 1, 10.00, 0.0);
+        $item->method('getProductId')->willReturn(42);
+
+        $order = $this->order([], 10.00);
+        $order->method('getItems')->willReturn([$item]);
+
+        $payload = $this->builder->build($order);
+
+        self::assertNotNull($payload);
+        self::assertCount(1, $payload['items']);
+        // Matches CatalogPayloadBuilder::sku()'s 'mag-' . (int)$product->getId().
+        self::assertSame('mag-42', $payload['items'][0]['sku']);
+    }
+
+    /**
+     * A whitespace-only SKU is also treated as empty and falls back, mirroring
+     * the catalog builder's trim() before the emptiness check.
+     */
+    public function testWhitespaceOnlySkuOrderLineFallsBackToMagProductId(): void
+    {
+        $item = $this->item('   ', 1, 10.00, 0.0);
+        $item->method('getProductId')->willReturn(7);
+
+        $order = $this->order([], 10.00);
+        $order->method('getItems')->willReturn([$item]);
+
+        $payload = $this->builder->build($order);
+
+        self::assertNotNull($payload);
+        self::assertSame('mag-7', $payload['items'][0]['sku']);
+    }
+
+    /**
      * @param array<int, array{0: string, 1: int, 2: float, 3: float}> $items
      * @return \PHPUnit\Framework\MockObject\MockObject&OrderInterface
      */
