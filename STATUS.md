@@ -5,13 +5,50 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1271 phase 2a)_
+_Last updated: 2026-07-12 (PRO-1272 phase 2b)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **UI/UX parity phase 2b done (PRO-1272) — observability depth.**
+  (1) Per-row **Details** drill-down in the unified Log: an actions column
+  whose custom JS component (`js/grid/columns/log-actions`, overriding
+  `isHandlerRequired` — the stock actions column attaches NO click handler
+  to plain-href actions) loads `Controller\Adminhtml\Log\Details` into a
+  native slide-out modal; the template shows attempt count, honest retry
+  state (next retry time / "will NOT retry on its own"), last error,
+  payload-as-sent and last response, all through the new
+  `Model\Log\PayloadRedactor` (secret-looking keys → `[redacted]`, emails
+  masked `e***@g***.com` — last_error is masked too, it routinely quotes
+  the contact). Mass retry unaffected. (2) Failed-24h banner above the Log
+  (reuses `QueueHealth`, hidden at 0) deep-linking to the grid pre-filtered
+  via the core `Magento_Ui/js/grid/url-filter-applier` mechanism
+  (`?filters[status]=failed`); the dashboard verdict action + failed tile
+  link there too. (3) Backfill cancel + outcome honesty: `JobManager`
+  transitions are now race-safe conditional UPDATEs (progress writes never
+  touch status, terminal transitions only move active rows, so an admin
+  cancel always wins; no schema change — `cancelled` already existed), all
+  4 processors stop at the next page boundary via a fresh `isCancelled`
+  read, `BackfillState` gained `action=cancel` + `finished_at`/`error` in
+  the aggregate, and the shared panels render persisted outcomes on load:
+  "Done, X of Y synced" / "Done … — N failed" with a pre-filtered Log link
+  (parked/pending-retry rows are NOT counted failed) / "Stopped before an
+  error" / "Cancelled" (+ timestamp); cancel = fresh start on restart.
+  28 new phrases in both i18n packs (332 total, invariants held; appended —
+  a regeneration sweep to drop now-unused phrases is pending). Verified:
+  99 unit + 46 integration tests (8 new `JobManagerTest` cases covering the
+  cancel races), phpcs/phpstan clean, `setup:upgrade` in the sandbox, and
+  Playwright en + et_EE (banner + pre-filtered grid, redacted modal, mass
+  retry, live cancel of a pending job + fresh restart + completed-with-
+  failures outcome + persistence across reload, wizard step 2 shares the
+  same controls, zero module JS console errors). Container
+  `setup:di:compile` was SKIPPED this pass: the concurrent phase-2c agent's
+  worktree under `.claude/worktrees/` duplicates every class and breaks the
+  compiler — runtime DI of all new classes was exercised live instead; run
+  di:compile after the worktree is gone. Sandbox restored (seeded rows
+  removed, admin locale back to en_US).
 - **UI/UX parity phase 2a done (PRO-1271) — IA consolidation + full
   dashboard.** The admin is now four pages under Marketing > Smaily
   Connect: **Dashboard** (new landing page: one-sentence health verdict

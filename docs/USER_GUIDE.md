@@ -270,9 +270,26 @@ traffic:
 - **Catalog / Customers / Orders → Campaign Intelligence** — Settings >
   **Intelligence** tab
 
-Each import button shows live progress right where you started it. Jobs
-are resumable — a restart continues from the last cursor — and safe to
-re-run: deliveries are deduplicated on the receiving side.
+Each import button shows live progress right where you started it, and a
+**Cancel import** button appears while a job is running — the background
+worker stops cleanly at its next page boundary. A cancelled import is
+terminal: starting the same import again begins a fresh run from the
+beginning. (An import interrupted by an error, on the other hand, resumes
+from its last cursor.) Imports are safe to re-run either way: deliveries
+are deduplicated on the receiving side.
+
+After an import finishes, its outcome and timestamp stay visible on the
+panel — you do not have to keep the page open:
+
+- **"Done, X of Y synced"** — everything landed.
+- **"Done, X of Y synced — N failed"** — individual items failed
+  permanently, with a link to the Log pre-filtered to those rows. Items
+  still waiting for an automatic retry are *not* counted as failed.
+- **"Stopped before an error"** — the job itself hit an error and stopped
+  at a page boundary; nothing was lost, press the import button to run it
+  again.
+- **"Cancelled"** — stopped on your request; starting again begins a
+  fresh import.
 
 ## The log and troubleshooting
 
@@ -281,6 +298,14 @@ re-run: deliveries are deduplicated on the receiving side.
   (catalog, customers, orders, browse events), told apart by the
   **Source** column, with status, attempts and the last error. Select
   failed rows and **Retry** — each row is routed back to its own queue.
+- **Details** on any row opens a slide-out with the full picture: the
+  payload exactly as it was (or will be) sent, the attempt count, when the
+  next automatic retry happens (or an honest "this row will not retry on
+  its own"), the last error and the last API response. Sensitive values
+  (passwords, API keys) are never shown, and email addresses are masked.
+- When deliveries failed in the last 24 hours, a banner above the grid
+  says so and links straight to the grid pre-filtered to failed rows; the
+  dashboard's failed-deliveries tile links to the same view.
 - Deliveries retry automatically with backoff (1 min → 6 h, 5 attempts)
   before parking as *failed* for manual retry.
 - An admin notification appears when the engine has been unreachable for

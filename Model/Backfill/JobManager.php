@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Model\Backfill;
 
+use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Smaily\Connect\Model\ResourceModel\Backfill\Job as JobResource;
 use Smaily\Connect\Model\ResourceModel\Backfill\Job\CollectionFactory;
@@ -16,6 +17,13 @@ use Smaily\Connect\Model\ResourceModel\Backfill\Job\CollectionFactory;
  * Lifecycle management for chunked backfill jobs: one active job per
  * (job_type, target, website) at a time; the cron tick advances the oldest
  * active job one time-budgeted chunk per run.
+ *
+ * All status transitions are conditional single-statement UPDATEs so an
+ * admin cancel can land at any moment without being overwritten by the
+ * worker: the worker only writes progress columns between pages and checks
+ * the persisted status at every page boundary (isCancelled), stopping
+ * cleanly before the next page. A cancelled job is terminal — starting the
+ * same import again creates a fresh job from the beginning.
  */
 class JobManager
 {
@@ -23,7 +31,8 @@ class JobManager
         private readonly JobFactory $jobFactory,
         private readonly JobResource $jobResource,
         private readonly CollectionFactory $collectionFactory,
-        private readonly DateTime $dateTime
+        private readonly DateTime $dateTime,
+        private readonly ResourceConnection $resourceConnection
     ) {
     }
 
@@ -82,16 +91,27 @@ class JobManager
 
     public function markRunning(Job $job): void
     {
-        if ($job->getStatus() === Job::STATUS_PENDING) {
-            $job->addData([
+        $updated = $this->connection()->update(
+            $this->table(),
+            [
                 'status' => Job::STATUS_RUNNING,
                 'started_at' => $this->dateTime->gmtDate(),
-            ]);
-            $this->jobResource->save($job);
+            ],
+            [
+                'id = ?' => (int)$job->getId(),
+                'status = ?' => Job::STATUS_PENDING,
+            ]
+        );
+        if ($updated > 0) {
+            $job->setData('status', Job::STATUS_RUNNING);
         }
     }
 
     /**
+     * Persist one page of progress. Writes ONLY the progress columns (plus
+     * a total_count discovered by the processor), never the status — a
+     * concurrent cancel stays cancelled.
+     *
      * @param int $processedDelta rows handled in this chunk
      * @param int $failedDelta rows that failed in this chunk
      */
@@ -102,34 +122,98 @@ class JobManager
             'failed_count' => $job->getFailedCount() + $failedDelta,
             'cursor_value' => $cursor,
         ]);
-        $this->jobResource->save($job);
+        $this->connection()->update(
+            $this->table(),
+            [
+                'processed_count' => $job->getProcessedCount(),
+                'failed_count' => $job->getFailedCount(),
+                'cursor_value' => $cursor,
+                'total_count' => $job->getData('total_count'),
+            ],
+            ['id = ?' => (int)$job->getId()]
+        );
     }
 
     public function complete(Job $job): void
     {
-        $job->addData([
-            'status' => Job::STATUS_COMPLETED,
-            'completed_at' => $this->dateTime->gmtDate(),
-        ]);
-        $this->jobResource->save($job);
+        if ($this->finish($job, Job::STATUS_COMPLETED, ['total_count' => $job->getData('total_count')])) {
+            $job->setData('status', Job::STATUS_COMPLETED);
+        }
     }
 
     public function fail(Job $job, string $error): void
     {
-        $job->addData([
-            'status' => Job::STATUS_FAILED,
-            'error_message' => mb_substr($error, 0, 60000),
-            'completed_at' => $this->dateTime->gmtDate(),
-        ]);
-        $this->jobResource->save($job);
+        if ($this->finish($job, Job::STATUS_FAILED, ['error_message' => mb_substr($error, 0, 60000)])) {
+            $job->setData('status', Job::STATUS_FAILED);
+        }
     }
 
-    public function cancel(Job $job): void
+    /**
+     * Admin cancel: flips every active job of the import type to cancelled
+     * in one conditional statement. The worker stops at its next page
+     * boundary; starting the import again begins a fresh job.
+     *
+     * @return int number of jobs cancelled
+     */
+    public function requestCancel(string $jobType, string $target): int
     {
-        $job->addData([
-            'status' => Job::STATUS_CANCELLED,
-            'completed_at' => $this->dateTime->gmtDate(),
-        ]);
-        $this->jobResource->save($job);
+        return $this->connection()->update(
+            $this->table(),
+            [
+                'status' => Job::STATUS_CANCELLED,
+                'completed_at' => $this->dateTime->gmtDate(),
+            ],
+            [
+                'job_type = ?' => $jobType,
+                'target = ?' => $target,
+                'status IN (?)' => [Job::STATUS_PENDING, Job::STATUS_RUNNING],
+            ]
+        );
+    }
+
+    /**
+     * Fresh read of the persisted status — the page-boundary cancel check
+     * for workers holding a possibly stale in-memory job.
+     */
+    public function isCancelled(Job $job): bool
+    {
+        $select = $this->connection()->select()
+            ->from($this->table(), ['status'])
+            ->where('id = ?', (int)$job->getId());
+
+        return (string)$this->connection()->fetchOne($select) === Job::STATUS_CANCELLED;
+    }
+
+    /**
+     * Terminal transition guarded against concurrent cancel: only a still
+     * active row is moved, so cancelled always wins the race.
+     *
+     * @param array<string, mixed> $extra
+     */
+    private function finish(Job $job, string $status, array $extra = []): bool
+    {
+        $updated = $this->connection()->update(
+            $this->table(),
+            $extra + [
+                'status' => $status,
+                'completed_at' => $this->dateTime->gmtDate(),
+            ],
+            [
+                'id = ?' => (int)$job->getId(),
+                'status IN (?)' => [Job::STATUS_PENDING, Job::STATUS_RUNNING],
+            ]
+        );
+
+        return $updated > 0;
+    }
+
+    private function connection(): \Magento\Framework\DB\Adapter\AdapterInterface
+    {
+        return $this->resourceConnection->getConnection();
+    }
+
+    private function table(): string
+    {
+        return $this->resourceConnection->getTableName(JobResource::TABLE_NAME);
     }
 }

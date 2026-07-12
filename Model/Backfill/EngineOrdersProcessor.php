@@ -83,6 +83,10 @@ class EngineOrdersProcessor implements ProcessorInterface
             }
             $this->jobManager->recordProgress($job, $processed, 0, (string)$newCursor);
 
+            if ($this->jobManager->isCancelled($job)) {
+                return; // Admin cancel — stop cleanly at the page boundary.
+            }
+
             if ($this->ingestQueue->countPending(Client::DOMAIN_ORDERS) >= self::QUEUE_BACKLOG_LIMIT) {
                 return;
             }

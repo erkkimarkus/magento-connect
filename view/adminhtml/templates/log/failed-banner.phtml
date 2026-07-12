@@ -1,0 +1,26 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Failed-deliveries banner above the unified log grid. Renders nothing at
+ * zero failures; otherwise one sentence with a link to this same grid
+ * pre-filtered to status=failed (applied by the url-filter-applier block).
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\LogHealth $viewModel */
+$viewModel = $block->getData('view_model');
+$failed = $viewModel->getFailedLast24h();
+if ($failed < 1) {
+    return;
+}
+
+$failedUrl = $block->getUrl('smaily_connect/log', ['_query' => ['filters' => ['status' => 'failed']]]);
+?>
+<div class="message message-warning smaily-log-failed-banner">
+    <?= $escaper->escapeHtml(__('%1 failed delivery(ies) in the last 24 hours.', $failed)) ?>
+    <a href="<?= $escaper->escapeUrl($failedUrl) ?>"><?= $escaper->escapeHtml(__('View failed deliveries')) ?></a>
+</div>

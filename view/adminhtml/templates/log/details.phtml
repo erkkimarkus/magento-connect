@@ -1,0 +1,122 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Delivery detail panel for one unified-log row, loaded into a slide-out
+ * modal by the grid's Details action (Controller\Adminhtml\Log\Details).
+ * Payloads and responses are passed through the PayloadRedactor: secrets
+ * are never shown, email addresses are masked.
+ *
+ * @var \Magento\Framework\View\Element\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var array<string, mixed> $row */
+$row = (array)$block->getData('row');
+/** @var \Smaily\Connect\Model\Log\PayloadRedactor $redactor */
+$redactor = $block->getData('redactor');
+
+if (!$row) {
+    ?>
+    <div class="message message-error">
+        <?= $escaper->escapeHtml(__('This log row no longer exists — it has likely been pruned by retention.')) ?>
+    </div>
+    <?php
+    return;
+}
+
+$status = (string)($row['status'] ?? '');
+$attempts = (int)($row['attempts'] ?? 0);
+$maxAttempts = \Smaily\Connect\Model\Queue\EventQueue::MAX_ATTEMPTS;
+
+$sourceLabels = [
+    'smaily' => __('Smaily'),
+    'intelligence' => __('Campaign Intelligence'),
+];
+$statusLabels = [
+    'pending' => __('Pending'),
+    'sending' => __('Sending'),
+    'sent' => __('Sent'),
+    'failed' => __('Failed'),
+];
+
+// Honest retry line, by row state.
+if ($status === 'sent') {
+    $retryText = __('Delivered — no retries needed.');
+} elseif ($status === 'sending') {
+    $retryText = __('A delivery attempt is in progress right now.');
+} elseif ($status === 'failed') {
+    $retryText = __('All %1 automatic attempts are used up — this row will NOT retry on its own. Select it in the log and press Retry to queue it again.', $maxAttempts);
+} elseif (!empty($row['next_retry_at'])) {
+    $retryText = __('Next automatic retry: %1 (attempt %2 of %3).', $block->formatDate((string)$row['next_retry_at'], \IntlDateFormatter::MEDIUM, true), $attempts + 1, $maxAttempts);
+} else {
+    $retryText = __('Waiting for the next queue flush (runs every minute).');
+}
+
+// Prefer the payload exactly as it went over the wire; fall back to the
+// queued payload for rows that have never been attempted.
+$sentPayload = (string)($row['sent_payload'] ?? '');
+$payloadTitle = $sentPayload !== '' ? __('Payload (as sent)') : __('Payload (queued, not sent yet)');
+$payload = $redactor->redact($sentPayload !== '' ? $sentPayload : (string)($row['payload'] ?? ''));
+$response = $redactor->redact(isset($row['last_response']) ? (string)$row['last_response'] : null);
+// Error strings routinely quote the contact being synced — mask them too.
+$lastError = $redactor->redact(trim((string)($row['last_error'] ?? '')));
+?>
+<div class="smaily-ui smaily-log-details">
+    <table class="admin__table-secondary smaily-log-details-meta">
+        <tr>
+            <th><?= $escaper->escapeHtml(__('Source')) ?></th>
+            <td><?= $escaper->escapeHtml((string)($sourceLabels[$row['source']] ?? $row['source'])) ?></td>
+        </tr>
+        <tr>
+            <th><?= $escaper->escapeHtml(__('Type')) ?></th>
+            <td><code><?= $escaper->escapeHtml((string)$row['type']) ?></code></td>
+        </tr>
+        <?php if (!empty($row['entity_id'])): ?>
+        <tr>
+            <th><?= $escaper->escapeHtml(__('Entity')) ?></th>
+            <td><?= $escaper->escapeHtml((string)$row['entity_id']) ?></td>
+        </tr>
+        <?php endif; ?>
+        <tr>
+            <th><?= $escaper->escapeHtml(__('Status')) ?></th>
+            <td><span class="smaily-status smaily-status-<?= $escaper->escapeHtmlAttr($status) ?>"><?= $escaper->escapeHtml((string)($statusLabels[$status] ?? $status)) ?></span></td>
+        </tr>
+        <tr>
+            <th><?= $escaper->escapeHtml(__('Attempts')) ?></th>
+            <td><?= $escaper->escapeHtml(__('%1 of %2', $attempts, $maxAttempts)) ?></td>
+        </tr>
+        <tr>
+            <th><?= $escaper->escapeHtml(__('Created')) ?></th>
+            <td><?= $escaper->escapeHtml($block->formatDate((string)$row['created_at'], \IntlDateFormatter::MEDIUM, true)) ?></td>
+        </tr>
+        <tr>
+            <th><?= $escaper->escapeHtml(__('Updated')) ?></th>
+            <td><?= $escaper->escapeHtml($block->formatDate((string)$row['updated_at'], \IntlDateFormatter::MEDIUM, true)) ?></td>
+        </tr>
+    </table>
+
+    <p class="smaily-log-details-retry"><?= $escaper->escapeHtml($retryText) ?></p>
+
+    <?php if ($lastError !== ''): ?>
+    <h3><?= $escaper->escapeHtml(__('Last error')) ?></h3>
+    <pre class="smaily-log-details-pre smaily-log-details-error"><?= $escaper->escapeHtml($lastError) ?></pre>
+    <?php endif; ?>
+
+    <h3><?= $escaper->escapeHtml($payloadTitle) ?></h3>
+    <?php if ($payload !== ''): ?>
+        <pre class="smaily-log-details-pre"><?= $escaper->escapeHtml($payload) ?></pre>
+    <?php else: ?>
+        <p class="note"><?= $escaper->escapeHtml(__('No payload stored for this row.')) ?></p>
+    <?php endif; ?>
+
+    <h3><?= $escaper->escapeHtml(__('Last response')) ?></h3>
+    <?php if ($response !== ''): ?>
+        <pre class="smaily-log-details-pre"><?= $escaper->escapeHtml($response) ?></pre>
+    <?php else: ?>
+        <p class="note"><?= $escaper->escapeHtml(__('No response recorded — this row has not been attempted yet.')) ?></p>
+    <?php endif; ?>
+
+    <p class="note"><?= $escaper->escapeHtml(__('Sensitive values (passwords, API keys) are never shown here, and email addresses are masked.')) ?></p>
+</div>

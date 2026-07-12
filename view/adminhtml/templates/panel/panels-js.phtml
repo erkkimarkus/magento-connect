@@ -30,6 +30,7 @@ $urls = [
     'engineExchange' => $block->getUrl('smaily_connect/api/engineexchange'),
     'enginePing' => $block->getUrl('smaily_connect/api/engineping'),
     'backfill' => $block->getUrl('smaily_connect/api/backfillstate'),
+    'logFailed' => $block->getUrl('smaily_connect/log', ['_query' => ['filters' => ['status' => 'failed']]]),
 ];
 ?>
 <script>
@@ -49,8 +50,11 @@ window.smailyPanelsInit = function ($) {
         }).then(function (r) { return r.json(); });
     }
 
-    function result(selector, text, ok) {
-        $(selector).text(text).removeClass('ok err').addClass(ok ? 'ok' : 'err');
+    function result(selector, text, ok, link) {
+        var $el = $(selector).text(text).removeClass('ok err').addClass(ok ? 'ok' : 'err');
+        if (link) {
+            $el.append(' ').append($('<a></a>').attr('href', link.href).text(link.label));
+        }
     }
 
     function credentials() {
@@ -91,33 +95,74 @@ window.smailyPanelsInit = function ($) {
     }
 
     // --- Backfill progress polling (contacts + engine imports) -------------
+    // Terminal outcomes are honest (Shopify-parity copy): "Done, X of Y
+    // synced" when everything landed; "N failed — view in the Log" when
+    // individual rows failed (queue rows still pending retry are NOT
+    // failed); "Stopped before an error" when the job itself aborted;
+    // "Cancelled" after an admin cancel. The last outcome + timestamp
+    // persist server-side and re-render on every page load.
     var backfillTimers = {};
 
-    function pollBackfill(jobType, $bar, resultSelector, startFirst) {
-        post(urls.backfill, {job_type: jobType, action: startFirst ? 'start' : 'status'}).then(function (data) {
-            if (data.status === 'running') {
-                $bar.show().val(data.percent);
-                result(resultSelector,
-                    '<?= $escaper->escapeJs(__('Importing… %1 / %2')) ?>'
-                        .replace('%1', data.processed).replace('%2', data.total || '?'), true);
-                backfillTimers[jobType] = setTimeout(function () {
-                    pollBackfill(jobType, $bar, resultSelector, false);
-                }, 4000);
-            } else if (data.status === 'completed') {
-                $bar.show().val(100);
-                result(resultSelector,
-                    '<?= $escaper->escapeJs(__('Import completed (%1 items).')) ?>'
-                        .replace('%1', data.processed), true);
-            } else if (data.status === 'failed') {
-                result(resultSelector,
-                    '<?= $escaper->escapeJs(__('Import failed — see the Log for details.')) ?>', false);
+    function withDate(text, data) {
+        return data.finished_at ? text + ' (' + data.finished_at + ')' : text;
+    }
+
+    function renderBackfill(jobType, data, ui) {
+        var text;
+        if (data.status === 'running') {
+            ui.bar.show().val(data.percent);
+            ui.cancel.show();
+            result(ui.result,
+                '<?= $escaper->escapeJs(__('Importing… %1 / %2')) ?>'
+                    .replace('%1', data.processed).replace('%2', data.total || '?'), true);
+            backfillTimers[jobType] = setTimeout(function () {
+                pollBackfill(jobType, ui, 'status');
+            }, 4000);
+            return;
+        }
+        ui.cancel.hide();
+        if (data.status === 'completed' && !data.failed) {
+            ui.bar.show().val(100);
+            text = '<?= $escaper->escapeJs(__('Done, %1 of %2 synced.')) ?>'
+                .replace('%1', data.processed).replace('%2', data.total || data.processed);
+            result(ui.result, withDate(text, data), true);
+        } else if (data.status === 'completed') {
+            ui.bar.show().val(data.percent);
+            text = '<?= $escaper->escapeJs(__('Done, %1 of %2 synced — %3 failed.')) ?>'
+                .replace('%1', data.processed)
+                .replace('%2', data.total || data.processed + data.failed)
+                .replace('%3', data.failed);
+            result(ui.result, withDate(text, data), false,
+                {label: '<?= $escaper->escapeJs(__('View them in the Log')) ?>', href: urls.logFailed});
+        } else if (data.status === 'failed') {
+            text = '<?= $escaper->escapeJs(__('Stopped before an error — %1 of %2 synced so far. Press the import button to run it again.')) ?>'
+                .replace('%1', data.processed).replace('%2', data.total || '?');
+            if (data.error) {
+                text += ' ' + data.error;
             }
+            result(ui.result, withDate(text, data), false);
+        } else if (data.status === 'cancelled') {
+            text = '<?= $escaper->escapeJs(__('Cancelled — %1 of %2 synced. Starting again begins a fresh import.')) ?>'
+                .replace('%1', data.processed).replace('%2', data.total || '?');
+            result(ui.result, withDate(text, data), true);
+        }
+    }
+
+    function pollBackfill(jobType, ui, action) {
+        post(urls.backfill, {job_type: jobType, action: action}).then(function (data) {
+            renderBackfill(jobType, data, ui);
         });
     }
 
-    function startBackfill(jobType, $bar, resultSelector) {
+    function startBackfill(jobType, ui) {
         clearTimeout(backfillTimers[jobType]);
-        pollBackfill(jobType, $bar, resultSelector, true);
+        pollBackfill(jobType, ui, 'start');
+    }
+
+    function cancelBackfill(jobType, ui) {
+        clearTimeout(backfillTimers[jobType]);
+        result(ui.result, '<?= $escaper->escapeJs(__('Cancelling…')) ?>', true);
+        pollBackfill(jobType, ui, 'cancel');
     }
 
     function engineConnected(tenantName, engineVersion) {
@@ -231,15 +276,40 @@ window.smailyPanelsInit = function ($) {
             });
         });
 
-        // Contacts import.
-        $('#smaily-w-backfill').on('click', function () {
-            startBackfill('contacts', $('#smaily-w-backfill-bar'), '#smaily-w-backfill-result');
-        });
+        // Contacts import (wizard step 2 + Settings > Subscribers).
+        if ($('#smaily-w-backfill').length) {
+            var contactsUi = {
+                bar: $('#smaily-w-backfill-bar'),
+                result: '#smaily-w-backfill-result',
+                cancel: $('#smaily-w-backfill-cancel')
+            };
+            $('#smaily-w-backfill').on('click', function () {
+                startBackfill('contacts', contactsUi);
+            });
+            contactsUi.cancel.on('click', function () {
+                cancelBackfill('contacts', contactsUi);
+            });
+            // Persisted last-run outcome (and live progress of a job that
+            // is already running) renders without pressing anything.
+            pollBackfill('contacts', contactsUi, 'status');
+        }
 
         // Engine imports (Settings only).
-        $('.smaily-import-row .smaily-w-engine-import').on('click', function () {
-            var $row = $(this).closest('.smaily-import-row');
-            startBackfill($row.data('job-type'), $row.find('progress'), $row.find('.smaily-result'));
+        $('.smaily-import-row').each(function () {
+            var $row = $(this),
+                jobType = $row.data('job-type'),
+                ui = {
+                    bar: $row.find('progress'),
+                    result: $row.find('.smaily-result'),
+                    cancel: $row.find('.smaily-w-engine-cancel')
+                };
+            $row.find('.smaily-w-engine-import').on('click', function () {
+                startBackfill(jobType, ui);
+            });
+            ui.cancel.on('click', function () {
+                cancelBackfill(jobType, ui);
+            });
+            pollBackfill(jobType, ui, 'status');
         });
 
         // Workflow refresh.

@@ -83,6 +83,10 @@ class EngineCatalogProcessor implements ProcessorInterface
             }
             $this->jobManager->recordProgress($job, $processed, $failed, (string)$newCursor);
 
+            if ($this->jobManager->isCancelled($job)) {
+                return; // Admin cancel — stop cleanly at the page boundary.
+            }
+
             if ($this->ingestQueue->countPending(Client::DOMAIN_CATALOG) >= self::QUEUE_BACKLOG_LIMIT) {
                 return;
             }

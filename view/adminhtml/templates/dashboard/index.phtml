@@ -22,6 +22,7 @@ $urls = [
     'wizard' => $block->getUrl('smaily_connect/wizard'),
     'settings' => $block->getUrl('smaily_connect/settings'),
     'log' => $block->getUrl('smaily_connect/log'),
+    'logFailed' => $block->getUrl('smaily_connect/log', ['_query' => ['filters' => ['status' => 'failed']]]),
     'config' => $block->getUrl('adminhtml/system_config/edit', ['section' => 'smaily_connect']),
 ];
 
@@ -55,7 +56,7 @@ if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCO
             <a class="action-primary smaily-verdict-action" href="<?= $escaper->escapeUrl($urls['wizard']) ?>">
                 <span><?= $escaper->escapeHtml(__('Resume setup')) ?></span></a>
         <?php elseif ($failed > 0): ?>
-            <a class="action-primary smaily-verdict-action" href="<?= $escaper->escapeUrl($urls['log']) ?>">
+            <a class="action-primary smaily-verdict-action" href="<?= $escaper->escapeUrl($urls['logFailed']) ?>">
                 <span><?= $escaper->escapeHtml(__('Review failures')) ?></span></a>
         <?php endif; ?>
     </div>
@@ -112,6 +113,9 @@ if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCO
         <div class="smaily-tile <?= $failed > 0 ? 'smaily-tile-attention' : '' ?>">
             <span class="smaily-tile-value"><?= (int)$failed ?></span>
             <span class="smaily-tile-label"><?= $escaper->escapeHtml(__('Failed deliveries (24 hours)')) ?></span>
+            <?php if ($failed > 0): ?>
+                <a class="smaily-tile-link" href="<?= $escaper->escapeUrl($urls['logFailed']) ?>"><?= $escaper->escapeHtml(__('View failed deliveries')) ?></a>
+            <?php endif; ?>
         </div>
     </div>
 

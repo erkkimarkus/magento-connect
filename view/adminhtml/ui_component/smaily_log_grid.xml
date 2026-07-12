@@ -123,5 +123,12 @@
                 <label translate="true">Updated</label>
             </settings>
         </column>
+        <actionsColumn name="actions" class="Smaily\Connect\Ui\Component\LogActions"
+                       component="Smaily_Connect/js/grid/columns/log-actions" sortOrder="90">
+            <settings>
+                <indexField>log_id</indexField>
+                <label translate="true">Actions</label>
+            </settings>
+        </actionsColumn>
     </columns>
 </listing>

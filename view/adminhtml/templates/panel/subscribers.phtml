@@ -87,6 +87,9 @@ $selectedSyncFields = $viewModel->getSelectedSyncFields();
         <button type="button" class="action-secondary" id="smaily-w-backfill">
             <span><?= $escaper->escapeHtml(__('Import subscribers to Smaily')) ?></span>
         </button>
+        <button type="button" class="action-tertiary" id="smaily-w-backfill-cancel" style="display:none;">
+            <span><?= $escaper->escapeHtml(__('Cancel import')) ?></span>
+        </button>
         <span class="smaily-result" id="smaily-w-backfill-result"></span>
         <progress id="smaily-w-backfill-bar" value="0" max="100" style="display:none;"></progress>
     </div>

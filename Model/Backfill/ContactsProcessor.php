@@ -76,6 +76,10 @@ class ContactsProcessor implements ProcessorInterface
 
             [$processed, $failed, $newCursor] = $this->sendPage($page);
             $this->jobManager->recordProgress($job, $processed, $failed, (string)$newCursor);
+
+            if ($this->jobManager->isCancelled($job)) {
+                return; // Admin cancel — stop cleanly at the page boundary.
+            }
         } while (microtime(true) < $deadline);
     }
 
