@@ -5,7 +5,7 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1272 phase 2b + PRO-1273 phase 2c)_
+_Last updated: 2026-07-12 (PRO-1273 phase 2c browser-validated; di:compile + i18n sweep done)_
 
 ## Where we are
 
@@ -36,21 +36,21 @@ _Last updated: 2026-07-12 (PRO-1272 phase 2b + PRO-1273 phase 2c)_
   "Done, X of Y synced" / "Done … — N failed" with a pre-filtered Log link
   (parked/pending-retry rows are NOT counted failed) / "Stopped before an
   error" / "Cancelled" (+ timestamp); cancel = fresh start on restart.
-  28 new phrases in both i18n packs (332 total, invariants held; appended —
-  a regeneration sweep to drop now-unused phrases is pending). Verified:
+  28 new phrases in both i18n packs (invariants held; the follow-up
+  hygiene sweep dropped the 2 phrases this pass obsoleted and restored
+  the canonical sort — both packs now at 362). Verified:
   99 unit + 46 integration tests (8 new `JobManagerTest` cases covering the
   cancel races), phpcs/phpstan clean, `setup:upgrade` in the sandbox, and
   Playwright en + et_EE (banner + pre-filtered grid, redacted modal, mass
   retry, live cancel of a pending job + fresh restart + completed-with-
   failures outcome + persistence across reload, wizard step 2 shares the
   same controls, zero module JS console errors). Container
-  `setup:di:compile` was SKIPPED this pass: the concurrent phase-2c agent's
-  worktree under `.claude/worktrees/` duplicates every class and breaks the
-  compiler — runtime DI of all new classes was exercised live instead; run
-  di:compile after the worktree is gone. Sandbox restored (seeded rows
-  removed, admin locale back to en_US).
-- **Multilingual UX done (PRO-1273, phase 2c) — code-complete, browser
-  validation PENDING.** Built in the shared-panel idiom (live re-render,
+  `setup:di:compile` was deferred past this pass (the concurrent phase-2c
+  worktree broke the compiler) and has since PASSED on the merged 2b+2c
+  tree. Sandbox restored (seeded rows removed, admin locale back to
+  en_US).
+- **Multilingual UX done (PRO-1273, phase 2c) — browser-validated.**
+  Built in the shared-panel idiom (live re-render,
   no save round-trips): (1) routing-mode choice cards on the Connection
   panel (wizard step 1 + Settings > Connection via the shared partial;
   radio-card idiom from the step-2 lawful-basis cards; rendered only when
@@ -85,11 +85,34 @@ _Last updated: 2026-07-12 (PRO-1272 phase 2b + PRO-1273 phase 2c)_
   deletion, fallback normalization, scope discipline, Router reading
   real SQL back). i18n +32/-1 phrases in both packs (invariants held).
   Docs: USER_GUIDE multilingual section rewritten for the new UI,
-  ARCHITECTURE routing + panel sections, CHANGELOG. Verified: 103 unit +
-  45 integration tests, phpcs (0 errors) + phpstan clean. **Not yet
-  verified in a browser** — the sandbox Playwright pass (mode cards,
-  live section swaps, mode-A save path, mapping editor end-to-end)
-  happens post-merge by the coordinator.
+  ARCHITECTURE routing + panel sections, CHANGELOG. Verified: 109 unit +
+  45 integration tests, phpcs (0 errors) + phpstan clean,
+  `setup:upgrade` + `setup:di:compile` in the sandbox on the merged
+  2b+2c tree, and the post-merge Playwright pass in en_US AND et_EE:
+  mode cards render on the 2-language sandbox with live section
+  re-render (no save round-trips); mode-A save lands per-language
+  credentials in the right store-view scopes (`stores/1` en, `stores/2`
+  et) with the fallback account doubling as the default scope +
+  `fallback_language`; per-block Test Connection posts typed creds or
+  the saved-account `{store_id}` fallback (fake creds fail
+  non-blocking); the client-side guards (incomplete block, missing
+  fallback) fire; the destructive confirm appears when leaving a saved
+  a/b mode, dismiss reverts, accept switches live, and leaving mode A
+  on save removes the store-view credential overrides; the mode-B
+  mapping editor renders 3 trigger tables × 2 languages + None row,
+  save writes `smaily_automation_mapping` (full-desired-state: the
+  migration-seeded `default` rows are replaced, re-save is id-stable
+  idempotent, a cleared select deletes its row) and prefills on
+  reload; wizard steps 1/3 share the same partials and step gating
+  still works; regression sweep green (dashboard verdict, unified Log
+  + Details modal + failed-24h banner deep link, backfill cancel
+  button, zero module JS console errors); et_EE renders every new
+  surface in Estonian. One small UX bug found and fixed in that pass:
+  the destructive-mode-switch confirm fired when leaving an a/b mode
+  that was merely selected, never saved — the confirm baseline now
+  tracks the SAVED mode, so unsaved exploration between the cards
+  never asks. Sandbox config/mapping table restored byte-identical to
+  pre-test state afterwards.
 - **UI/UX parity phase 2a done (PRO-1271) — IA consolidation + full
   dashboard.** The admin is now four pages under Marketing > Smaily
   Connect: **Dashboard** (new landing page: one-sentence health verdict
@@ -258,10 +281,9 @@ _Last updated: 2026-07-12 (PRO-1272 phase 2b + PRO-1273 phase 2c)_
   exchanges; `not_found` = success). Configurable-child delete keeps the
   per-SKU `in_stock=false` soft path; disabled products stay on the
   ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
-- **Gates green:** 103 unit tests, 45 integration tests, phpcs clean,
+- **Gates green:** 109 unit tests, 45 integration tests, phpcs clean,
   phpstan clean. `setup:upgrade` + `setup:di:compile` re-verified in the
-  docker sandbox on the merged tree including PRO-1231 (the PRO-1273
-  worktree changes still owe a di:compile + browser pass post-merge).
+  docker sandbox on the fully merged tree (2b + 2c included).
 - **Hyvä compat skeleton + work package done (PRO-1201)** — full storefront
   audit with file:line evidence, the work plan and the surface × Luma/Hyvä/
   strict-CSP verification matrix live in `docs/HYVA_SUPPORT.md`. Compat
@@ -302,12 +324,6 @@ PRO-1267 (engine: Magento product-identity contract note).
 
 ## Known gaps
 
-- **PRO-1273 multilingual UX browser validation owed** — the phase 2c
-  work above is unit/integration/static-verified only; the sandbox
-  Playwright pass (mode cards + live swaps, mode-A per-language
-  credential save into store-view scopes, mapping editor save/delete
-  round-trip, et_EE rendering) plus `setup:di:compile` on the merged
-  tree are the coordinator's post-merge job.
 - **Real-Smaily-credentials click-through still owed** — the engine side is
   now fully happy-path-verified against the mock engine (see above), but
   the Smaily campaign-API flows (Test Connection success, workflow

@@ -44,6 +44,7 @@ window.smailyPanelsInit = function ($) {
     var mlFallbackSaved = (boot.multilingual || {}).fallbackLanguage || '';
     var isMultilingual = mlLanguages.length > 1;
     var mlModeCurrent = isMultilingual ? (boot.connection.multilingualMode || 'single') : 'single';
+    var mlModeSaved = mlModeCurrent;
     var mlSwitchConfirmed = false;
 
     function post(url, data) {
@@ -81,6 +82,7 @@ window.smailyPanelsInit = function ($) {
                 // away again warns again, and saved account blocks may now
                 // rely on their stored passwords.
                 mlModeCurrent = data.multilingual_mode || mlModeCurrent;
+                mlModeSaved = mlModeCurrent;
                 mlSwitchConfirmed = false;
                 if (data.fallback_language) {
                     mlFallbackSaved = data.fallback_language;
@@ -376,13 +378,14 @@ window.smailyPanelsInit = function ($) {
         reactRssEnabled();
 
         // Multilingual mode cards: live re-render of the dependent sections,
-        // with a confirm before leaving a mode that carries per-language
-        // configuration (the switch removes mode-A store-view credentials on
-        // save and stops using the workflow mappings).
+        // with a confirm before leaving a SAVED mode that carries
+        // per-language configuration (the switch removes mode-A store-view
+        // credentials on save and stops using the workflow mappings).
+        // Unsaved exploration between the cards never asks.
         applyMlMode(mlModeCurrent);
         $(document).on('change', 'input[name=smaily-w-mlmode]', function () {
             var next = $(this).val();
-            var leavingConfigured = (mlModeCurrent === 'a' || mlModeCurrent === 'b') && next !== mlModeCurrent;
+            var leavingConfigured = (mlModeSaved === 'a' || mlModeSaved === 'b') && next !== mlModeSaved;
             if (leavingConfigured && !mlSwitchConfirmed) {
                 var message = '<?= $escaper->escapeJs(__('Switching the multilingual mode changes how contacts and automations are routed. Per-language accounts and workflow mappings that no longer apply stop being used (per-store-view credentials are removed on save). Continue?')) ?>';
                 if (!window.confirm(message)) {
