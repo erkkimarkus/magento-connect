@@ -17,6 +17,7 @@ use Smaily\Connect\Model\ResourceModel\Automation\Mapping as MappingResource;
 class Mapping extends AbstractModel
 {
     public const LANGUAGE_DEFAULT = 'default';
+    public const ACCOUNT_DEFAULT = 'default';
 
     /**
      * @inheritDoc
@@ -29,5 +30,16 @@ class Mapping extends AbstractModel
     public function getWorkflowId(): int
     {
         return (int)$this->getData('workflow_id');
+    }
+
+    /**
+     * The Smaily account key ('default' or a language code, multilingual
+     * mode A) whose credentials must deliver this row's workflow.
+     */
+    public function getAccountKey(): string
+    {
+        $key = (string)$this->getData('account_key');
+
+        return $key === '' ? self::ACCOUNT_DEFAULT : $key;
     }
 }

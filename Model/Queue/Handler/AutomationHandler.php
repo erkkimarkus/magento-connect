@@ -15,6 +15,7 @@ use Smaily\Connect\Model\Client\SmailyClient;
 use Smaily\Connect\Model\Client\SmailyClientProvider;
 use Smaily\Connect\Model\ContactSync\Mode;
 use Smaily\Connect\Model\Logger\Logger;
+use Smaily\Connect\Model\Multilingual\AccountResolver;
 use Smaily\Connect\Model\Queue\EventQueue;
 
 /**
@@ -27,6 +28,13 @@ use Smaily\Connect\Model\Queue\EventQueue;
  * cannot re-trigger an automation for an address that already received it.
  * A missing workflow mapping is a terminal skip, not a failure — retrying
  * cannot make a mapping appear (matches the Woo AutomationRouter contract).
+ *
+ * Credentials follow the resolved match (Woo parity): when a mapping row
+ * matched, the row's account_key names the Smaily account that must deliver
+ * the workflow — mode-A fallback rows included, so another account's
+ * workflow ID is never posted through the event's store-view credentials.
+ * Config-default resolutions (and modes single/c) keep using the event's
+ * store view as before.
  */
 class AutomationHandler implements EventHandlerInterface
 {
@@ -35,7 +43,8 @@ class AutomationHandler implements EventHandlerInterface
         private readonly Router $router,
         private readonly Mode $mode,
         private readonly EventQueue $eventQueue,
-        private readonly Logger $logger
+        private readonly Logger $logger,
+        private readonly AccountResolver $accountResolver
     ) {
     }
 
@@ -57,12 +66,12 @@ class AutomationHandler implements EventHandlerInterface
             }
 
             $websiteId = (int)($payload['website_id'] ?? 0);
-            $workflowId = $this->router->resolveWorkflowId(
+            $match = $this->router->resolve(
                 $trigger,
                 $websiteId,
                 (string)($payload['language'] ?? '')
             );
-            if ($workflowId <= 0) {
+            if ($match === null) {
                 // Terminal skip: no workflow mapped for this trigger/language.
                 $this->logger->debug('Automation skipped, no workflow mapped', [
                     'trigger' => $trigger,
@@ -74,8 +83,15 @@ class AutomationHandler implements EventHandlerInterface
 
             try {
                 $storeId = (int)($payload['store_id'] ?? 0);
-                $this->clientProvider->forStore($storeId ?: null)->post(SmailyClient::ENDPOINT_AUTORESPONDER, [
-                    'autoresponder' => $workflowId,
+                $clientStoreId = $storeId ?: null;
+                if ($match->accountKey !== null) {
+                    // The mapping row names the account. 'default' (and an
+                    // account whose language no longer has a store view)
+                    // resolves to null = the default-scope credentials.
+                    $clientStoreId = $this->accountResolver->storeIdForAccountKey($match->accountKey);
+                }
+                $this->clientProvider->forStore($clientStoreId)->post(SmailyClient::ENDPOINT_AUTORESPONDER, [
+                    'autoresponder' => $match->workflowId,
                     'addresses' => [$address],
                     'force_opt_in' => $this->mode->automationForceOptIn($websiteId),
                 ]);

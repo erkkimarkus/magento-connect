@@ -29,6 +29,15 @@
 .smaily-ui .smaily-import-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
 .smaily-ui .smaily-import-row progress { flex-basis: 100%; }
 
+/* --- Multilingual routing (mode cards, per-language accounts, mapping) ---- */
+.smaily-ui .smaily-ml-table { width: 100%; max-width: 56rem; border-collapse: collapse; }
+.smaily-ui .smaily-ml-table th { text-align: left; font-weight: 600; color: #666; padding: 0.4rem 1rem 0.4rem 0; }
+.smaily-ui .smaily-ml-table th:last-child { text-align: center; }
+.smaily-ui .smaily-ml-table td { padding: 0.5rem 1rem 0.5rem 0; border-top: 1px solid #f0f0f0; vertical-align: middle; }
+.smaily-ui .smaily-ml-table td:last-child { text-align: center; }
+.smaily-ui .smaily-ml-table select { max-width: 34rem; }
+.smaily-ui .smaily-ml-none { color: #666; }
+
 /* --- Wizard stepper ------------------------------------------------------- */
 .smaily-wizard .smaily-steps { display: flex; gap: 0; margin: 0 0 3rem; padding: 0; list-style: none; }
 .smaily-wizard .smaily-steps li { flex: 1; text-align: center; padding: 1rem 0.5rem; border-bottom: 3px solid #d0d0d0; color: #666; cursor: default; }

@@ -7,9 +7,28 @@
  * page (Automations tab, where the engine-run automations block renders
  * below it). Behavior lives in panel/panels-js.phtml.
  *
+ * In multilingual modes A/B a per-language workflow mapping editor renders
+ * below the default workflow rows: one table per trigger with a workflow
+ * select per language and a default-fallback radio (Woo parity). The editor
+ * shows/hides live when the mode cards on the Connection panel change.
+ *
  * @var \Magento\Backend\Block\Template $block
  * @var \Magento\Framework\Escaper $escaper
  */
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
+$viewModel = $block->getData('view_model');
+$isMultilingual = $viewModel->isMultilingual();
+$languages = $viewModel->getDetectedLanguages();
+$mode = $viewModel->getMultilingualMode();
+$savedMappings = $viewModel->getSavedMappings();
+$showMapping = $isMultilingual && ($mode === 'a' || $mode === 'b');
+
+$triggers = [
+    'welcome' => __('Welcome'),
+    'first_order' => __('First order'),
+    'abandoned_cart' => __('Abandoned cart'),
+];
 ?>
 <div class="smaily-card">
     <h2><?= $escaper->escapeHtml(__('Map store events to Smaily automations')) ?></h2>
@@ -37,5 +56,74 @@
             <?= $escaper->escapeHtml(__('minutes of inactivity before the cart counts as abandoned. Each cart is mailed once; carts older than 24 hours are never mailed.')) ?>
         </p>
     </div>
-    <p class="note"><?= $escaper->escapeHtml(__('The automation receives the cart contents (up to 10 products) and a recovery link that restores the exact cart. For multilingual stores, choose a workflow routing mode under Configuration > API Connection > Multilingual Mode.')) ?></p>
+    <p class="note"><?= $escaper->escapeHtml(__('The automation receives the cart contents (up to 10 products) and a recovery link that restores the exact cart.')) ?>
+    <?php if ($isMultilingual): ?>
+        <span id="smaily-ml-mapping-off" <?= $showMapping ? 'style="display:none;"' : '' ?>>
+            <?= $escaper->escapeHtml(__('Want a different workflow per language? Pick a per-language mode on the Connection panel.')) ?>
+        </span>
+    <?php endif; ?>
+    </p>
 </div>
+
+<?php if ($isMultilingual): ?>
+<div class="smaily-card" id="smaily-ml-mapping" <?= $showMapping ? '' : 'style="display:none;"' ?>>
+    <h2><?= $escaper->escapeHtml(__('Per-language workflows')) ?></h2>
+    <p class="note smaily-ml-hint-a" <?= $mode === 'a' ? '' : 'style="display:none;"' ?>>
+        <?= $escaper->escapeHtml(__('Each language row lists the workflows of that language\'s own Smaily account (Connection panel) and fires through it.')) ?>
+    </p>
+    <p class="note smaily-ml-hint-b" <?= $mode === 'b' ? '' : 'style="display:none;"' ?>>
+        <?= $escaper->escapeHtml(__('All languages share one Smaily account; each language fires its own workflow from the list.')) ?>
+    </p>
+    <p class="note"><?= $escaper->escapeHtml(__('The default fallback handles contacts whose language is not mapped. Leave it on "None" to fall back to the default workflow above.')) ?></p>
+
+    <?php foreach ($triggers as $triggerType => $triggerLabel): ?>
+    <div class="smaily-field smaily-ml-trigger" data-trigger="<?= $escaper->escapeHtmlAttr($triggerType) ?>">
+        <label><?= $escaper->escapeHtml($triggerLabel) ?></label>
+        <table class="smaily-ml-table">
+            <thead>
+                <tr>
+                    <th><?= $escaper->escapeHtml(__('Language')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Workflow')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Default fallback')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php $savedFallback = ''; ?>
+                <?php foreach ($languages as $language): ?>
+                <?php
+                $saved = $savedMappings[$triggerType . '|' . $language] ?? null;
+                if ($saved !== null && $saved['isDefaultFallback']) {
+                    $savedFallback = $language;
+                }
+                ?>
+                <tr>
+                    <td><?= $escaper->escapeHtml(strtoupper($language)) ?></td>
+                    <td>
+                        <select class="smaily-ml-workflow"
+                                data-trigger="<?= $escaper->escapeHtmlAttr($triggerType) ?>"
+                                data-language="<?= $escaper->escapeHtmlAttr($language) ?>"
+                                data-saved="<?= $escaper->escapeHtmlAttr((string)($saved['workflowId'] ?? '')) ?>"></select>
+                    </td>
+                    <td>
+                        <input type="radio"
+                               name="smaily-ml-fallback-<?= $escaper->escapeHtmlAttr($triggerType) ?>"
+                               value="<?= $escaper->escapeHtmlAttr($language) ?>"
+                               <?= ($savedMappings[$triggerType . '|' . $language]['isDefaultFallback'] ?? false) ? 'checked' : '' ?>/>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                <tr>
+                    <td colspan="2" class="smaily-ml-none"><?= $escaper->escapeHtml(__('None (use the default workflow above)')) ?></td>
+                    <td>
+                        <input type="radio"
+                               name="smaily-ml-fallback-<?= $escaper->escapeHtmlAttr($triggerType) ?>"
+                               value=""
+                               <?= $savedFallback === '' ? 'checked' : '' ?>/>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>

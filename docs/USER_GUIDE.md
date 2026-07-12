@@ -98,21 +98,52 @@ save.
 
 Credentials can be set per **website**, or per **store view** when each
 language uses its own Smaily account (multilingual mode "Per-language
-Smaily accounts").
+Smaily accounts" — the Connection panel manages those store-view
+credentials for you, see below).
 
 
 
 ### Multilingual stores
 
-A store view's language is derived from its locale (`et_EE` → `et`). Four
-routing modes (API Connection > Multilingual Mode):
+A store view's language is derived from its locale (`et_EE` → `et`). As
+soon as your store views speak more than one language, the Connection
+panel (wizard step 1 and Settings > Connection) opens with a
+**routing-mode choice** — four cards; the panels below adapt live to the
+selected card, nothing is saved until you press Save/Continue:
 
 | Mode | Meaning |
 |---|---|
-| Single language | One workflow per trigger (default). |
-| Per-language Smaily accounts | Each store view has its own Smaily account — override the API credentials at store view scope. |
-| One account, per-language workflows | One Smaily account; each language maps to its own workflow (rows in the automation mapping table; defaults are seeded by the 2.8.x migration). |
+| Single language | One account, one workflow per trigger (default). |
+| Per-language Smaily accounts | Each language has its own Smaily account. The Connection panel shows one credential block per detected language, each with its own Test Connection button, plus a **default fallback account** picker. |
+| One account, per-language workflows | One Smaily account; each language fires its own workflow. The most common multilingual setup. |
 | One workflow branching by language | One workflow; the language split happens inside Smaily. The `language` field is sent with every contact. |
+
+Single-language installations never see the cards — they are locked to
+"Single language".
+
+**Per-language workflows.** In the two per-language modes, the
+Automations panel (wizard step 3 / Settings > Automations) grows a
+**Per-language workflows** editor: for every automation trigger, one
+workflow select per language and a *Default fallback* radio per row. The
+workflow lists load live — in "Per-language Smaily accounts" mode each
+language row lists that language's own account's workflows. Clearing a
+select removes that language's mapping on save.
+
+**How a contact is routed.** An automation fires for the contact's
+language row first; if the language has no row, the trigger's *Default
+fallback* row handles it; if there is no fallback row either, the default
+workflow at the top of the Automations panel is used. A mapped row always
+fires **through its own account** — a fallback row belonging to the EN
+account posts to the EN account even when the contact came from the ET
+store view.
+
+**Default fallback account (per-language accounts mode).** The picked
+account handles contacts whose language cannot be matched to any account,
+and its credentials also serve every scope without a per-language
+override. Switching the multilingual mode away from per-language accounts
+removes the per-store-view credential overrides (the panel asks for
+confirmation first); workflow mappings are kept but stop being used
+outside the per-language modes.
 
 ---
 

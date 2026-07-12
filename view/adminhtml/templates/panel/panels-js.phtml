@@ -40,6 +40,11 @@ window.smailyPanelsInit = function ($) {
     var boot = <?= /* @noEscape */ $viewModel->getBootJson() ?>;
     var urls = <?= /* @noEscape */ json_encode(array_map('strval', $urls)) ?>;
     var connected = boot.connected;
+    var mlLanguages = (boot.multilingual || {}).languages || [];
+    var mlFallbackSaved = (boot.multilingual || {}).fallbackLanguage || '';
+    var isMultilingual = mlLanguages.length > 1;
+    var mlModeCurrent = isMultilingual ? (boot.connection.multilingualMode || 'single') : 'single';
+    var mlSwitchConfirmed = false;
 
     function post(url, data) {
         return fetch(url + '?form_key=' + encodeURIComponent(window.FORM_KEY), {
@@ -71,6 +76,25 @@ window.smailyPanelsInit = function ($) {
                 var message = (response.errors || []).map(function (e) { return e.message; }).join(' ');
                 throw new Error(message || '<?= $escaper->escapeJs(__('Saving failed.')) ?>');
             }
+            if (name === 'connect' && data) {
+                // The saved multilingual state is the new baseline: switching
+                // away again warns again, and saved account blocks may now
+                // rely on their stored passwords.
+                mlModeCurrent = data.multilingual_mode || mlModeCurrent;
+                mlSwitchConfirmed = false;
+                if (data.fallback_language) {
+                    mlFallbackSaved = data.fallback_language;
+                }
+                (data.accounts || []).forEach(function (account) {
+                    var $block = $('.smaily-ml-account[data-language=' + account.language + ']');
+                    $block.data('saved-subdomain', account.subdomain)
+                        .data('saved-username', account.username);
+                    if (account.password) {
+                        $block.data('has-password', 1);
+                        $block.find('.smaily-ml-password').val('');
+                    }
+                });
+            }
         });
     }
 
@@ -86,11 +110,102 @@ window.smailyPanelsInit = function ($) {
     }
 
     function loadWorkflows(resultSelector) {
+        loadMappingWorkflows();
         return post(urls.workflows, credentials()).then(function (data) {
             fillWorkflows(data.workflows);
             if (data.error && resultSelector) {
                 result(resultSelector, data.error, false);
             }
+        });
+    }
+
+    // --- Multilingual routing (mode cards + mode A/B sections) --------------
+    function currentMlMode() {
+        if (!isMultilingual) {
+            return 'single';
+        }
+        return $('input[name=smaily-w-mlmode]:checked').val() || mlModeCurrent;
+    }
+
+    function applyMlMode(mode) {
+        var modeA = isMultilingual && mode === 'a';
+        var mapping = isMultilingual && (mode === 'a' || mode === 'b');
+        $('#smaily-w-default-account').toggle(!modeA);
+        $('#smaily-w-accounts').toggle(modeA);
+        $('#smaily-ml-mapping').toggle(mapping);
+        $('#smaily-ml-mapping-off').toggle(isMultilingual && !mapping);
+        $('#smaily-ml-mapping .smaily-ml-hint-a').toggle(mode === 'a');
+        $('#smaily-ml-mapping .smaily-ml-hint-b').toggle(mode === 'b');
+        $('#smaily-ml-modes .smaily-choice').removeClass('selected');
+        $('input[name=smaily-w-mlmode][value=' + mode + ']').closest('.smaily-choice').addClass('selected');
+    }
+
+    function mlAccountFields($block) {
+        return {
+            language: String($block.data('language')),
+            subdomain: $block.find('.smaily-ml-subdomain').val(),
+            username: $block.find('.smaily-ml-username').val(),
+            password: $block.find('.smaily-ml-password').val()
+        };
+    }
+
+    /**
+     * Credentials payload for testing / listing workflows of a per-language
+     * account: typed values win; an untouched block with a saved password
+     * falls back to the saved store-view credentials (store_id); null when
+     * the block cannot be exercised without a password.
+     */
+    function mlAccountRequestCreds($block) {
+        var fields = mlAccountFields($block);
+        if (fields.password) {
+            return {subdomain: fields.subdomain, username: fields.username, password: fields.password};
+        }
+        var unchanged = fields.subdomain === String($block.data('saved-subdomain') || '')
+            && fields.username === String($block.data('saved-username') || '');
+        if (unchanged && $block.data('has-password')) {
+            return {store_id: $block.data('store-id')};
+        }
+        return null;
+    }
+
+    function fillMappingSelects($selects, workflows) {
+        $selects.each(function () {
+            var current = $(this).val() || $(this).data('saved') || '';
+            $(this).empty().append(new Option('<?= $escaper->escapeJs(__('-- Not Selected --')) ?>', ''));
+            (workflows || []).forEach(function (w) {
+                $(this).append(new Option(w.name + ' (' + w.id + ')', w.id));
+            }.bind(this));
+            $(this).val(String(current));
+        });
+    }
+
+    /**
+     * Re-renders the per-language mapping dropdowns live: mode B lists the
+     * default account's workflows everywhere; mode A lists each language
+     * account's own workflows in that language's rows.
+     */
+    function loadMappingWorkflows() {
+        var mode = currentMlMode();
+        if (!isMultilingual || (mode !== 'a' && mode !== 'b')) {
+            return;
+        }
+        if (mode === 'b') {
+            post(urls.workflows, credentials()).then(function (data) {
+                fillMappingSelects($('.smaily-ml-workflow'), data.workflows);
+            });
+            return;
+        }
+        mlLanguages.forEach(function (language) {
+            var $block = $('.smaily-ml-account[data-language=' + language + ']');
+            var $selects = $('.smaily-ml-workflow[data-language=' + language + ']');
+            var creds = mlAccountRequestCreds($block);
+            if (!creds) {
+                fillMappingSelects($selects, []);
+                return;
+            }
+            post(urls.workflows, creds).then(function (data) {
+                fillMappingSelects($selects, data.workflows || []);
+            });
         });
     }
 
@@ -260,6 +375,55 @@ window.smailyPanelsInit = function ($) {
         reactSubscribersEnabled();
         reactRssEnabled();
 
+        // Multilingual mode cards: live re-render of the dependent sections,
+        // with a confirm before leaving a mode that carries per-language
+        // configuration (the switch removes mode-A store-view credentials on
+        // save and stops using the workflow mappings).
+        applyMlMode(mlModeCurrent);
+        $(document).on('change', 'input[name=smaily-w-mlmode]', function () {
+            var next = $(this).val();
+            var leavingConfigured = (mlModeCurrent === 'a' || mlModeCurrent === 'b') && next !== mlModeCurrent;
+            if (leavingConfigured && !mlSwitchConfirmed) {
+                var message = '<?= $escaper->escapeJs(__('Switching the multilingual mode changes how contacts and automations are routed. Per-language accounts and workflow mappings that no longer apply stop being used (per-store-view credentials are removed on save). Continue?')) ?>';
+                if (!window.confirm(message)) {
+                    $('input[name=smaily-w-mlmode][value=' + mlModeCurrent + ']').prop('checked', true);
+                    return;
+                }
+                mlSwitchConfirmed = true;
+            }
+            mlModeCurrent = next;
+            applyMlMode(next);
+            loadMappingWorkflows();
+        });
+
+        // Per-language account connection tests (mode A).
+        $(document).on('click', '.smaily-ml-test', function () {
+            var $block = $(this).closest('.smaily-ml-account');
+            var $result = $block.find('.smaily-result');
+            var creds = mlAccountRequestCreds($block);
+            if (!creds) {
+                result($result, '<?= $escaper->escapeJs(__('Enter the password for this account first.')) ?>', false);
+                return;
+            }
+            result($result, '<?= $escaper->escapeJs(__('Testing…')) ?>', true);
+            post(urls.test, creds).then(function (data) {
+                result($result, data.connected
+                    ? '<?= $escaper->escapeJs(__('Connected!')) ?>'
+                    : (data.error || '<?= $escaper->escapeJs(__('Connection failed.')) ?>'), data.connected);
+                if (data.connected) {
+                    loadMappingWorkflows();
+                }
+            });
+        });
+
+        // Edited per-language credentials re-render that account's workflow
+        // dropdowns without saving (same idiom as the default credentials).
+        var mlCredentialTimer = null;
+        $(document).on('input', '.smaily-ml-account input', function () {
+            clearTimeout(mlCredentialTimer);
+            mlCredentialTimer = setTimeout(loadMappingWorkflows, 1200);
+        });
+
         // Connection test.
         $('#smaily-w-test').on('click', function () {
             result('#smaily-w-test-result', '<?= $escaper->escapeJs(__('Testing…')) ?>', true);
@@ -334,6 +498,53 @@ window.smailyPanelsInit = function ($) {
     // --- Per-panel save payloads (shared savestep endpoint) -----------------
     var collect = {
         connect: function () {
+            var mode = currentMlMode();
+            if (isMultilingual && mode === 'a') {
+                var accounts = [];
+                $('.smaily-ml-account').each(function () {
+                    var fields = mlAccountFields($(this));
+                    if (!fields.subdomain || !fields.username) {
+                        throw new Error(
+                            '<?= $escaper->escapeJs(__('Fill in the subdomain and username of the %1 account.')) ?>'
+                                .replace('%1', fields.language.toUpperCase())
+                        );
+                    }
+                    if (!fields.password && !$(this).data('has-password')) {
+                        throw new Error(
+                            '<?= $escaper->escapeJs(__('Enter the password of the %1 account.')) ?>'
+                                .replace('%1', fields.language.toUpperCase())
+                        );
+                    }
+                    accounts.push(fields);
+                });
+                var fallback = $('input[name=smaily-w-fallback]:checked').val();
+                var fallbackAccount = null;
+                accounts.forEach(function (account) {
+                    if (account.language === fallback) {
+                        fallbackAccount = account;
+                    }
+                });
+                if (!fallback || !fallbackAccount) {
+                    throw new Error('<?= $escaper->escapeJs(__('Pick the default fallback account.')) ?>');
+                }
+                if (fallback !== mlFallbackSaved && !fallbackAccount.password) {
+                    throw new Error(
+                        '<?= $escaper->escapeJs(__('Enter the password of the %1 account so it can take over as the default fallback.')) ?>'
+                            .replace('%1', fallback.toUpperCase())
+                    );
+                }
+                return {
+                    // The fallback account's credentials double as the
+                    // default-scope credentials (any unmatched scope uses
+                    // them), Woo mode-A parity.
+                    subdomain: fallbackAccount.subdomain,
+                    username: fallbackAccount.username,
+                    password: fallbackAccount.password,
+                    multilingual_mode: mode,
+                    fallback_language: fallback,
+                    accounts: accounts
+                };
+            }
             var creds = credentials();
             if (!connected && (!creds.subdomain || !creds.username || !creds.password)) {
                 throw new Error(
@@ -344,7 +555,7 @@ window.smailyPanelsInit = function ($) {
                 subdomain: creds.subdomain,
                 username: creds.username,
                 password: creds.password,
-                multilingual_mode: boot.connection.multilingualMode
+                multilingual_mode: mode
             };
         },
         subscribers: function () {
@@ -359,7 +570,7 @@ window.smailyPanelsInit = function ($) {
             };
         },
         automations: function () {
-            return {
+            var data = {
                 welcome_enabled: $('#smaily-w-welcome-enabled').is(':checked'),
                 welcome_workflow: $('#smaily-w-welcome-workflow').val(),
                 first_order_enabled: $('#smaily-w-firstorder-enabled').is(':checked'),
@@ -368,6 +579,30 @@ window.smailyPanelsInit = function ($) {
                 abandoned_workflow: $('#smaily-w-abandoned-workflow').val(),
                 abandoned_cutoff: parseInt($('#smaily-w-cutoff').val(), 10) || 30
             };
+            var mode = currentMlMode();
+            if (isMultilingual && (mode === 'a' || mode === 'b')) {
+                // The full desired mapping state: cleared selects post no
+                // row, which deletes theirs server-side.
+                var mappings = [];
+                $('.smaily-ml-workflow').each(function () {
+                    var workflowId = $(this).val();
+                    if (!workflowId) {
+                        return;
+                    }
+                    var trigger = String($(this).data('trigger'));
+                    var language = String($(this).data('language'));
+                    mappings.push({
+                        trigger_type: trigger,
+                        language: language,
+                        account_key: mode === 'a' ? language : 'default',
+                        workflow_id: parseInt(workflowId, 10),
+                        is_default_fallback:
+                            $('input[name=smaily-ml-fallback-' + trigger + ']:checked').val() === language
+                    });
+                });
+                data.mappings = mappings;
+            }
+            return data;
         },
         intelligence: function () {
             var data = {browse_tracking: $('#smaily-w-browse').is(':checked')};

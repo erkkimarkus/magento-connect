@@ -28,7 +28,8 @@ Model/
   Queue/            marketing event queue + per-type handlers
   ContactSync/      lawful-basis mode, payload builder, dispatcher, guard
   AbandonedCart/    quote-scan state, payload, restore tokens
-  Automation/       trigger routing (multilingual mapping table)
+  Automation/       trigger routing (multilingual mapping table + saver)
+  Multilingual/     store-view → language, account-key → store-view
   Backfill/         chunked import jobs + processors
   Migration/        2.8.x config mapper (pure, unit-tested)
   Privacy/          profiling consent
@@ -57,6 +58,21 @@ Observer / cron ──enqueue──> smaily_event_queue ──cron flush (1 min)
   view — per-language accounts hit the right credentials),
   `automation.trigger` (delivered one-by-one so a partial failure can never
   re-trigger an automation), `engine.identity_merge`.
+- Automation routing (`Model/Automation/Router`, Woo `Multilingual\Router`
+  parity): multilingual modes `single`/`c` use the config-default workflow;
+  modes `a`/`b` resolve `smaily_automation_mapping` rows — the exact
+  (trigger, language) row first, then the trigger's `is_default_fallback`
+  row, then the config default; no match anywhere is a terminal skip. Rows
+  are looked up for the event's website with global rows (`website_id 0`,
+  written by the admin panels) as the fallback; a website-specific row
+  wins. A matched row's `account_key` travels with the workflow
+  (`WorkflowMatch`) and the handler posts through THAT account's
+  credentials (`Multilingual\AccountResolver` maps the key to a store
+  view; `default` = default scope) — so a mode-A fallback row never fires
+  another account's workflow ID through the event store view's
+  credentials. The admin panels write rows through
+  `Model/Automation/MappingSaver` (full-desired-state sync: unique-key
+  upsert, cleared rows deleted, other websites' rows untouched).
 - Handlers are registered per type in `di.xml`
   (`Model/Queue/HandlerPool`); adding an event type = adding a handler.
 - Payloads are built at enqueue time (`ContactSync\SubscriberPayloadBuilder`,
@@ -202,6 +218,19 @@ Setup Wizard, Settings, Log. Design rules:
   the stepper (wizard) or the deep-linkable `?tab=` tabs (settings).
   Strings in these inline scripts are translated server-side with `__()`
   (js-translation.json never collects `$t()` from phtml).
+- **Multilingual UI is part of the shared panels.** When more than one
+  store-view language is detected (`Multilingual\AccountResolver`), the
+  Connection panel renders the routing-mode choice cards; mode `a` swaps
+  the single credential block for per-language blocks (each with its own
+  Test Connection — saved accounts re-test via `store_id` against the
+  saved store-view credentials) plus a default-fallback picker whose
+  account's credentials double as the default scope. Modes `a`/`b` reveal
+  the per-language workflow mapping editor on the Automations panel
+  (workflow dropdowns loaded live per account). All sections show/hide
+  live on mode change with no save round-trip; leaving mode `a` removes
+  the per-store-view credential overrides on save (confirmed in the UI
+  first). Single-language installs are locked to `single` and see none of
+  this.
 - **Dashboard is operational truth.** Every number on
   `dashboard/index.phtml` is a real local queue query
   (`Model\Adminhtml\DashboardStats`); the health verdict reuses the

@@ -13,11 +13,15 @@ use Magento\Framework\App\Cache\TypeListInterface;
 use Magento\Framework\App\Config\Storage\WriterInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Store\Model\ScopeInterface;
+use Magento\Store\Model\StoreManagerInterface;
+use Smaily\Connect\Model\Automation\MappingSaver;
 use Smaily\Connect\Model\Config;
 use Smaily\Connect\Model\Config\Source\AbandonedFields;
+use Smaily\Connect\Model\Config\Source\MultilingualMode;
 use Smaily\Connect\Model\Config\Source\SyncFields;
 use Smaily\Connect\Model\Config\Source\SyncMode;
 use Smaily\Connect\Model\Engine\Settings as EngineSettings;
+use Smaily\Connect\Model\Multilingual\AccountResolver;
 use Smaily\Connect\Model\SubdomainNormalizer;
 
 /**
@@ -34,7 +38,10 @@ class WizardStepSaver
         private readonly EncryptorInterface $encryptor,
         private readonly TypeListInterface $cacheTypeList,
         private readonly SubdomainNormalizer $normalizer,
-        private readonly AccountResolver $accountResolver
+        private readonly AccountResolver $accountResolver,
+        private readonly Config $config,
+        private readonly StoreManagerInterface $storeManager,
+        private readonly MappingSaver $mappingSaver
     ) {
     }
 
@@ -79,9 +86,12 @@ class WizardStepSaver
             $this->configWriter->save(Config::XML_PATH_PASSWORD, $this->encryptor->encrypt($password));
         }
 
+        $previousMode = $this->config->getMultilingualMode() ?: MultilingualMode::MODE_SINGLE;
         $mode = strtolower((string)($data['multilingual_mode'] ?? 'single'));
         if (in_array($mode, ['single', 'a', 'b', 'c'], true)) {
             $this->configWriter->save(Config::XML_PATH_MULTILINGUAL_MODE, $mode);
+        } else {
+            $mode = $previousMode;
         }
 
         // Mode A: per-language accounts land as store-view scoped credentials
@@ -117,6 +127,30 @@ class WizardStepSaver
                         ScopeInterface::SCOPE_STORES,
                         $storeId
                     );
+                }
+            }
+        }
+
+        // The default-fallback account (mode A): its credentials are also
+        // posted as the top-level subdomain/username/password, so the default
+        // scope IS the fallback account; the language is remembered for the
+        // admin UI's fallback picker.
+        $fallbackLanguage = strtolower(trim((string)($data['fallback_language'] ?? '')));
+        if ($fallbackLanguage !== '' && preg_match('/^[a-z]{2,3}$/', $fallbackLanguage) === 1) {
+            $this->configWriter->save(Config::XML_PATH_FALLBACK_LANGUAGE, $fallbackLanguage);
+        }
+
+        // Leaving mode A is destructive by design (the UI confirms first):
+        // the per-store-view credential overrides written for the
+        // per-language accounts are removed, so every store view follows the
+        // single account again. Mapping rows are kept — the Router ignores
+        // them outside modes a/b.
+        if ($previousMode === MultilingualMode::MODE_PER_LANGUAGE_ACCOUNTS
+            && $mode !== MultilingualMode::MODE_PER_LANGUAGE_ACCOUNTS
+        ) {
+            foreach ($this->storeManager->getStores() as $store) {
+                foreach ([Config::XML_PATH_SUBDOMAIN, Config::XML_PATH_USERNAME, Config::XML_PATH_PASSWORD] as $path) {
+                    $this->configWriter->delete($path, ScopeInterface::SCOPE_STORES, (int)$store->getId());
                 }
             }
         }
@@ -189,6 +223,13 @@ class WizardStepSaver
                 array_map('strval', $data['abandoned_fields'])
             ));
             $this->configWriter->save(Config::XML_PATH_ABANDONED_FIELDS, implode(',', $fields));
+        }
+
+        // Per-language workflow mappings (multilingual modes a/b). The panel
+        // sends the full desired state, so absent selections delete their
+        // rows; single/c saves omit the key and leave the table untouched.
+        if (isset($data['mappings']) && is_array($data['mappings'])) {
+            return $this->mappingSaver->save($data['mappings']);
         }
 
         return [];

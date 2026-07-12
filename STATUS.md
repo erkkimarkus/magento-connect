@@ -5,7 +5,7 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1272 phase 2b)_
+_Last updated: 2026-07-12 (PRO-1272 phase 2b + PRO-1273 phase 2c)_
 
 ## Where we are
 
@@ -49,6 +49,47 @@ _Last updated: 2026-07-12 (PRO-1272 phase 2b)_
   compiler — runtime DI of all new classes was exercised live instead; run
   di:compile after the worktree is gone. Sandbox restored (seeded rows
   removed, admin locale back to en_US).
+- **Multilingual UX done (PRO-1273, phase 2c) — code-complete, browser
+  validation PENDING.** Built in the shared-panel idiom (live re-render,
+  no save round-trips): (1) routing-mode choice cards on the Connection
+  panel (wizard step 1 + Settings > Connection via the shared partial;
+  radio-card idiom from the step-2 lawful-basis cards; rendered only when
+  `Multilingual\AccountResolver` detects >1 store-view language, else
+  locked to `single`; destructive mode-switch guarded by a native
+  confirm); (2) mode A UI — per-language credential blocks (per-block
+  Test Connection; saved accounts re-test via a new `store_id` fallback
+  on the testsmaily endpoint) + default-fallback account picker whose
+  account's credentials double as the default scope (new config path
+  `smaily_connect/connection/fallback_language`); feeds the existing
+  `WizardStepSaver::saveConnect` `accounts[]` handler (extended only
+  with `fallback_language` + store-view credential cleanup when leaving
+  mode A); (3) mode B/A per-language workflow mapping editor on the
+  Automations panel (per trigger: workflow select per language, loaded
+  live per account in mode A, + default-fallback radio); writes
+  `smaily_automation_mapping` through the new
+  `Model\Automation\MappingSaver` (full-desired-state sync: unique-key
+  upsert, cleared rows deleted, other websites' rows untouched) behind
+  the existing savestep endpoint; (4) **account_key alignment with Woo**
+  — `Automation\Router` now returns a `WorkflowMatch` (workflow +
+  account_key) and `AutomationHandler` posts through the account the
+  mapping row names (fallback rows included; config-default resolutions
+  keep following the store view; single/c unchanged); Router lookups now
+  also see global rows (`website_id 0` — the scope the editor writes and
+  the default-scope migration seeds; website-specific rows win), fixing
+  the latent "default-scope migration seeds never matched" gap.
+  `Model\Adminhtml\AccountResolver` moved to
+  `Model\Multilingual\AccountResolver` (it now serves runtime routing
+  too). New tests: `RouterTest` (10 unit — all four modes, fallback,
+  account_key, website preference, terminal skips) and
+  `MappingSaverTest` (7 integration — upsert idempotency, cleared-row
+  deletion, fallback normalization, scope discipline, Router reading
+  real SQL back). i18n +32/-1 phrases in both packs (invariants held).
+  Docs: USER_GUIDE multilingual section rewritten for the new UI,
+  ARCHITECTURE routing + panel sections, CHANGELOG. Verified: 103 unit +
+  45 integration tests, phpcs (0 errors) + phpstan clean. **Not yet
+  verified in a browser** — the sandbox Playwright pass (mode cards,
+  live section swaps, mode-A save path, mapping editor end-to-end)
+  happens post-merge by the coordinator.
 - **UI/UX parity phase 2a done (PRO-1271) — IA consolidation + full
   dashboard.** The admin is now four pages under Marketing > Smaily
   Connect: **Dashboard** (new landing page: one-sentence health verdict
@@ -190,10 +231,10 @@ _Last updated: 2026-07-12 (PRO-1272 phase 2b)_
   rows) — the mapping UI is the Phase 2 build. One user-facing defect fixed
   in this pass: the wizard step-3 note falsely claimed per-language routing
   is configured under Configuration > Automations — now points at the real
-  Multilingual Mode field (phtml + both i18n packs). Known divergence from
-  Woo, deferred to Phase 2: `account_key` on mapping rows is ignored
-  (credentials always follow the event's store view), so in mode A a
-  fallback row can send another account's workflow ID.
+  Multilingual Mode field (phtml + both i18n packs). The `account_key`
+  divergence from Woo found here (mapping rows' account ignored, mode-A
+  fallback rows firing through the wrong account) is FIXED in phase 2c —
+  see the PRO-1273 entry above.
 - **Engine contract v1.4.0 adopted + verified** (commit d35bb96, byte-identical
   with the engine repo); **contract staleness CI added** (commit 5bc3767,
   `.github/workflows/contract-staleness.yaml` + `bin/check-contract-staleness.sh`).
@@ -217,9 +258,10 @@ _Last updated: 2026-07-12 (PRO-1272 phase 2b)_
   exchanges; `not_found` = success). Configurable-child delete keeps the
   per-SKU `in_stock=false` soft path; disabled products stay on the
   ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
-- **Gates green:** 93 unit tests, 38 integration tests, phpcs clean, phpstan
-  clean. `setup:upgrade` + `setup:di:compile` re-verified in the docker
-  sandbox on the merged tree including PRO-1231.
+- **Gates green:** 103 unit tests, 45 integration tests, phpcs clean,
+  phpstan clean. `setup:upgrade` + `setup:di:compile` re-verified in the
+  docker sandbox on the merged tree including PRO-1231 (the PRO-1273
+  worktree changes still owe a di:compile + browser pass post-merge).
 - **Hyvä compat skeleton + work package done (PRO-1201)** — full storefront
   audit with file:line evidence, the work plan and the surface × Luma/Hyvä/
   strict-CSP verification matrix live in `docs/HYVA_SUPPORT.md`. Compat
@@ -260,6 +302,12 @@ PRO-1267 (engine: Magento product-identity contract note).
 
 ## Known gaps
 
+- **PRO-1273 multilingual UX browser validation owed** — the phase 2c
+  work above is unit/integration/static-verified only; the sandbox
+  Playwright pass (mode cards + live swaps, mode-A per-language
+  credential save into store-view scopes, mapping editor save/delete
+  round-trip, et_EE rendering) plus `setup:di:compile` on the merged
+  tree are the coordinator's post-merge job.
 - **Real-Smaily-credentials click-through still owed** — the engine side is
   now fully happy-path-verified against the mock engine (see above), but
   the Smaily campaign-API flows (Test Connection success, workflow

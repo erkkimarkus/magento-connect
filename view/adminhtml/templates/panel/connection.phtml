@@ -6,29 +6,136 @@
  * Smaily connection panel — shared by the setup wizard (step 1) and the
  * Settings page (Connection tab). Behavior lives in panel/panels-js.phtml.
  *
+ * Multilingual installations (more than one distinct store-view language)
+ * additionally get the routing-mode choice cards; mode A swaps the single
+ * credential block for per-language account blocks plus a default-fallback
+ * picker. Single-language installations are locked to 'single' and see none
+ * of it.
+ *
  * @var \Magento\Backend\Block\Template $block
  * @var \Magento\Framework\Escaper $escaper
  */
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
+$viewModel = $block->getData('view_model');
+$isMultilingual = $viewModel->isMultilingual();
+$languages = $viewModel->getDetectedLanguages();
+$mode = $viewModel->getMultilingualMode();
+$accounts = $viewModel->getMultilingualAccounts();
+$fallbackLanguage = $viewModel->getFallbackLanguage();
+$isModeA = $isMultilingual && $mode === 'a';
+
+$modeCards = [
+    'single' => [
+        'label' => __('Single language'),
+        'note' => __('Treat every store view the same: one Smaily account and one workflow per automation.'),
+    ],
+    'a' => [
+        'label' => __('Per-language Smaily accounts'),
+        'note' => __('Each language has its own Smaily account (subdomain and credentials) with its own subscriber list.'),
+    ],
+    'b' => [
+        'label' => __('One account, per-language workflows'),
+        'note' => __('A single Smaily account, but each language triggers its own automation workflow. The most common setup.'),
+    ],
+    'c' => [
+        'label' => __('One workflow branching by language'),
+        'note' => __('A single workflow that branches on the contact\'s language inside Smaily. The language is sent with every contact.'),
+    ],
+];
 ?>
-<div class="smaily-card">
-    <h2><?= $escaper->escapeHtml(__('Connect your Smaily account')) ?></h2>
-    <p><?= $escaper->escapeHtml(__('You can find or create API credentials in Smaily under Preferences > API. The password is stored encrypted and never leaves your server.')) ?></p>
-    <div class="smaily-field">
-        <label for="smaily-w-subdomain"><?= $escaper->escapeHtml(__('Subdomain')) ?></label>
-        <input type="text" id="smaily-w-subdomain" placeholder="demo"/>
-        <p class="note"><?= $escaper->escapeHtml(__('If your Smaily URL is https://demo.sendsmaily.net, the subdomain is "demo". Pasting the full URL also works.')) ?></p>
-    </div>
-    <div class="smaily-field">
-        <label for="smaily-w-username"><?= $escaper->escapeHtml(__('API Username')) ?></label>
-        <input type="text" id="smaily-w-username"/>
-    </div>
-    <div class="smaily-field">
-        <label for="smaily-w-password"><?= $escaper->escapeHtml(__('API Password')) ?></label>
-        <input type="password" id="smaily-w-password" autocomplete="new-password"/>
-        <p class="note" id="smaily-w-password-note" style="display:none;"><?= $escaper->escapeHtml(__('A password is already saved — leave this empty to keep it.')) ?></p>
-    </div>
-    <button type="button" class="action-secondary" id="smaily-w-test">
-        <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
-    </button>
-    <span class="smaily-result" id="smaily-w-test-result"></span>
+<?php if ($isMultilingual): ?>
+<div class="smaily-card" id="smaily-ml-modes">
+    <h2><?= $escaper->escapeHtml(__('How is Smaily organised for your store languages?')) ?></h2>
+    <p><?= $escaper->escapeHtml(__('Your store views speak %1 languages (%2). Pick how contacts and automations should route between them — the sections below adapt right away.', count($languages), strtoupper(implode(', ', $languages)))) ?></p>
+    <?php foreach ($modeCards as $modeValue => $card): ?>
+    <label class="smaily-choice">
+        <input type="radio" name="smaily-w-mlmode"
+               value="<?= $escaper->escapeHtmlAttr($modeValue) ?>"
+               <?= $modeValue === $mode ? 'checked' : '' ?>/>
+        <strong><?= $escaper->escapeHtml($card['label']) ?></strong>
+        <p class="note"><?= $escaper->escapeHtml($card['note']) ?></p>
+    </label>
+    <?php endforeach; ?>
 </div>
+<?php endif; ?>
+
+<div id="smaily-w-default-account" <?= $isModeA ? 'style="display:none;"' : '' ?>>
+    <div class="smaily-card">
+        <h2><?= $escaper->escapeHtml(__('Connect your Smaily account')) ?></h2>
+        <p><?= $escaper->escapeHtml(__('You can find or create API credentials in Smaily under Preferences > API. The password is stored encrypted and never leaves your server.')) ?></p>
+        <div class="smaily-field">
+            <label for="smaily-w-subdomain"><?= $escaper->escapeHtml(__('Subdomain')) ?></label>
+            <input type="text" id="smaily-w-subdomain" placeholder="demo"/>
+            <p class="note"><?= $escaper->escapeHtml(__('If your Smaily URL is https://demo.sendsmaily.net, the subdomain is "demo". Pasting the full URL also works.')) ?></p>
+        </div>
+        <div class="smaily-field">
+            <label for="smaily-w-username"><?= $escaper->escapeHtml(__('API Username')) ?></label>
+            <input type="text" id="smaily-w-username"/>
+        </div>
+        <div class="smaily-field">
+            <label for="smaily-w-password"><?= $escaper->escapeHtml(__('API Password')) ?></label>
+            <input type="password" id="smaily-w-password" autocomplete="new-password"/>
+            <p class="note" id="smaily-w-password-note" style="display:none;"><?= $escaper->escapeHtml(__('A password is already saved — leave this empty to keep it.')) ?></p>
+        </div>
+        <button type="button" class="action-secondary" id="smaily-w-test">
+            <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
+        </button>
+        <span class="smaily-result" id="smaily-w-test-result"></span>
+    </div>
+</div>
+
+<?php if ($isMultilingual): ?>
+<div id="smaily-w-accounts" <?= $isModeA ? '' : 'style="display:none;"' ?>>
+    <?php foreach ($accounts as $account): ?>
+    <div class="smaily-card smaily-ml-account"
+         data-language="<?= $escaper->escapeHtmlAttr($account['language']) ?>"
+         data-store-id="<?= $escaper->escapeHtmlAttr((string)($account['storeId'] ?? '')) ?>"
+         data-has-password="<?= $account['hasPassword'] ? '1' : '0' ?>"
+         data-saved-subdomain="<?= $escaper->escapeHtmlAttr($account['subdomain']) ?>"
+         data-saved-username="<?= $escaper->escapeHtmlAttr($account['username']) ?>">
+        <h2><?= $escaper->escapeHtml(__('Smaily account for %1', strtoupper($account['language']))) ?></h2>
+        <p class="note"><?= $escaper->escapeHtml(__('Store views with the %1 language sync their contacts and automations to this account.', strtoupper($account['language']))) ?></p>
+        <div class="smaily-field">
+            <label for="smaily-ml-subdomain-<?= $escaper->escapeHtmlAttr($account['language']) ?>"><?= $escaper->escapeHtml(__('Subdomain')) ?></label>
+            <input type="text" class="smaily-ml-subdomain"
+                   id="smaily-ml-subdomain-<?= $escaper->escapeHtmlAttr($account['language']) ?>"
+                   value="<?= $escaper->escapeHtmlAttr($account['subdomain']) ?>"/>
+        </div>
+        <div class="smaily-field">
+            <label for="smaily-ml-username-<?= $escaper->escapeHtmlAttr($account['language']) ?>"><?= $escaper->escapeHtml(__('API Username')) ?></label>
+            <input type="text" class="smaily-ml-username"
+                   id="smaily-ml-username-<?= $escaper->escapeHtmlAttr($account['language']) ?>"
+                   value="<?= $escaper->escapeHtmlAttr($account['username']) ?>"/>
+        </div>
+        <div class="smaily-field">
+            <label for="smaily-ml-password-<?= $escaper->escapeHtmlAttr($account['language']) ?>"><?= $escaper->escapeHtml(__('API Password')) ?></label>
+            <input type="password" class="smaily-ml-password" autocomplete="new-password"
+                   id="smaily-ml-password-<?= $escaper->escapeHtmlAttr($account['language']) ?>"/>
+            <?php if ($account['hasPassword']): ?>
+            <p class="note"><?= $escaper->escapeHtml(__('A password is already saved — leave this empty to keep it.')) ?></p>
+            <?php endif; ?>
+        </div>
+        <button type="button" class="action-secondary smaily-ml-test">
+            <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
+        </button>
+        <span class="smaily-result"></span>
+    </div>
+    <?php endforeach; ?>
+
+    <div class="smaily-card">
+        <h2><?= $escaper->escapeHtml(__('Default fallback account')) ?></h2>
+        <p class="note"><?= $escaper->escapeHtml(__('Used when a contact\'s language cannot be matched to any account. Its credentials also serve every scope without a per-language override.')) ?></p>
+        <?php foreach ($languages as $language): ?>
+        <div class="smaily-inline-toggle">
+            <label>
+                <input type="radio" name="smaily-w-fallback"
+                       value="<?= $escaper->escapeHtmlAttr($language) ?>"
+                       <?= $language === $fallbackLanguage ? 'checked' : '' ?>/>
+                <?= $escaper->escapeHtml(__('The %1 account', strtoupper($language))) ?>
+            </label>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>

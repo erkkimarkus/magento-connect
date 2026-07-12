@@ -6,18 +6,20 @@
 
 declare(strict_types=1);
 
-namespace Smaily\Connect\Model\Adminhtml;
+namespace Smaily\Connect\Model\Multilingual;
 
 use Magento\Store\Model\StoreManagerInterface;
-use Smaily\Connect\Model\Multilingual\LanguageResolver;
 
 /**
- * Maps the SPA's account keys onto Magento store views.
+ * Maps Smaily account keys onto Magento store views.
  *
- * The Woo-shaped admin app addresses per-language Smaily accounts by an
- * accountKey (the language code); in Magento a per-language account is a
- * store-view scoped credential set, so an account key resolves to the store
- * views whose locale matches that language.
+ * The Woo-aligned surfaces (admin panels, mapping rows) address per-language
+ * Smaily accounts by an account key (the language code, or 'default'); in
+ * Magento a per-language account is a store-view scoped credential set, so
+ * an account key resolves to the store views whose locale matches that
+ * language. Used both by the admin save path (writing mode-A credentials)
+ * and by the automation dispatcher (posting a mapping row's workflow through
+ * the account the row names).
  */
 class AccountResolver
 {

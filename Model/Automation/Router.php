@@ -13,7 +13,8 @@ use Smaily\Connect\Model\Config\Source\MultilingualMode;
 use Smaily\Connect\Model\ResourceModel\Automation\Mapping\CollectionFactory;
 
 /**
- * Resolves the Smaily workflow for a (trigger, website, language) tuple.
+ * Resolves the Smaily workflow AND account for a (trigger, website,
+ * language) tuple.
  *
  * Mirrors the WooCommerce plugin's Multilingual\Router semantics: modes
  * "single" and "c" collapse every language into the default bucket (one
@@ -21,8 +22,19 @@ use Smaily\Connect\Model\ResourceModel\Automation\Mapping\CollectionFactory;
  * up per-language rows in smaily_automation_mapping, falling back to the
  * trigger's default-fallback row and finally to the config default.
  *
- * Returns 0 when no workflow is mapped — callers treat that as a terminal
- * skip (retrying cannot make a mapping appear).
+ * Mapping rows are scoped by website: a row for the event's website wins
+ * over a global row (website_id 0, written by the Settings/wizard mapping
+ * editor and the 2.8.x migration's default-scope seeding).
+ *
+ * A matched row's account_key travels with the workflow (WorkflowMatch), so
+ * the dispatcher posts the workflow through the account the row names — a
+ * mode-A fallback row must never fire another account's workflow ID through
+ * the store view's credentials (Woo AutomationRouter parity). Config-default
+ * resolutions carry no account key: credentials follow the event's store
+ * view as before.
+ *
+ * Returns null when no workflow is mapped — callers treat that as a
+ * terminal skip (retrying cannot make a mapping appear).
  */
 class Router
 {
@@ -32,7 +44,7 @@ class Router
     ) {
     }
 
-    public function resolveWorkflowId(string $trigger, int $websiteId, string $language): int
+    public function resolve(string $trigger, int $websiteId, string $language): ?WorkflowMatch
     {
         $mode = $this->config->getMultilingualMode($websiteId);
 
@@ -42,52 +54,53 @@ class Router
 
         $effectiveLanguage = $language !== '' ? $language : Mapping::LANGUAGE_DEFAULT;
 
-        $workflowId = $this->findMapping($trigger, $websiteId, $effectiveLanguage);
-        if ($workflowId > 0) {
-            return $workflowId;
-        }
-
-        $workflowId = $this->findFallbackMapping($trigger, $websiteId);
-        if ($workflowId > 0) {
-            return $workflowId;
-        }
-
-        return $this->configDefault($trigger, $websiteId);
+        return $this->findMapping($trigger, $websiteId, $effectiveLanguage)
+            ?? $this->findFallbackMapping($trigger, $websiteId)
+            ?? $this->configDefault($trigger, $websiteId);
     }
 
-    private function findMapping(string $trigger, int $websiteId, string $language): int
+    private function findMapping(string $trigger, int $websiteId, string $language): ?WorkflowMatch
     {
         $collection = $this->mappingCollectionFactory->create();
-        $collection->addFieldToFilter('website_id', ['eq' => $websiteId])
+        $collection->addFieldToFilter('website_id', ['in' => [$websiteId, 0]])
             ->addFieldToFilter('trigger_type', $trigger)
             ->addFieldToFilter('language', $language)
+            ->setOrder('website_id', 'DESC')
             ->setPageSize(1);
 
-        $mapping = $collection->getFirstItem();
-
-        return $mapping instanceof Mapping ? $mapping->getWorkflowId() : 0;
+        return $this->toMatch($collection->getFirstItem());
     }
 
-    private function findFallbackMapping(string $trigger, int $websiteId): int
+    private function findFallbackMapping(string $trigger, int $websiteId): ?WorkflowMatch
     {
         $collection = $this->mappingCollectionFactory->create();
-        $collection->addFieldToFilter('website_id', ['eq' => $websiteId])
+        $collection->addFieldToFilter('website_id', ['in' => [$websiteId, 0]])
             ->addFieldToFilter('trigger_type', $trigger)
             ->addFieldToFilter('is_default_fallback', ['eq' => 1])
+            ->setOrder('website_id', 'DESC')
             ->setPageSize(1);
 
-        $mapping = $collection->getFirstItem();
-
-        return $mapping instanceof Mapping ? $mapping->getWorkflowId() : 0;
+        return $this->toMatch($collection->getFirstItem());
     }
 
-    private function configDefault(string $trigger, int $websiteId): int
+    private function toMatch(mixed $mapping): ?WorkflowMatch
     {
-        return match ($trigger) {
+        if (!$mapping instanceof Mapping || $mapping->getWorkflowId() <= 0) {
+            return null;
+        }
+
+        return new WorkflowMatch($mapping->getWorkflowId(), $mapping->getAccountKey());
+    }
+
+    private function configDefault(string $trigger, int $websiteId): ?WorkflowMatch
+    {
+        $workflowId = match ($trigger) {
             Trigger::WELCOME => $this->config->getWelcomeWorkflow($websiteId),
             Trigger::FIRST_ORDER => $this->config->getFirstOrderWorkflow($websiteId),
             Trigger::ABANDONED_CART => $this->config->getAbandonedCartWorkflow($websiteId),
             default => 0,
         };
+
+        return $workflowId > 0 ? new WorkflowMatch($workflowId, null) : null;
     }
 }

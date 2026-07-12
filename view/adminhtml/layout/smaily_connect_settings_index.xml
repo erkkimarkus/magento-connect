@@ -17,7 +17,11 @@
                    template="Smaily_Connect::settings/index.phtml">
                 <block class="Magento\Backend\Block\Template"
                        name="smaily.panel.connection" as="panel.connection"
-                       template="Smaily_Connect::panel/connection.phtml"/>
+                       template="Smaily_Connect::panel/connection.phtml">
+                    <arguments>
+                        <argument name="view_model" xsi:type="object">Smaily\Connect\ViewModel\Adminhtml\WizardData</argument>
+                    </arguments>
+                </block>
                 <block class="Magento\Backend\Block\Template"
                        name="smaily.panel.subscribers" as="panel.subscribers"
                        template="Smaily_Connect::panel/subscribers.phtml">
@@ -28,7 +32,11 @@
                 </block>
                 <block class="Magento\Backend\Block\Template"
                        name="smaily.panel.automations" as="panel.automations"
-                       template="Smaily_Connect::panel/automations.phtml"/>
+                       template="Smaily_Connect::panel/automations.phtml">
+                    <arguments>
+                        <argument name="view_model" xsi:type="object">Smaily\Connect\ViewModel\Adminhtml\WizardData</argument>
+                    </arguments>
+                </block>
                 <block class="Magento\Backend\Block\Template"
                        name="smaily.engine.automations" as="engine.automations"
                        template="Smaily_Connect::config/engine-automations.phtml">

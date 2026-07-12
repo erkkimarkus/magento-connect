@@ -25,6 +25,7 @@ class Config
     public const XML_PATH_USERNAME = 'smaily_connect/connection/username';
     public const XML_PATH_PASSWORD = 'smaily_connect/connection/password';
     public const XML_PATH_MULTILINGUAL_MODE = 'smaily_connect/connection/multilingual_mode';
+    public const XML_PATH_FALLBACK_LANGUAGE = 'smaily_connect/connection/fallback_language';
     public const XML_PATH_SYNC_ENABLED = 'smaily_connect/subscribers/sync_enabled';
     public const XML_PATH_SYNC_MODE = 'smaily_connect/subscribers/sync_mode';
     public const XML_PATH_SYNC_FIELDS = 'smaily_connect/subscribers/sync_fields';
@@ -121,6 +122,16 @@ class Config
     public function getMultilingualMode(?int $websiteId = null): string
     {
         return (string)$this->websiteValue(self::XML_PATH_MULTILINGUAL_MODE, $websiteId);
+    }
+
+    /**
+     * The language whose per-language account is the default fallback in
+     * multilingual mode A (informational — its credentials are also stored
+     * at the default scope by the save path).
+     */
+    public function getFallbackLanguage(): string
+    {
+        return trim((string)$this->scopeConfig->getValue(self::XML_PATH_FALLBACK_LANGUAGE));
     }
 
     public function isSyncEnabled(?int $websiteId = null): bool
