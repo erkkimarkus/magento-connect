@@ -5,13 +5,38 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1268 fixed — engine-automations save no longer silently wipes a binding whose workflow id is missing from the Smaily list)_
+_Last updated: 2026-07-12 (PRO-1275 fixed — abandoned-cart cron now reaches guests who abandon before the payment step via a quote-address email fallback)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **PRO-1275 fixed — pre-payment guest abandoned carts are now reminded.**
+  Magento fills `quote.customer_email` only once payment info is submitted,
+  so a guest who typed an email and abandoned at/before the shipping step
+  carried it only on the `quote_address` (billing, then shipping). The cron
+  keyed the selection AND the recipient on `customer_email`, so those carts
+  were never found. Two coordinated changes: (1) `Cron\AbandonedCart` no
+  longer filters on `customer_email` alone — a new `requireAnyEmail()` LEFT
+  JOINs the billing and shipping `quote_address` rows and widens the WHERE to
+  any quote carrying an email in EITHER place (at most one billing + one
+  shipping row per quote, so page-size batching is preserved); (2)
+  `Model\AbandonedCart\PayloadBuilder` resolves the recipient with the same
+  fallback order — `customer_email` → billing address email → shipping
+  address email (lowercased/trimmed) — via a new `resolveEmail()`. Consent
+  guardrails are untouched: this changes only WHO is found, not the opt-in
+  logic (`force_opt_in` still follows the configured lawful basis; the
+  already-mailed side table still dedupes; the `is_active`/`items_count`/idle/
+  24 h-backlog guards are unchanged). New unit test
+  `Test/Unit/Model/AbandonedCart/PayloadBuilderTest.php` (4 cases: customer
+  email used when present; NULL customer email → billing address email; empty
+  customer + empty billing → shipping address email; no source → empty). New
+  unit-test stub `Test/Unit/Support/Stub/ProductCollectionFactory.php`
+  (code-generated factory, mirrors the existing ImageFactory stub). Gates:
+  121 unit tests green, phpcs 0 errors, phpstan clean. USER_GUIDE
+  abandoned-cart section clarified (email can come from the checkout address,
+  not just the payment step).
 - **PRO-1268 fixed — engine-automations save preserves a binding whose
   workflow id is missing from the Smaily list.** The Campaign Intelligence
   automations block (`config/engine-automations.phtml` → `Automations\Save`)
@@ -372,7 +397,7 @@ _Last updated: 2026-07-12 (PRO-1268 fixed — engine-automations save no longer 
   exchanges; `not_found` = success). Configurable-child delete keeps the
   per-SKU `in_stock=false` soft path; disabled products stay on the
   ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
-- **Gates green:** 117 unit tests, 45 integration tests, phpcs clean,
+- **Gates green:** 121 unit tests, 45 integration tests, phpcs clean,
   phpstan clean. `setup:upgrade` + `setup:di:compile` re-verified in the
   docker sandbox on the fully merged tree (2b + 2c included; the PRO-1268
   ConfigRowNormalizer fix is pure PHP + template + DI-autowired constructor
@@ -426,13 +451,6 @@ PRO-1267 (engine: Magento product-identity contract note).
   it. Needs a design decision (surface/edit scope overrides, or warn).
   Found during the real-credentials walk via the migration-seeded
   `websites/1` subdomain row in the sandbox.
-- **Abandoned carts of guests who never reach the payment step are missed**
-  — the cron filters on `quote.customer_email`, which Magento fills only
-  once payment info is submitted; a guest who typed an email and abandoned
-  at the shipping step has it only on `quote_address` (billing). Legacy
-  2.8.x had the same filter, so this is parity, not a regression — but a
-  billing-address email fallback would cover the most common abandonment
-  window. Backlogged.
 - **Hyvä third-party AJAX-add-to-cart modules unverified** — the compat
   `cart_add` capture is verified on stock Hyvä 1.5.2 (form POST), but
   modules that submit programmatically (`form.submit()` fires no submit

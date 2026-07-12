@@ -206,8 +206,11 @@ enabled.
 ## Abandoned cart
 
 A cart counts as abandoned when it has items and an email address and has
-been idle past the **cutoff** (default 30 minutes, minimum 10). Carts older
-than 24 hours are never mailed — a recovering cron never blasts stale
+been idle past the **cutoff** (default 30 minutes, minimum 10). The email can
+come from a signed-in customer, an order in progress, or simply the address a
+guest typed at checkout — so a guest who enters their email and abandons at the
+shipping step is still reminded, without ever reaching the payment step. Carts
+older than 24 hours are never mailed — a recovering cron never blasts stale
 reminders. Each cart is mailed **once**.
 
 The automation receives up to 10 products as numbered fields

@@ -47,7 +47,7 @@ class PayloadBuilder
     public function build(Quote $quote, int $websiteId): array
     {
         $address = [
-            'email' => strtolower(trim((string)$quote->getCustomerEmail())),
+            'email' => $this->resolveEmail($quote),
             'is_abandoned_cart' => 'true',
         ];
 
@@ -83,6 +83,32 @@ class PayloadBuilder
         }
 
         return array_merge($address, $this->productFields($quote, $websiteId));
+    }
+
+    /**
+     * Resolves the recipient email with the same fallback order as the cron's
+     * quote selection: quote.customer_email (set once payment info is entered),
+     * then the billing address email, then the shipping address email. Guests
+     * who abandon at/before the shipping step have an empty customer_email and
+     * carry their email only on the quote address (PRO-1275).
+     *
+     * @param Quote $quote
+     */
+    private function resolveEmail(Quote $quote): string
+    {
+        $email = trim((string)$quote->getCustomerEmail());
+
+        if ($email === '') {
+            $billing = $quote->getBillingAddress();
+            $email = $billing ? trim((string)$billing->getEmail()) : '';
+        }
+
+        if ($email === '') {
+            $shipping = $quote->getShippingAddress();
+            $email = $shipping ? trim((string)$shipping->getEmail()) : '';
+        }
+
+        return strtolower($email);
     }
 
     /**

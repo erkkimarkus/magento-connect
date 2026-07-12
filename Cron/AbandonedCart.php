@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace Smaily\Connect\Cron;
 
 use Magento\Quote\Model\Quote;
+use Magento\Quote\Model\ResourceModel\Quote\Collection as QuoteCollection;
 use Magento\Quote\Model\ResourceModel\Quote\CollectionFactory as QuoteCollectionFactory;
 use Magento\Store\Model\App\Emulation;
 use Magento\Store\Model\StoreManagerInterface;
@@ -85,12 +86,18 @@ class AbandonedCart
         $collection = $this->quoteCollectionFactory->create();
         $collection->addFieldToFilter('is_active', ['eq' => 1])
             ->addFieldToFilter('items_count', ['gt' => 0])
-            ->addFieldToFilter('customer_email', ['notnull' => true])
-            ->addFieldToFilter('customer_email', ['neq' => ''])
             ->addFieldToFilter('store_id', ['in' => $storeIds])
             ->addFieldToFilter('updated_at', ['from' => $maxAge, 'to' => $idleSince])
             ->setOrder('entity_id', 'ASC')
             ->setPageSize(self::BATCH_SIZE);
+
+        // A guest who abandons at/before the shipping step has an empty
+        // quote.customer_email — Magento fills that column only once payment
+        // info is submitted. The email exists on the quote address (billing,
+        // then shipping) from the moment it is typed, so widen the selection to
+        // any quote carrying an email in EITHER place (PayloadBuilder resolves
+        // the recipient with the same fallback order). PRO-1275.
+        $this->requireAnyEmail($collection);
 
         $quotes = [];
         foreach ($collection->getItems() as $quote) {
@@ -132,5 +139,47 @@ class AbandonedCart
                 'count' => $mailed,
             ]);
         }
+    }
+
+    /**
+     * Restricts the collection to quotes that carry an email in ANY of the
+     * three places Magento may hold it — quote.customer_email, the billing
+     * address, or the shipping address — via LEFT JOINs (at most one billing
+     * and one shipping row per quote, so page-size counting is preserved). The
+     * empty-string guards matter: an in-progress checkout leaves blank address
+     * rows before the email field is filled.
+     *
+     * @param QuoteCollection $collection
+     */
+    private function requireAnyEmail(QuoteCollection $collection): void
+    {
+        $select = $collection->getSelect();
+        $connection = $collection->getConnection();
+        $addressTable = $collection->getTable('quote_address');
+
+        $select->joinLeft(
+            ['smaily_billing_addr' => $addressTable],
+            $connection->quoteInto(
+                'smaily_billing_addr.quote_id = main_table.entity_id'
+                . ' AND smaily_billing_addr.address_type = ?',
+                'billing'
+            ),
+            []
+        );
+        $select->joinLeft(
+            ['smaily_shipping_addr' => $addressTable],
+            $connection->quoteInto(
+                'smaily_shipping_addr.quote_id = main_table.entity_id'
+                . ' AND smaily_shipping_addr.address_type = ?',
+                'shipping'
+            ),
+            []
+        );
+
+        $select->where(
+            "(main_table.customer_email IS NOT NULL AND main_table.customer_email != '')"
+            . " OR (smaily_billing_addr.email IS NOT NULL AND smaily_billing_addr.email != '')"
+            . " OR (smaily_shipping_addr.email IS NOT NULL AND smaily_shipping_addr.email != '')"
+        );
     }
 }
