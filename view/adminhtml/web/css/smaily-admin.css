@@ -5,7 +5,63 @@
  * Smaily Connect admin styles: shared panel chrome (.smaily-ui, used by the
  * setup wizard AND the Settings page), the wizard stepper, the settings
  * tabs and the dashboard. Loaded via the page layout XMLs.
+ *
+ * PRO-1281 Stage A: the design-system foundation lives at the top of this file
+ * — the :root token sheet (single source of truth, from the Design agent's
+ * token spec) followed by six reusable component classes (choice-card, pill,
+ * banner, inline-status, tile, progress). Stage B rewires the screens onto
+ * these; the legacy chrome below stays until then so nothing breaks.
  */
+
+/* ========================================================================= *
+ * Design tokens — single source of truth for the Smaily admin visual system.
+ * Accent is Smaily #e91e63 (selection / focus / progress / brand marks);
+ * primary buttons stay Magento action-orange; everything else sits on
+ * standard adminhtml neutrals. Light adminhtml only — no dark mode.
+ * ========================================================================= */
+:root {
+  /* Surfaces & borders */
+  --s-bg:#f4f4f4;      --s-surface:#ffffff;   --s-surface-2:#fbfbfb; --s-surface-3:#f0f0f0;
+  --s-border:#e3e3e3;  --s-border-2:#c9c9c9;  --s-border-strong:#adadad;
+
+  /* Text */
+  --s-text:#303030;    --s-text-2:#5a5a5a;    --s-text-3:#8a8a8a;
+  --s-link:#1979c3;    --s-link-hover:#006bb4;
+
+  /* Brand accent (Smaily) + Action (Magento primary) */
+  --s-accent:#e91e63;  --s-accent-hover:#c2185b; --s-accent-soft:#fce4ec; --s-accent-border:#f4a6c0;
+  --s-action:#eb5202;  --s-action-hover:#ba4000;
+
+  /* Status roles: fg / soft bg / border */
+  --s-success:#1f7a34; --s-success-soft:#e5efe5; --s-success-border:#93c47d;
+  --s-warning:#8a5a00; --s-warning-soft:#fdf0d5; --s-warning-border:#e0c56e;
+  --s-danger:#bb2b0e;  --s-danger-soft:#fae5e5;  --s-danger-border:#e0a3a3;
+  --s-info:#0f5a94;    --s-info-soft:#e6f0f8;    --s-info-border:#9cc3e0;
+  --s-neutral:#5a5a5a; --s-neutral-soft:#eeeeee; --s-neutral-border:#cccccc;
+  --s-parked:#6b4ea3;  --s-parked-soft:#efe9f7;  --s-parked-border:#c3b3e0;
+
+  /* Banner left-bar (Magento message levels) */
+  --s-bar-success:#4caf50; --s-bar-info:#1979c3; --s-bar-warning:#e0a800; --s-bar-error:#d72c0d;
+
+  /* Spacing (4px base) */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px;
+
+  /* Radius */
+  --r-1:2px; --r-2:3px; --r-3:5px;
+
+  /* Type scale */
+  --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+  --fs-16:16px; --fs-18:18px; --fs-22:22px; --fs-28:28px;
+
+  /* Font stacks (system only) */
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  /* Elevation */
+  --shadow-1:0 1px 2px rgba(0,0,0,.06);
+  --shadow-2:0 2px 8px rgba(0,0,0,.12);
+  --shadow-panel:-2px 0 14px rgba(0,0,0,.16); /* slide-out */
+}
 
 /* --- Shared panel chrome (wizard steps + settings tabs) ------------------ */
 .smaily-ui { max-width: 76rem; }
@@ -94,3 +150,271 @@
 .smaily-log-details-error { background: #fff5f5; border-color: #e22626; }
 .smaily-log-details .smaily-status-failed { color: #e22626; font-weight: 600; }
 .smaily-log-details .smaily-status-sent { color: #006400; }
+
+/* ========================================================================= *
+ * PRO-1281 Stage A — reusable design-system components.
+ *
+ * Six token-driven classes Stage B's screens (Dashboard, Wizard, Settings,
+ * Engine Automations, Log, Backfill) apply. Every value resolves to a token
+ * above; nothing here is wired into a template yet. Class names + BEM-ish
+ * element/modifier structure follow the Design agent's component specs so
+ * Stage B's per-screen annotations line up 1:1.
+ * ========================================================================= */
+
+/* --- Choice card: <label class="smaily-choice is-selected"> --------------- *
+ * Radio + title-row (+ optional Recommended badge) + description. Whole label
+ * is the hit target; selected = accent border + 1px ring + accent tint.
+ * NB: distinct from the legacy `.smaily-ui .smaily-choice` (orange `.selected`)
+ * above — this is the Phase-3 variant keyed on `.is-selected`. */
+.smaily-choice {
+    display: flex;
+    gap: var(--sp-3);
+    align-items: flex-start;
+    padding: var(--sp-4) var(--sp-4);
+    background: var(--s-surface);
+    border: 1px solid var(--s-border-2);
+    border-radius: var(--r-3);
+    cursor: pointer;
+    transition: border-color .12s, background .12s, box-shadow .12s;
+}
+.smaily-choice:hover { border-color: var(--s-border-strong); }
+.smaily-choice.is-selected {
+    background: var(--s-accent-soft);
+    border-color: var(--s-accent);
+    box-shadow: 0 0 0 1px var(--s-accent);
+}
+.smaily-choice.is-disabled { opacity: .55; cursor: not-allowed; }
+.smaily-choice__radio {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    border: 2px solid var(--s-border-strong);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.smaily-choice.is-selected .smaily-choice__radio { border-color: var(--s-accent); }
+.smaily-choice.is-selected .smaily-choice__radio::after {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--s-accent);
+}
+.smaily-choice__body { flex: 1; min-width: 0; }
+.smaily-choice__title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+    margin-bottom: 3px;
+}
+.smaily-choice__title { font-size: var(--fs-14); font-weight: 700; color: var(--s-text); }
+.smaily-choice__desc { display: block; font-size: var(--fs-13); color: var(--s-text-2); line-height: 1.45; }
+.smaily-choice__badge {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--s-success);
+    background: var(--s-success-soft);
+    border: 1px solid var(--s-success-border);
+    border-radius: var(--r-2);
+    padding: 1px 7px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+
+/* --- Status pill: <span class="smaily-pill smaily-pill--{variant}"> -------- *
+ * One shape for automation modes (active/test/off) and queue statuses
+ * (sent/pending/failed/parked/neutral). Dot carries the color redundantly
+ * with the label for accessibility. */
+.smaily-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    font: 600 var(--fs-11)/1.6 var(--font);
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.smaily-pill__dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.smaily-pill--active,
+.smaily-pill--sent { color: var(--s-success); background: var(--s-success-soft); border-color: var(--s-success-border); }
+.smaily-pill--test { color: var(--s-info); background: var(--s-info-soft); border-color: var(--s-info-border); }
+.smaily-pill--pending { color: var(--s-warning); background: var(--s-warning-soft); border-color: var(--s-warning-border); }
+.smaily-pill--failed { color: var(--s-danger); background: var(--s-danger-soft); border-color: var(--s-danger-border); }
+.smaily-pill--parked { color: var(--s-parked); background: var(--s-parked-soft); border-color: var(--s-parked-border); }
+.smaily-pill--off,
+.smaily-pill--neutral { color: var(--s-neutral); background: var(--s-neutral-soft); border-color: var(--s-neutral-border); }
+
+/* --- Notice banner: <div class="smaily-banner smaily-banner--{level}"> ----- *
+ * Maps 1:1 onto Magento's four message levels. 4px left bar at full strength,
+ * soft bg, icon slot, optional title + message + right-aligned inline action.
+ * Layer on Magento's `.message .message-{level}` too if inheriting its box. */
+.smaily-banner {
+    display: flex;
+    gap: var(--sp-3);
+    align-items: flex-start;
+    padding: var(--sp-3) 14px;
+    border: 1px solid transparent;
+    border-left: 4px solid transparent;
+    border-radius: var(--r-2);
+    font: 400 var(--fs-13)/1.5 var(--font);
+}
+.smaily-banner__icon { flex: 0 0 auto; margin-top: 1px; }
+.smaily-banner__body { flex: 1; min-width: 0; }
+.smaily-banner__title { font-weight: 700; font-size: var(--fs-13); margin-bottom: 2px; }
+.smaily-banner__message { font-size: var(--fs-13); }
+.smaily-banner__action {
+    flex: 0 0 auto;
+    margin-left: 6px;
+    color: inherit;
+    font-weight: 700;
+    font-size: var(--fs-13);
+    text-decoration: underline;
+    white-space: nowrap;
+}
+.smaily-banner--success { color: var(--s-success); background: var(--s-success-soft); border-color: var(--s-success-border); border-left-color: var(--s-bar-success); }
+.smaily-banner--info { color: var(--s-info); background: var(--s-info-soft); border-color: var(--s-info-border); border-left-color: var(--s-bar-info); }
+.smaily-banner--warning { color: var(--s-warning); background: var(--s-warning-soft); border-color: var(--s-warning-border); border-left-color: var(--s-bar-warning); }
+.smaily-banner--error { color: var(--s-danger); background: var(--s-danger-soft); border-color: var(--s-danger-border); border-left-color: var(--s-bar-error); }
+
+/* --- Inline status: <span class="smaily-inline-status is-{state}"> --------- *
+ * Sits to the right of the button that triggered the action; the button stays
+ * stable while this animates. States: idle / working / saved / error. Never
+ * fixed-width (Estonian "Salvestatakse…" is longer than "Saving…"). */
+.smaily-inline-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font: 600 var(--fs-13)/1 var(--font);
+    color: var(--s-text-2);
+    white-space: nowrap;
+}
+.smaily-inline-status.is-idle { color: var(--s-text-3); }
+.smaily-inline-status.is-working { color: var(--s-text-2); }
+.smaily-inline-status.is-saved { color: var(--s-success); }
+.smaily-inline-status.is-error { color: var(--s-danger); }
+.smaily-inline-status__spinner {
+    flex: 0 0 auto;
+    width: 13px;
+    height: 13px;
+    border: 2px solid var(--s-border-2);
+    border-top-color: var(--s-text-2);
+    border-radius: 50%;
+    animation: smaily-spin .7s linear infinite;
+}
+.smaily-inline-status__check {
+    flex: 0 0 auto;
+    position: relative;
+    width: 14px;
+    height: 14px;
+}
+.smaily-inline-status__check::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 0;
+    width: 4px;
+    height: 9px;
+    border: solid var(--s-success);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.smaily-inline-status__error {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--s-danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+}
+@keyframes smaily-spin { to { transform: rotate(360deg); } }
+
+/* --- Metric tile: <div class="smaily-tile smaily-tile--attention"> --------- *
+ * Dashboard counts. Default + attention only — attention flips the 3px top bar
+ * and value to danger and shows a badge. Grid should be
+ * auto-fill minmax(210px,1fr) so it reflows 4→2→1. */
+.smaily-tile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-4) 18px;
+    min-width: 0;
+    background: var(--s-surface);
+    border: 1px solid var(--s-border);
+    border-top: 3px solid var(--s-border-2);
+    border-radius: var(--r-3);
+    box-shadow: var(--shadow-1);
+}
+.smaily-tile--attention { border-color: var(--s-danger-border); border-top-color: var(--s-bar-error); }
+.smaily-tile__label-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.smaily-tile__label {
+    font-size: var(--fs-12);
+    font-weight: 600;
+    color: var(--s-text-2);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+.smaily-tile__badge {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--s-danger);
+    background: var(--s-danger-soft);
+    border: 1px solid var(--s-danger-border);
+    border-radius: var(--r-2);
+    padding: 1px 6px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    white-space: nowrap;
+}
+.smaily-tile__value {
+    font-size: var(--fs-28);
+    font-weight: 700;
+    line-height: 1.05;
+    color: var(--s-text);
+    font-variant-numeric: tabular-nums;
+}
+.smaily-tile--attention .smaily-tile__value { color: var(--s-danger); }
+.smaily-tile__caption { font-size: var(--fs-12); color: var(--s-text-3); }
+
+/* --- Progress: <div class="smaily-progress is-{state}"> ------------------- *
+ * Backfill / long syncs. Running = animated accent stripes; terminal states
+ * (done / failed / stopped) recolor to their status role and stop animating.
+ * Width lives on __fill (inline `width:%` from the template). */
+.smaily-progress { width: 100%; }
+.smaily-progress__track {
+    width: 100%;
+    height: 8px;
+    background: var(--s-surface-3);
+    border: 1px solid var(--s-border-2);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.smaily-progress__fill {
+    width: 0;
+    height: 100%;
+    background: var(--s-accent);
+    border-radius: 6px;
+    transition: width .3s ease;
+}
+.smaily-progress.is-running .smaily-progress__fill {
+    background: repeating-linear-gradient(45deg, var(--s-accent), var(--s-accent) 7px, var(--s-accent-hover) 7px, var(--s-accent-hover) 14px);
+    background-size: 28px 28px;
+    animation: smaily-stripe .8s linear infinite;
+}
+.smaily-progress.is-done .smaily-progress__fill { background: var(--s-success); }
+.smaily-progress.is-failed .smaily-progress__fill { background: var(--s-danger); }
+.smaily-progress.is-stopped .smaily-progress__fill { background: var(--s-neutral); }
+@keyframes smaily-stripe { from { background-position: 0 0; } to { background-position: 28px 0; } }

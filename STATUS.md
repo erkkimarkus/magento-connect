@@ -5,13 +5,39 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1280 — contract synced to v1.4.1 byte-identical (engine `945b7ad`) + catalog↔order-line `mag-<entity_id>` fallback symmetry closed)_
+_Last updated: 2026-07-12 (PRO-1281 Stage A — design foundation: :root token sheet + six reusable component classes landed in smaily-admin.css; Stage B screens pending)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **PRO-1281 Stage A done — Phase 3 design foundation (CSS only, no screens
+  touched).** Landed the Design agent's visual system into
+  `view/adminhtml/web/css/smaily-admin.css` (already loaded on all four admin
+  pages): (1) the `:root` **token sheet** — surfaces/borders, text/link,
+  Smaily accent `#e91e63` (selection/focus/progress) kept distinct from
+  Magento action-orange `#eb5202` (primary buttons stay native), status role
+  trios (success/warning/danger/info/neutral/parked = fg + soft-bg + border),
+  banner left-bar colors, 4px-base spacing, radius, type scale, system font
+  stacks, elevation — token names copied byte-for-byte from the spec so Stage
+  B's per-screen annotations line up. (2) Six **reusable component classes**,
+  BEM-ish, matching every documented variant/state: `.smaily-choice`
+  (`.is-selected` accent border+ring+tint, radio/title-row/desc/Recommended
+  badge — distinct from the legacy orange `.smaily-ui .smaily-choice.selected`,
+  which is untouched so current screens don't change), `.smaily-pill`
+  (`--active/test/off/sent/pending/failed/parked/neutral` + `__dot`),
+  `.smaily-banner` (`--success/info/warning/error`, 4px left bar +
+  icon/title/message/action slots), `.smaily-inline-status`
+  (`.is-idle/working/saved/error` + CSS-only spinner/check/error glyphs),
+  `.smaily-tile` (`--attention` + label-row/badge/value/caption),
+  `.smaily-progress` (`.is-running` striped accent → `is-done/failed/stopped`
+  recolor). Light adminhtml only (token sheet defines no dark mode). No
+  external assets. **Nothing is wired into a template** — that is Stage B.
+  Verification: CSS self-consistency checked (every `var(--x)` referenced is
+  defined in `:root`; braces balanced); gates green (124 unit, phpcs 0 errors,
+  phpstan clean — phpcs lints php/phtml only, and no PHP changed). Browser/
+  Playwright visual proof is deferred to Stage B (screens applied), en+et.
 - **PRO-1280 done — contract v1.4.1 synced + catalog/order-line identity
   fallback made symmetric.** (1) `docs/RECENGINE_API_CONTRACT.md` overwritten
   byte-identical from engine `945b7ad` (version header now **1.4.1**, Appendix E
@@ -474,6 +500,7 @@ _Last updated: 2026-07-12 (PRO-1280 — contract synced to v1.4.1 byte-identical
 |---|---|---|
 | PRO-1198 | Release coordination with Smaily (upstream/Marketplace path) | High — Erkki's decision |
 | PRO-1201 | Hyvä theme work package | — |
+| PRO-1281 | Phase 3 design-led polish — Stage A (tokens + components) done; Stage B (apply to screens + Playwright en/et) pending | — |
 
 Closed 2026-07-11: PRO-1199 (integration suite), PRO-1200 (i18n), PRO-1202 /
 PRO-1242 (contract v1.4.0), PRO-1231 (product-delete §3b), PRO-1252
