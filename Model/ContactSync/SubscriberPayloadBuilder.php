@@ -56,7 +56,10 @@ class SubscriberPayloadBuilder
             $store = $this->storeManager->getStore($storeId);
             if ($store instanceof \Magento\Store\Model\Store) {
                 $payload['store'] = (string)$store->getName();
-                $payload['store_group'] = (string)$store->getStoreGroup()?->getName();
+                // getGroup(), not the magic getStoreGroup() (which reads the
+                // unset 'store_group' data key and silently yields null).
+                $group = $store->getGroup();
+                $payload['store_group'] = $group ? (string)$group->getName() : '';
                 $payload['store_website'] = (string)$store->getWebsite()->getName();
             }
             $websiteId = (int)$store->getWebsiteId();

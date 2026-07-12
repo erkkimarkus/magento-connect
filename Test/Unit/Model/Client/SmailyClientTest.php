@@ -50,6 +50,23 @@ class SmailyClientTest extends TestCase
             [['id' => 7, 'title' => 'Welcome'], ['id' => 9, 'title' => 'Cart']],
             $client->getAutomationWorkflows()
         );
+        // Only API-triggerable workflows may be offered: POST autoresponder.php
+        // rejects every non-form_submitted workflow with code 221.
+        $request = $this->request(0);
+        self::assertSame('/api/workflows.php', $request->getUri()->getPath());
+        self::assertSame('trigger_type=form_submitted', $request->getUri()->getQuery());
+    }
+
+    public function testGetAutomationWorkflowsFiltersDisabledWorkflows(): void
+    {
+        $client = $this->createClient([
+            new Response(200, [], '[
+                {"id": 3, "trigger_type": "form_submitted", "title": "Cart", "is_enabled": true},
+                {"id": 9, "trigger_type": "form_submitted", "title": "Draft", "is_enabled": false}
+            ]'),
+        ]);
+
+        self::assertSame([['id' => 3, 'title' => 'Cart']], $client->getAutomationWorkflows());
     }
 
     public function testPostSendsJsonAndAcceptsSuccessEnvelope(): void

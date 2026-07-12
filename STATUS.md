@@ -5,14 +5,45 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1201 Hyvä verification matrix executed — all pass; privacy-page FPC bug fixed)_
+_Last updated: 2026-07-12 (real-Smaily-credentials walk executed — all 8 surfaces pass; workflow-listing endpoint bug + store_group bug fixed)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
-- **Hyvä verified on a real Hyvä store (PRO-1201) — full matrix pass.**
+- **Real-Smaily-credentials walk done — the last unverified pre-release
+  surface is green.** All Smaily campaign-API happy paths exercised against
+  a live Smaily test account (Playwright + queue/DB checks + server-side
+  API verification; engine stayed disconnected on purpose): Test Connection
+  success path (typed creds + saved-credentials state render), workflow
+  dropdowns populating with the account's real automation workflows
+  (Settings > Automations, wizard step 3, refresh button), storefront
+  newsletter subscribe → contact.sync + welcome automation.trigger queue
+  rows flushed SENT by cron and the contact verified present/subscribed in
+  Smaily via API, contacts backfill from wizard step 2 ("Done, 4 of 4
+  synced.", live progress bar, outcome persisted across reload, contacts
+  spot-checked server-side), guest checkout with the opt-in checkbox →
+  subscriber → contact subscribed in Smaily end-to-end, abandoned-cart cron
+  → autoresponder enroll accepted by the real workflow (cart product
+  fields verified upserted onto the Smaily contact; force_opt_in=false in
+  consent mode per the API guardrail), suppress-opt-in-emails toggle
+  round-trip, and the Settings-tabs regression (Connection shows connected,
+  Automations loads with no error line, dashboard verdict healthy, unified
+  Log all-Sent). **Two real bugs found and fixed:** (1) the workflow list
+  used `GET autoresponder.php?status=ACTIVE`, which returns ALL active
+  automations — the dropdown offered workflows whose trigger type is not
+  "form submitted", and POST autoresponder.php rejects those with the
+  misleading 221 "Invalid autoresponder ID" (live-reproduced; the welcome
+  trigger failed). Now `GET workflows.php?trigger_type=form_submitted`
+  (Woo-client parity — NB: the Shopify repo's "workflows.php is not a real
+  route" lesson is wrong, it responds fine on production Smaily) with
+  disabled workflows filtered out (enrolling one returns 101 but silently
+  sends nothing). (2) `store_group` was always empty in contact +
+  abandoned-cart payloads (`getStoreGroup()` magic getter; the real method
+  is `getGroup()`) — fix verified live in Smaily contact data. Real creds
+  removed from the sandbox afterwards (fake-creds state restored); test
+  contacts erased from the Smaily account via `POST contact/forget.php`.
   Hyvä 1.5.2 installed into the sandbox from the public GitHub sources (no
   portal key needed; the exact reproducible recipe — 10 VCS repos incl. the
   non-obvious `magento2-compat-module-fallback` + the Mollie chain,
@@ -358,13 +389,25 @@ PRO-1267 (engine: Magento product-identity contract note).
 
 ## Known gaps
 
-- **Real-Smaily-credentials click-through still owed** — the engine side is
-  now fully happy-path-verified against the mock engine (see above), but
-  the Smaily campaign-API flows (Test Connection success, workflow
-  dropdowns populating, contact sync/backfill delivery, opt-in
-  confirmation emails) have only been exercised against failure paths;
-  one click-through with a real Smaily account (and ideally a real engine
-  tenant) is still owed before release.
+- **Real-engine-tenant click-through still owed** — the Smaily
+  campaign-API side is now verified against a live Smaily account (see the
+  walk entry above) and the engine side against the mock engine; one pass
+  with a real engine tenant remains a nice-to-have before release.
+- **Settings page vs config-scope overrides** — the admin Settings page
+  reads the effective store-scope config but saves at the default scope;
+  a website-scope override (e.g. carried over by the 2.8.x migration from
+  a per-website legacy setup) silently shadows what the admin just saved —
+  the page shows the override again after save and the runtime keeps using
+  it. Needs a design decision (surface/edit scope overrides, or warn).
+  Found during the real-credentials walk via the migration-seeded
+  `websites/1` subdomain row in the sandbox.
+- **Abandoned carts of guests who never reach the payment step are missed**
+  — the cron filters on `quote.customer_email`, which Magento fills only
+  once payment info is submitted; a guest who typed an email and abandoned
+  at the shipping step has it only on `quote_address` (billing). Legacy
+  2.8.x had the same filter, so this is parity, not a regression — but a
+  billing-address email fallback would cover the most common abandonment
+  window. Backlogged.
 - **Hyvä third-party AJAX-add-to-cart modules unverified** — the compat
   `cart_add` capture is verified on stock Hyvä 1.5.2 (form POST), but
   modules that submit programmatically (`form.submit()` fires no submit

@@ -186,7 +186,11 @@ Additional options:
 **Stores > Configuration > Smaily > Smaily Connect > Automations**
 
 Map Smaily automation workflows (the dropdowns load live from your account)
-to store events:
+to store events. Only enabled workflows with the **"form submitted"**
+trigger are listed — that is the only trigger type the Smaily API can
+enroll contacts into; workflows with other triggers (e.g. "subscribed to
+list") cannot be fired by an integration and are therefore not offered.
+The events:
 
 - **Welcome** — fires when someone becomes a subscriber.
 - **First Order** — fires on a customer's first order, with

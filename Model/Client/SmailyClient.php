@@ -37,6 +37,7 @@ class SmailyClient
 {
     public const ENDPOINT_CONTACT = 'contact';
     public const ENDPOINT_AUTORESPONDER = 'autoresponder';
+    public const ENDPOINT_WORKFLOWS = 'workflows';
     public const ENDPOINT_HISTORY = 'history';
 
     private const TIMEOUT_SECONDS = 30;
@@ -77,22 +78,33 @@ class SmailyClient
     }
 
     /**
-     * List active automation workflows.
+     * List automation workflows that CAN be triggered through the API.
      *
-     * Uses GET autoresponder.php?status=ACTIVE (not the legacy workflows.php).
+     * Uses GET workflows.php?trigger_type=form_submitted (WooCommerce plugin
+     * parity). POST autoresponder.php only enrolls workflows with the
+     * "form submitted" trigger — every other workflow is rejected with the
+     * misleading code 221 "Invalid autoresponder ID", even though it appears
+     * ACTIVE in GET autoresponder.php (verified against production Smaily
+     * 2026-07; listing via autoresponder.php offered untriggerable ids).
+     * Disabled workflows are filtered out: enrolling one returns 101 OK but
+     * silently sends nothing.
      *
      * @return array<int, array{id: int, title: string}>
      */
     public function getAutomationWorkflows(): array
     {
         $workflows = [];
-        foreach ($this->get(self::ENDPOINT_AUTORESPONDER, ['status' => 'ACTIVE']) as $workflow) {
-            if (is_array($workflow) && isset($workflow['id'])) {
-                $workflows[] = [
-                    'id' => (int)$workflow['id'],
-                    'title' => (string)($workflow['title'] ?? $workflow['name'] ?? $workflow['id']),
-                ];
+        foreach ($this->get(self::ENDPOINT_WORKFLOWS, ['trigger_type' => 'form_submitted']) as $workflow) {
+            if (!is_array($workflow) || !isset($workflow['id'])) {
+                continue;
             }
+            if (array_key_exists('is_enabled', $workflow) && !$workflow['is_enabled']) {
+                continue;
+            }
+            $workflows[] = [
+                'id' => (int)$workflow['id'],
+                'title' => (string)($workflow['title'] ?? $workflow['name'] ?? $workflow['id']),
+            ];
         }
 
         return $workflows;
@@ -106,7 +118,7 @@ class SmailyClient
      */
     public function validateCredentials(): void
     {
-        $this->get(self::ENDPOINT_AUTORESPONDER, ['status' => 'ACTIVE']);
+        $this->get(self::ENDPOINT_WORKFLOWS, ['trigger_type' => 'form_submitted']);
     }
 
     /**

@@ -23,6 +23,10 @@ executed verification matrix (Luma / Hyvä / strict CSP — all pass) in
 
 ## Admin / UX
 
+- Config-scope override honesty on the Settings page: reads resolve the
+  store scope, saves land at the default scope — a website-scope override
+  (e.g. migrated from a per-website 2.8.x setup) silently shadows a fresh
+  save. Surface/edit overrides or warn when one is in effect.
 - Per-language automation mapping UI (modes A/B: the `smaily_automation_mapping`
   table and Router support it; only the editing UI is missing — currently
   seeded by migration or managed via DB).
@@ -34,6 +38,10 @@ executed verification matrix (Luma / Hyvä / strict CSP — all pass) in
 
 ## Sync / data
 
+- Abandoned-cart coverage for guests who abandon before the payment step:
+  fall back to the `quote_address` billing email when
+  `quote.customer_email` is still NULL (Magento fills it only at
+  payment-info submit). Legacy-parity gap, not a regression.
 - MSI (multi-source inventory) stock-change observers; currently product-save
   and legacy stock events cover the common paths.
 - Per-store-view catalog i18n uses one representative store per language;

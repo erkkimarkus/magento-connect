@@ -68,7 +68,9 @@ class PayloadBuilder
                 // shared with the Woo/Shopify plugins (which send a URL).
                 $address['store'] = (string)$store->getName();
                 $address['store_url'] = (string)$store->getBaseUrl();
-                $address['store_group'] = (string)$store->getStoreGroup()?->getName();
+                // getGroup(), not the magic getStoreGroup() (silently null).
+                $group = $store->getGroup();
+                $address['store_group'] = $group ? (string)$group->getName() : '';
                 $address['store_website'] = (string)$store->getWebsite()->getName();
                 // A tokenized recovery link that restores this exact quote.
                 $address['abandoned_cart_url'] = $store->getUrl('smaily/cart/restore', [
