@@ -5,7 +5,7 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1292 — engine-automations trigger title/description are now admin-locale-aware with an `_en` fallback)_
+_Last updated: 2026-07-12 (PRO-1274 — Settings page now surfaces + clears the config-scope overrides that shadow what it saves)_
 
 ## Where we are
 
@@ -61,6 +61,51 @@ _Last updated: 2026-07-12 (PRO-1292 — engine-automations trigger title/descrip
   locales; sandbox admin locale restored to en_US. The engine
   trigger-card active/test/off + validation-error states are now driven live too
   — see the PRO-1288 entry below.
+- **PRO-1274 done — Settings page surfaces + clears config-scope overrides
+  (option c, Erkki-approved).** The Settings page and wizard always save at the
+  DEFAULT scope, but a more-specific `core_config_data` row (the website-scope
+  subdomain the 2.8.x migration seeds; the per-store-view credentials
+  multilingual mode A writes) shadows it at runtime — so a merchant "saved" a
+  value and saw different effective behaviour with no signal. A lightweight
+  awareness+clear layer now mirrors Magento's native "Use Default" semantics on
+  the module's OWN Settings surface (the system.xml scope switcher under Stores >
+  Configuration is untouched). **Detection:** `Model\Config\OverrideDetector`
+  reads the config-value collection directly (real stored rows, not merged/cached
+  ScopeConfig) for the module's overridable paths and reports every website /
+  store-view row that shadows the default, labelled with the website/store name
+  (global website-0 rows are skipped — they don't shadow a specific scope).
+  **Indicator:** the Settings page (`ViewModel\Adminhtml\ConfigOverrides` maps
+  each field's DOM anchor → config path) injects, next to exactly the shadowed
+  fields, a `.smaily-banner--warning` with a `.smaily-pill--neutral`
+  "Overridden for <scope>" per shadowing scope — reusing the Stage-A component
+  classes (only 3 lines of layout glue added, no new component CSS). **Clear
+  (= Use Default):** a per-scope button → `window.confirm` →
+  `Controller\Adminhtml\Config\ClearOverride` (ACL `Smaily_Connect::config`,
+  admin form-key via the shared `AbstractJsonAction`/`?form_key=` contract) →
+  `Model\Config\OverrideClearer`, which validates the path against the module
+  allowlist (`Model\Config\ModuleConfigPaths`, built from the Config /
+  EngineSettings constants so it can't drift) and the scope (websites/stores
+  only, never the default the page owns) BEFORE calling
+  `WriterInterface::delete($path, $scope, $scopeId)` on that one row, then
+  flushes the config cache and returns an honest per-scope result rendered via
+  the shared inline-status. Reversible (re-set the override at its scope);
+  confirm is the guardrail. New tests: `OverrideDetectorTest` (3: absent /
+  single website / two scopes + global-row skip) and `OverrideClearerTest`
+  (5: rejects a non-module path with NO delete, deletes exactly the requested
+  website + store-view path/scope, rejects default scope + invalid scope id) —
+  plus a `ConfigDataCollectionFactory` unit stub. i18n +10 in both packs (en↔et
+  parity, 405 each). Gates: 145 unit tests, phpcs 0 errors, phpstan clean;
+  sandbox `setup:upgrade` + `setup:di:compile` green (the four new autowired
+  classes resolve with no di.xml — and PRO-1292's `AutomationsForm`
+  ResolverInterface DI compiled clean on the same tree). Playwright en_US AND
+  et_EE against the sandbox: seeded website + store-view overrides render the
+  "Overridden for X" markers on the right fields (subdomain showed both the
+  website `demo2` and a store-view row; username its store-view row); Use
+  default → confirm removed exactly that `core_config_data` row (verified gone
+  in the DB, baseline website rows preserved) and the indicator; the Estonian
+  pack rendered every string ("Siin salvestatud, kuid alistatud…", "Alistatud:
+  …", "Kasuta vaikeväärtust"); zero module JS console errors in both locales.
+  Sandbox restored (seeded overrides cleared, admin locale en_US).
 - **PRO-1292 fixed — engine-automations trigger title/description are now
   admin-locale-aware.** `ViewModel\Adminhtml\AutomationsForm` read the engine
   catalog's `name_en`/`description_en` only, so trigger titles/descriptions
@@ -638,6 +683,7 @@ _Last updated: 2026-07-12 (PRO-1292 — engine-automations trigger title/descrip
 | PRO-1281 | Phase 3 design-led polish — DONE (Stage A tokens/components + Stage B screens; Playwright en/et green) | — |
 | PRO-1288 | Engine-automations connected-states validation — DONE (off/active/test/validation-error driven live en/et; no code change) | Low |
 | PRO-1292 | Engine-automations trigger title/description i18n — DONE (locale-aware `name_<lang>`/`description_<lang>` with `_en` fallback; unit-tested) | Low |
+| PRO-1274 | Settings vs config-scope overrides — DONE (option c: detect + "Overridden for X" indicator + Use-Default clear with path allowlist; Playwright en/et green) | Medium |
 
 Closed 2026-07-11: PRO-1199 (integration suite), PRO-1200 (i18n), PRO-1202 /
 PRO-1242 (contract v1.4.0), PRO-1231 (product-delete §3b), PRO-1252
@@ -650,14 +696,6 @@ PRO-1267 (engine: Magento product-identity contract note).
   campaign-API side is now verified against a live Smaily account (see the
   walk entry above) and the engine side against the mock engine; one pass
   with a real engine tenant remains a nice-to-have before release.
-- **Settings page vs config-scope overrides** — the admin Settings page
-  reads the effective store-scope config but saves at the default scope;
-  a website-scope override (e.g. carried over by the 2.8.x migration from
-  a per-website legacy setup) silently shadows what the admin just saved —
-  the page shows the override again after save and the runtime keeps using
-  it. Needs a design decision (surface/edit scope overrides, or warn).
-  Found during the real-credentials walk via the migration-seeded
-  `websites/1` subdomain row in the sandbox.
 - **Hyvä third-party AJAX-add-to-cart modules unverified** — the compat
   `cart_add` capture is verified on stock Hyvä 1.5.2 (form POST), but
   modules that submit programmatically (`form.submit()` fires no submit

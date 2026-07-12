@@ -15,6 +15,9 @@
             <block class="Magento\Backend\Block\Template"
                    name="smaily.settings"
                    template="Smaily_Connect::settings/index.phtml">
+                <arguments>
+                    <argument name="config_overrides" xsi:type="object">Smaily\Connect\ViewModel\Adminhtml\ConfigOverrides</argument>
+                </arguments>
                 <block class="Magento\Backend\Block\Template"
                        name="smaily.panel.connection" as="panel.connection"
                        template="Smaily_Connect::panel/connection.phtml">

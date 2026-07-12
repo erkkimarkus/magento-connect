@@ -67,6 +67,17 @@ verbosity) and per-website / per-store-view overrides live in
 **Stores > Configuration > Smaily > Smaily Connect** as before — the
 Settings page and the wizard are views over that same configuration.
 
+The Settings page always saves at the default (global) scope. If a field is
+also set at a more specific scope — a per-website subdomain, or the
+per-store-view credentials created by multilingual "Per-language Smaily
+accounts" mode — that override is what actually takes effect, so the value you
+save here would be shadowed. When that happens the field shows an
+**"Overridden for &lt;website / store view&gt;"** marker naming each scope that
+overrides it, with a **Use default** button next to it. Clicking it (after a
+confirmation) removes just that one scope's override so the value saved here
+takes effect again — the same as pressing "Use Default" in Stores >
+Configuration. You can always set the override again at its own scope later.
+
 After a major version upgrade the module posts a one-time admin
 notification suggesting a settings review — nothing is changed or blocked.
 

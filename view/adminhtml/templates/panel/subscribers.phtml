@@ -60,6 +60,7 @@ $selectedSyncFields = $viewModel->getSelectedSyncFields();
             ],
         ];
         ?>
+        <div id="smaily-w-mode-group">
         <?php foreach ($subscriberModes as $modeValue => $card): ?>
         <label class="smaily-choice<?= $modeValue === 'consent' ? ' is-selected' : '' ?>">
             <input class="smaily-choice__input" type="radio" name="smaily-w-mode"
@@ -76,6 +77,7 @@ $selectedSyncFields = $viewModel->getSelectedSyncFields();
             </span>
         </label>
         <?php endforeach; ?>
+        </div>
 
         <div class="smaily-field" style="margin-top:2rem;">
             <label><?= $escaper->escapeHtml(__('Extra fields to sync with each contact')) ?></label>

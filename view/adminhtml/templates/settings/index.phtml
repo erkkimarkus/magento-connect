@@ -22,6 +22,10 @@ $tabs = [
     'rss' => __('RSS'),
 ];
 $configUrl = $block->getUrl('adminhtml/system_config/edit', ['section' => 'smaily_connect']);
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\ConfigOverrides $overridesViewModel */
+$overridesViewModel = $block->getData('config_overrides');
+$clearOverrideUrl = $block->getUrl('smaily_connect/config/clearoverride');
 ?>
 <div id="smaily-settings" class="smaily-ui smaily-settings">
     <ul class="smaily-tabs">
@@ -95,6 +99,85 @@ require(['jquery'], function ($) {
     }
 
     panels.initAll();
+
+    // --- Config-scope override awareness (PRO-1274) -------------------------
+    // The Settings page saves at the default scope, but a website / store-view
+    // row shadows it at runtime. Surface those overrides next to the affected
+    // field and offer a native "Use Default" (delete the specific row).
+    var overrideMap = <?= /* @noEscape */ $overridesViewModel->getFieldOverridesJson() ?>;
+    var clearOverrideUrl = '<?= $escaper->escapeJs($clearOverrideUrl) ?>';
+    var OV = {
+        title: '<?= $escaper->escapeJs(__('Saved here, but overridden at a more specific scope — that override is what actually takes effect.')) ?>',
+        overriddenFor: '<?= $escaper->escapeJs(__('Overridden for %1')) ?>',
+        useDefault: '<?= $escaper->escapeJs(__('Use default')) ?>',
+        confirm: '<?= $escaper->escapeJs(__('Clear this override so the value saved here takes effect? You can set it again for that website or store view later.')) ?>',
+        clearing: '<?= $escaper->escapeJs(__('Clearing…')) ?>',
+        failed: '<?= $escaper->escapeJs(__('Could not clear the override.')) ?>'
+    };
+
+    function overrideAnchor(selector) {
+        var $el = $(selector);
+        if (!$el.length) {
+            return null;
+        }
+        var $wrap = $el.closest('.smaily-field, .smaily-inline-toggle');
+        return $wrap.length ? $wrap.first() : $el.first();
+    }
+
+    function buildOverrideIndicator(entry) {
+        var $banner = $('<div class="smaily-banner smaily-banner--warning smaily-override"></div>');
+        $banner.append($('<span class="smaily-banner__icon"></span>').text('!'));
+        var $body = $('<div class="smaily-banner__body"></div>');
+        $body.append($('<div class="smaily-banner__title"></div>').text(OV.title));
+        entry.overrides.forEach(function (o) {
+            var $row = $('<div class="smaily-override__row"></div>');
+            $row.append($('<span class="smaily-pill smaily-pill--neutral"></span>')
+                .append('<span class="smaily-pill__dot"></span>')
+                .append($('<span></span>').text(OV.overriddenFor.replace('%1', o.label))));
+            var $btn = $('<button type="button" class="action-tertiary smaily-override__clear"></button>')
+                .append($('<span></span>').text(OV.useDefault));
+            $btn.data('override', {path: entry.path, scope: o.scope, scopeId: o.scopeId});
+            $row.append($btn).append($('<span class="smaily-override__result smaily-result"></span>'));
+            $body.append($row);
+        });
+        $banner.append($body);
+        return $banner;
+    }
+
+    Object.keys(overrideMap).forEach(function (selector) {
+        var $anchor = overrideAnchor(selector);
+        if ($anchor) {
+            $anchor.after(buildOverrideIndicator(overrideMap[selector]));
+        }
+    });
+
+    $(document).on('click', '.smaily-override__clear', function () {
+        var $btn = $(this);
+        var ov = $btn.data('override');
+        var $result = $btn.siblings('.smaily-override__result');
+        if (!window.confirm(OV.confirm)) {
+            return;
+        }
+        panels.result($result, OV.clearing, true);
+        $btn.prop('disabled', true);
+        panels.post(clearOverrideUrl, {path: ov.path, scope: ov.scope, scope_id: ov.scopeId})
+            .then(function (data) {
+                if (data && data.cleared) {
+                    var $banner = $btn.closest('.smaily-override');
+                    $btn.closest('.smaily-override__row').remove();
+                    if ($banner.find('.smaily-override__row').length === 0) {
+                        $banner.remove();
+                    }
+                } else {
+                    panels.result($result, (data && data.message) || OV.failed, false);
+                    $btn.prop('disabled', false);
+                }
+            })
+            .catch(function () {
+                panels.result($result, OV.failed, false);
+                $btn.prop('disabled', false);
+            });
+    });
 
     $('.smaily-tabs').on('click', 'li', function () {
         activate($(this).data('tab'), true);
