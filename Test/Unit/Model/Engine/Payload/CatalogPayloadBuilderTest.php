@@ -14,9 +14,11 @@ use Magento\Catalog\Helper\ImageFactory as ImageHelperFactory;
 use Magento\Catalog\Model\Product;
 use Magento\CatalogInventory\Api\Data\StockItemInterface;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
+use Magento\Framework\App\Area;
 use Magento\Framework\Pricing\Amount\AmountInterface;
 use Magento\Framework\Pricing\Price\PriceInterface;
 use Magento\Framework\Pricing\PriceInfoInterface;
+use Magento\Store\Model\App\Emulation;
 use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -67,7 +69,28 @@ class CatalogPayloadBuilderTest extends TestCase
         self::assertSame('17', $item['tags']['product_id']);
     }
 
-    private function createBuilder(string $resolvedProductId): CatalogPayloadBuilder
+    /**
+     * PRO-1269: product_url must be generated under frontend store emulation
+     * so it is the clean storefront URL in any execution context (web/CLI/
+     * cron) — never one embedding the invoking PHP entry script path. The
+     * emulation is forced to the frontend area and always stopped.
+     */
+    public function testProductUrlIsBuiltUnderFrontendStoreEmulation(): void
+    {
+        $emulation = $this->createMock(Emulation::class);
+        $emulation->expects(self::once())
+            ->method('startEnvironmentEmulation')
+            ->with(self::anything(), Area::AREA_FRONTEND, true);
+        $emulation->expects(self::once())->method('stopEnvironmentEmulation');
+
+        $builder = $this->createBuilder('42', $emulation);
+
+        $item = $builder->build($this->product(42, 'SHIRT'));
+
+        self::assertSame('https://shop.example/shirt', $item['product_url']);
+    }
+
+    private function createBuilder(string $resolvedProductId, ?Emulation $emulation = null): CatalogPayloadBuilder
     {
         $parentResolver = $this->createMock(ParentProductResolver::class);
         $parentResolver->method('productIdOf')->with(42)->willReturn($resolvedProductId);
@@ -87,7 +110,8 @@ class CatalogPayloadBuilderTest extends TestCase
             $stockRegistry,
             new ImageHelperFactory(),
             $this->createMock(LanguageResolver::class),
-            $parentResolver
+            $parentResolver,
+            $emulation ?? $this->createMock(Emulation::class)
         );
     }
 

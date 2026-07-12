@@ -5,13 +5,32 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1275 fixed — abandoned-cart cron now reaches guests who abandon before the payment step via a quote-address email fallback)_
+_Last updated: 2026-07-12 (PRO-1269 fixed — catalog `product_url` is now generated under forced frontend store emulation, so it is the clean storefront URL in any execution context — never one embedding the CLI/cron PHP entry script path)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **PRO-1269 fixed — catalog `product_url` is always the clean storefront
+  URL, in any execution context.** `getProductUrl()` resolves against the
+  *current* app environment, so when the catalog payload is built under
+  CLI/cron (the `EngineCatalogProcessor` backfill job, cron flushers) the URL
+  could embed the invoking PHP entry script path (observed during the
+  2026-07-11 mock-engine walk: `.../run-job.php/smaily-walk-tee.html`) — a
+  link that 404s in a recommendation email. `CatalogPayloadBuilder` now routes
+  every `product_url` through a `productUrl()` helper that wraps the URL
+  generation in forced frontend store emulation (`Store\Model\App\Emulation`,
+  `Area::AREA_FRONTEND`, force=true) — the same idiom `Cron\AbandonedCart`
+  already uses — with emulation always stopped in a `finally`. The
+  multi-language branch emulates each language's representative store; the
+  single-language branch emulates the product's own store view, falling back
+  to the default store view when the product carries only the admin scope
+  (`store_id` 0, the usual CLI/cron/backfill case — not a storefront). New
+  unit test `testProductUrlIsBuiltUnderFrontendStoreEmulation` asserts the
+  forced-frontend start + always-stop and the clean URL out; the constructor
+  gained the `Emulation` collaborator (autowired, no di.xml). Gates: 122 unit
+  tests green, phpcs 0 errors, phpstan clean.
 - **PRO-1275 fixed — pre-payment guest abandoned carts are now reminded.**
   Magento fills `quote.customer_email` only once payment info is submitted,
   so a guest who typed an email and abandoned at/before the shipping step

@@ -16,7 +16,9 @@ use Magento\Catalog\Model\Product\Attribute\Source\Status;
 use Magento\Catalog\Model\Product\Type;
 use Magento\Catalog\Model\Product\Visibility;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
+use Magento\Framework\App\Area;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Store\Model\App\Emulation;
 use Magento\Store\Model\StoreManagerInterface;
 use Smaily\Connect\Model\Multilingual\LanguageResolver;
 
@@ -38,7 +40,8 @@ class CatalogPayloadBuilder
         private readonly StockRegistryInterface $stockRegistry,
         private readonly ImageHelperFactory $imageHelperFactory,
         private readonly LanguageResolver $languageResolver,
-        private readonly ParentProductResolver $parentProductResolver
+        private readonly ParentProductResolver $parentProductResolver,
+        private readonly Emulation $emulation
     ) {
     }
 
@@ -145,10 +148,12 @@ class CatalogPayloadBuilder
         $storesByLanguage = $this->storesByLanguage($product);
 
         if (count($storesByLanguage) <= 1) {
+            $storeId = $storesByLanguage ? (int)reset($storesByLanguage) : $this->fallbackStoreId($product);
+
             return [
                 'name' => (string)$product->getName(),
                 'description' => $this->description($product),
-                'product_url' => (string)$product->getProductUrl(),
+                'product_url' => $this->productUrl($product, $storeId),
             ];
         }
 
@@ -169,13 +174,13 @@ class CatalogPayloadBuilder
             if ($description !== null) {
                 $descriptions[$language] = $description;
             }
-            $urls[$language] = (string)$storeProduct->getProductUrl();
+            $urls[$language] = $this->productUrl($storeProduct, (int)$storeId);
         }
 
         return [
             'name' => $names ?: (string)$product->getName(),
             'description' => $descriptions ?: $this->description($product),
-            'product_url' => $urls ?: (string)$product->getProductUrl(),
+            'product_url' => $urls ?: $this->productUrl($product, $this->fallbackStoreId($product)),
         ];
     }
 
@@ -197,6 +202,49 @@ class CatalogPayloadBuilder
         }
 
         return $byLanguage;
+    }
+
+    /**
+     * Frontend-scoped product URL.
+     *
+     * `getProductUrl()` resolves against the *current* app environment, so in
+     * a CLI/cron context (backfill jobs, cron flushers) the generated URL can
+     * embed the invoking PHP entry script path (observed:
+     * `.../run-job.php/some-product.html`) — a link that 404s in an email.
+     * Forcing frontend store emulation makes the URL come out exactly as the
+     * storefront would render it, in any execution context (web/CLI/cron).
+     * Emulation is always stopped, even on failure (try/finally).
+     */
+    private function productUrl(Product $product, int $storeId): string
+    {
+        $this->emulation->startEnvironmentEmulation($storeId, Area::AREA_FRONTEND, true);
+        try {
+            return (string)$product->getProductUrl();
+        } finally {
+            $this->emulation->stopEnvironmentEmulation();
+        }
+    }
+
+    /**
+     * A storefront scope to emulate when the product carries none of its own.
+     *
+     * Under cron/CLI a product is typically loaded in the admin scope
+     * (`store_id` 0), which is NOT a storefront and would still yield an
+     * entry-script URL — so fall back to the default store view (the class's
+     * canonical single-language fallback).
+     */
+    private function fallbackStoreId(Product $product): int
+    {
+        $productStoreId = (int)$product->getStoreId();
+        if ($productStoreId > 0) {
+            return $productStoreId;
+        }
+
+        try {
+            return (int)$this->storeManager->getDefaultStoreView()?->getId();
+        } catch (NoSuchEntityException) {
+            return 0;
+        }
     }
 
     private function description(Product $product): ?string
