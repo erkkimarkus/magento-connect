@@ -16,12 +16,20 @@ namespace Smaily\Connect\Model\Automation;
  * Binding preservation — a save must NEVER silently wipe a workflow binding:
  *  - per_language: a map saved from another platform on the same tenant (it
  *    carries per-language ids the single select cannot represent) is kept as
- *    long as the merchant did not change the fallback workflow here.
+ *    long as the merchant did not change the fallback workflow here — OR the
+ *    saved fallback id is itself missing from the list, so the empty post is
+ *    not a deliberate clear (PRO-1286).
  *  - single: a saved workflow id that is ABSENT from the freshly loaded Smaily
  *    workflow list (deleted in Smaily, or the list failed to load) was never
  *    offered in the dropdown, so an empty post is not a deliberate clear — the
  *    binding is kept rather than dropped (PRO-1268). An id that IS in the list
  *    but was cleared to "-- Not Selected --" is a real clear and is honored.
+ *
+ * The "keep a saved id when the posted value is empty and the id is not in the
+ * current list" decision lives in one place — {@see self::isMissingFromList()} —
+ * and is reused by the other admin save paths (wizard/Settings single-mode
+ * selects, the per-language mapping editor) so the resilience is identical
+ * everywhere (PRO-1286).
  */
 class ConfigRowNormalizer
 {
@@ -45,16 +53,18 @@ class ConfigRowNormalizer
         $decoded = json_decode((string)($data['original_map'] ?? ''), true);
         $originalMap = is_array($decoded) ? $decoded : [];
         $savedSingleId = isset($originalMap['id']) ? (string)$originalMap['id'] : '';
+        $savedFallbackId = (string)($originalMap['fallback'] ?? '');
 
         if ($originalMode === 'per_language'
-            && $workflowId === (string)($originalMap['fallback'] ?? '')
+            && ($workflowId === $savedFallbackId
+                || $this->isMissingFromList($workflowId, $savedFallbackId, $availableWorkflowIds))
         ) {
+            // Fallback unchanged, or the saved fallback id is missing from the
+            // list (never offered, so the empty post is not a clear) — keep the
+            // whole per-language map. See the class docblock.
             $languageMode = 'per_language';
             $map = $originalMap;
-        } elseif ($workflowId === ''
-            && $savedSingleId !== ''
-            && !in_array($savedSingleId, $availableWorkflowIds, true)
-        ) {
+        } elseif ($this->isMissingFromList($workflowId, $savedSingleId, $availableWorkflowIds)) {
             // Missing-from-list preserve — see the class docblock.
             $languageMode = 'single';
             $map = ['id' => $savedSingleId];
@@ -74,5 +84,24 @@ class ConfigRowNormalizer
             'test_mode' => !empty($data['test_mode']),
             'test_emails' => array_slice($testEmails, 0, 50),
         ];
+    }
+
+    /**
+     * The shared "keep a saved binding rather than silently drop it" decision,
+     * reused across every admin workflow-save surface (PRO-1268/PRO-1286): a
+     * saved workflow id is preserved when the posted value is empty AND that id
+     * is not present in the freshly loaded Smaily workflow list. An empty list
+     * (credentials missing or the listing failed) means "unknown", so every
+     * saved id then counts as missing and is kept. An id that IS in the list
+     * but was cleared is a deliberate clear and is NOT preserved.
+     *
+     * @param array<int, string> $availableWorkflowIds ids (string form) the
+     *        Smaily API can currently list; empty = list unavailable.
+     */
+    public function isMissingFromList(string $postedId, string $savedId, array $availableWorkflowIds): bool
+    {
+        return $postedId === ''
+            && $savedId !== ''
+            && !in_array($savedId, $availableWorkflowIds, true);
     }
 }

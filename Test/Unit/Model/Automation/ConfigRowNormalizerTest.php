@@ -123,6 +123,89 @@ class ConfigRowNormalizerTest extends TestCase
         self::assertSame('per_language', $row['language_mode']);
     }
 
+    /**
+     * PRO-1286: the per_language fallback workflow is missing from the freshly
+     * loaded Smaily list, so the single select rendered no option and posted an
+     * empty workflow_id. The whole per-language map must be kept, not wiped.
+     */
+    public function testPerLanguageMapPreservedWhenMissingFallbackPostsEmpty(): void
+    {
+        $map = ['fallback' => '999', 'en' => '111', 'et' => '222'];
+        $row = $this->normalizer->normalize(
+            'welcome',
+            [
+                'workflow_id' => '',
+                'language_mode' => 'per_language',
+                'original_map' => json_encode($map),
+                'enabled' => '1',
+            ],
+            ['456', '789']
+        );
+
+        self::assertSame($map, $row['automation_map']);
+        self::assertSame('per_language', $row['language_mode']);
+    }
+
+    /**
+     * PRO-1286: the list failed to load entirely — every saved id counts as
+     * missing, so the per-language map survives a blind save.
+     */
+    public function testPerLanguageMapPreservedWhenListFailedToLoad(): void
+    {
+        $map = ['fallback' => '999', 'en' => '111'];
+        $row = $this->normalizer->normalize(
+            'welcome',
+            [
+                'workflow_id' => '',
+                'language_mode' => 'per_language',
+                'original_map' => json_encode($map),
+                'enabled' => '1',
+            ],
+            []
+        );
+
+        self::assertSame($map, $row['automation_map']);
+        self::assertSame('per_language', $row['language_mode']);
+    }
+
+    /**
+     * PRO-1286: the per_language fallback id IS in the list and the merchant
+     * cleared the select — a deliberate clear collapses to an empty single map.
+     */
+    public function testClearingPerLanguageFallbackThatIsPresentIsHonored(): void
+    {
+        $map = ['fallback' => '999', 'en' => '111'];
+        $row = $this->normalizer->normalize(
+            'welcome',
+            [
+                'workflow_id' => '',
+                'language_mode' => 'per_language',
+                'original_map' => json_encode($map),
+                'enabled' => '1',
+            ],
+            ['999', '456']
+        );
+
+        self::assertInstanceOf(\stdClass::class, $row['automation_map']);
+        self::assertSame('single', $row['language_mode']);
+        self::assertFalse($row['enabled'], 'An empty map cannot be enabled.');
+    }
+
+    /**
+     * The shared decision helper is the one place the "keep a saved id when the
+     * post is empty and the id is missing from the list" rule lives (reused by
+     * the wizard/Settings selects and the mapping editor). Empty list = unknown
+     * = missing; a present id cleared is not missing.
+     */
+    public function testIsMissingFromListDecision(): void
+    {
+        self::assertTrue($this->normalizer->isMissingFromList('', '123', ['456']));
+        self::assertTrue($this->normalizer->isMissingFromList('', '123', []), 'Empty list = unknown = missing');
+        self::assertFalse($this->normalizer->isMissingFromList('', '123', ['123']), 'Present id cleared = honest clear');
+        self::assertFalse($this->normalizer->isMissingFromList('456', '123', ['789']), 'A non-empty post is a real choice');
+        self::assertFalse($this->normalizer->isMissingFromList('', '', ['456']), 'No saved id, nothing to preserve');
+    }
+
     public function testChangingPerLanguageFallbackCollapsesToSingle(): void
     {
         $map = ['fallback' => '999', 'en' => '111'];

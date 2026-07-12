@@ -123,14 +123,39 @@ window.smailyPanelsInit = function ($) {
         });
     }
 
+    // A saved workflow id absent from the freshly loaded Smaily list gets no
+    // option of its own, so it would render blank and post empty. Re-add it as
+    // a labelled, selected option so the binding stays visible and survives the
+    // save (server-side preserve backs this up) — PRO-1286, mirroring the
+    // engine-automations block.
+    function keptOption(id) {
+        return new Option(
+            '<?= $escaper->escapeJs(__('Workflow #%1 (not in your Smaily list — kept)')) ?>'
+                .replace('%1', id),
+            id
+        );
+    }
+
+    function fillOptions($select, workflows, current) {
+        current = String(current || '');
+        var found = false;
+        $select.empty().append(new Option('<?= $escaper->escapeJs(__('-- Not Selected --')) ?>', ''));
+        (workflows || []).forEach(function (w) {
+            $select.append(new Option(w.name + ' (' + w.id + ')', w.id));
+            if (String(w.id) === current) {
+                found = true;
+            }
+        });
+        if (current !== '' && !found) {
+            $select.append(keptOption(current));
+        }
+        $select.val(current);
+    }
+
     function fillWorkflows(workflows) {
         $('.smaily-w-workflow').each(function () {
-            var current = $(this).val() || $(this).data('saved') || '';
-            $(this).empty().append(new Option('<?= $escaper->escapeJs(__('-- Not Selected --')) ?>', ''));
-            (workflows || []).forEach(function (w) {
-                $(this).append(new Option(w.name + ' (' + w.id + ')', w.id));
-            }.bind(this));
-            $(this).val(current);
+            var $select = $(this);
+            fillOptions($select, workflows, $select.val() || $select.data('saved') || '');
         });
     }
 
@@ -195,12 +220,8 @@ window.smailyPanelsInit = function ($) {
 
     function fillMappingSelects($selects, workflows) {
         $selects.each(function () {
-            var current = $(this).val() || $(this).data('saved') || '';
-            $(this).empty().append(new Option('<?= $escaper->escapeJs(__('-- Not Selected --')) ?>', ''));
-            (workflows || []).forEach(function (w) {
-                $(this).append(new Option(w.name + ' (' + w.id + ')', w.id));
-            }.bind(this));
-            $(this).val(String(current));
+            var $select = $(this);
+            fillOptions($select, workflows, $select.val() || $select.data('saved') || '');
         });
     }
 

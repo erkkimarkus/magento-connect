@@ -99,6 +99,65 @@ class MappingSaverTest extends IntegrationTestCase
         self::assertSame('et', $rows[0]['language']);
     }
 
+    /**
+     * PRO-1286: a full-desired-state sync must NOT drop a saved mapping row
+     * whose workflow id is missing from its account's freshly loaded list — the
+     * select never offered it, so its absence from the payload is not a clear.
+     * A row whose id IS still in the list and was cleared is deleted as before.
+     */
+    public function testStaleRowWithMissingWorkflowIdIsPreserved(): void
+    {
+        $this->saver->save([
+            $this->row('welcome', 'et', 'et', 101),
+            $this->row('welcome', 'en', 'en', 102),
+        ]);
+
+        // The merchant cleared BOTH selects (empty desired state). ET's saved
+        // workflow 101 is gone from ET's account list (kept), EN's 102 is still
+        // present (deliberate clear → deleted).
+        $this->saver->save([], 0, [
+            'et' => ['999'],
+            'en' => ['102'],
+        ]);
+
+        $byKey = $this->indexRows($this->fetchAll(MappingResource::TABLE_NAME));
+        self::assertArrayHasKey('welcome|et|et', $byKey, 'Missing-from-list id is preserved');
+        self::assertSame('101', $byKey['welcome|et|et']['workflow_id']);
+        self::assertArrayNotHasKey('welcome|en|en', $byKey, 'Present id cleared is an honest delete');
+    }
+
+    /**
+     * PRO-1286: the workflow list could not be loaded for an account (empty
+     * list), or the account key was not resolved at all — either way the id is
+     * unconfirmed, so the row is kept rather than blind-deleted.
+     */
+    public function testStaleRowIsPreservedWhenAccountListIsUnavailable(): void
+    {
+        $this->saver->save([
+            $this->row('welcome', 'et', 'et', 101),
+            $this->row('first_order', 'de', 'de', 301),
+        ]);
+
+        // ET list failed to load (empty); DE was not resolved at all (absent).
+        $this->saver->save([], 0, ['et' => []]);
+
+        $byKey = $this->indexRows($this->fetchAll(MappingResource::TABLE_NAME));
+        self::assertArrayHasKey('welcome|et|et', $byKey, 'Empty (failed) list = unknown = kept');
+        self::assertArrayHasKey('first_order|de|de', $byKey, 'Unresolved account = unknown = kept');
+    }
+
+    /**
+     * The preserve logic is opt-in: callers that pass no account lists (the
+     * 2.8.x migration, plain resaves) keep the plain full-sync delete.
+     */
+    public function testWithoutAccountListsFullSyncStillDeletesClearedRows(): void
+    {
+        $this->saver->save([$this->row('welcome', 'et', 'et', 101)]);
+        $this->saver->save([]);
+
+        self::assertCount(0, $this->fetchAll(MappingResource::TABLE_NAME));
+    }
+
     public function testOnlyOneFallbackRowPerTriggerSurvives(): void
     {
         $this->saver->save([

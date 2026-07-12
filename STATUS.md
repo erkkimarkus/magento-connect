@@ -5,7 +5,7 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1281 Stage B — the visual system applied to all six screens; Playwright-validated en_US + et_EE, di:compile green; PRO-1281 complete)_
+_Last updated: 2026-07-12 (PRO-1286 — missing-workflow-id preserve rule extended to all four save surfaces via the shared ConfigRowNormalizer::isMissingFromList; 132 unit + 56 integration green, di:compile green)_
 
 ## Where we are
 
@@ -155,6 +155,50 @@ _Last updated: 2026-07-12 (PRO-1281 Stage B — the visual system applied to all
   121 unit tests green, phpcs 0 errors, phpstan clean. USER_GUIDE
   abandoned-cart section clarified (email can come from the checkout address,
   not just the payment step).
+- **PRO-1286 fixed — the missing-workflow-id preserve rule now covers all
+  four save surfaces (PRO-1268 follow-up).** The "keep a saved workflow id
+  when the posted value is empty AND that id is not in the freshly loaded
+  Smaily list (empty/unloadable list = every saved id counts as missing =
+  kept)" decision was extracted to one shared method
+  `ConfigRowNormalizer::isMissingFromList()` and reused — no copy-paste — on
+  the three surfaces PRO-1268 left exposed: (1) **per_language mapping
+  fallback** in `ConfigRowNormalizer::normalize` — the old
+  `workflowId === fallback` check wiped a per-language map when a missing
+  fallback posted empty; the per_language branch now also preserves the whole
+  map when the empty post's saved fallback id is missing from the list (a
+  present fallback cleared to "-- Not Selected --" still collapses to an empty
+  single map — honest clear kept); (2) **Wizard/Settings single-mode selects**
+  (`.smaily-w-workflow`) via `WizardStepSaver::saveAutomations` — it now reads
+  each saved workflow id from `Config`, resolves the live list once
+  (`SmailyClientProvider::forStore(null)`, lazily, only when a workflow key is
+  posted), and skips the `configWriter->save` (preserving the stored binding)
+  when the posted value is empty and the saved id is missing; a present id
+  cleared still writes `0`; (3) **Per-language mapping editor**
+  (`MappingSaver`, full-desired-state sync) — `save()` gained an optional
+  `array<accountKey, string[]> $availableByAccount`; a stale existing row
+  (absent from the desired state) whose workflow id is NOT confirmed in its
+  account's live list — including an unresolved account key or an empty/failed
+  list — is preserved instead of deleted; `WizardStepSaver` builds the
+  per-account lists ('default' + each detected language, so mode A's
+  per-language accounts and mode B's shared account are both covered). Callers
+  that pass no lists (the 2.8.x migration, plain resaves, tests) keep the plain
+  full-sync delete (the param is nullable/opt-in). UI parity: the shared panel
+  selects (`fillWorkflows`/`fillMappingSelects` → new `fillOptions`) now render
+  a retained-but-missing saved id as a labelled selected option (reusing the
+  existing PRO-1268 phrase "Workflow #%1 (not in your Smaily list — kept)", no
+  new i18n) so the binding stays visible and re-posts. New tests: 5 unit cases
+  on `ConfigRowNormalizerTest` (per_language missing-fallback preserved,
+  list-load-failure preserved, present-fallback clear honored, plus the shared
+  `isMissingFromList` decision table), a new `Test/Unit/Model/Adminhtml/
+  WizardStepSaverTest` (4 cases: missing preserved, list-load-failure
+  preserved, present clear honored, new selection stored) and 3 new
+  `MappingSaverTest` integration cases (missing-id preserved / present-id clear
+  deleted in one full sync, empty-or-unresolved-account-list preserved, opt-in
+  behaviour — no lists = plain full-sync delete). Gates: 132 unit + 56
+  integration tests green, phpcs 0 errors, phpstan clean, sandbox
+  `setup:di:compile` green (the two new autowired constructor args on
+  `WizardStepSaver` — `SmailyClientProvider` + `ConfigRowNormalizer` — resolve
+  with no new di.xml).
 - **PRO-1268 fixed — engine-automations save preserves a binding whose
   workflow id is missing from the Smaily list.** The Campaign Intelligence
   automations block (`config/engine-automations.phtml` → `Automations\Save`)
@@ -516,11 +560,10 @@ _Last updated: 2026-07-12 (PRO-1281 Stage B — the visual system applied to all
   exchanges; `not_found` = success). Configurable-child delete keeps the
   per-SKU `in_stock=false` soft path; disabled products stay on the
   ProductSaveAfter soft path. Mirrors Woo PRO-1230 (commit 92768d5).
-- **Gates green:** 124 unit tests, 45 integration tests, phpcs clean,
-  phpstan clean. `setup:upgrade` + `setup:di:compile` re-verified in the
-  docker sandbox on the fully merged tree (2b + 2c included; the PRO-1268
-  ConfigRowNormalizer fix is pure PHP + template + DI-autowired constructor
-  args, no new di.xml, so it needs no re-compile beyond the standard gate).
+- **Gates green:** 132 unit tests, 56 integration tests, phpcs 0 errors,
+  phpstan clean. `setup:di:compile` re-verified in the docker sandbox after
+  the PRO-1286 change (two new DI-autowired constructor args on
+  `WizardStepSaver`, no new di.xml).
 - **Hyvä compat skeleton + work package done (PRO-1201)** — full storefront
   audit with file:line evidence in `docs/HYVA_SUPPORT.md`. Compat
   module `Hyva_SmailyConnect` under `compat/hyva/` (standard Hyvä pattern:

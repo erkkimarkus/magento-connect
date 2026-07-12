@@ -14,7 +14,11 @@ use Magento\Framework\App\Config\Storage\WriterInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\StoreManagerInterface;
+use Smaily\Connect\Model\Automation\ConfigRowNormalizer;
+use Smaily\Connect\Model\Automation\Mapping;
 use Smaily\Connect\Model\Automation\MappingSaver;
+use Smaily\Connect\Model\Client\Exception\SmailyClientException;
+use Smaily\Connect\Model\Client\SmailyClientProvider;
 use Smaily\Connect\Model\Config;
 use Smaily\Connect\Model\Config\Source\AbandonedFields;
 use Smaily\Connect\Model\Config\Source\MultilingualMode;
@@ -41,7 +45,9 @@ class WizardStepSaver
         private readonly AccountResolver $accountResolver,
         private readonly Config $config,
         private readonly StoreManagerInterface $storeManager,
-        private readonly MappingSaver $mappingSaver
+        private readonly MappingSaver $mappingSaver,
+        private readonly SmailyClientProvider $smailyClientProvider,
+        private readonly ConfigRowNormalizer $rowNormalizer
     ) {
     }
 
@@ -200,14 +206,28 @@ class WizardStepSaver
         $this->saveFlag(Config::XML_PATH_FIRST_ORDER_ENABLED, $data, 'first_order_enabled');
         $this->saveFlag(Config::XML_PATH_ABANDONED_ENABLED, $data, 'abandoned_enabled');
 
+        // A saved workflow id that is missing from the freshly loaded Smaily
+        // list was never offered in the select, so an empty post is not a
+        // deliberate clear — the stored binding is kept rather than dropped
+        // (PRO-1286, same rule as the engine-automations single mode). Only
+        // resolved lazily below, when a workflow key is actually posted.
+        $availableWorkflowIds = null;
         foreach ([
-            'welcome_workflow' => Config::XML_PATH_WELCOME_WORKFLOW,
-            'first_order_workflow' => Config::XML_PATH_FIRST_ORDER_WORKFLOW,
-            'abandoned_workflow' => Config::XML_PATH_ABANDONED_WORKFLOW,
-        ] as $key => $path) {
-            if (array_key_exists($key, $data)) {
-                $this->configWriter->save($path, (string)(int)$data[$key]);
+            'welcome_workflow' => [Config::XML_PATH_WELCOME_WORKFLOW, $this->config->getWelcomeWorkflow()],
+            'first_order_workflow' => [Config::XML_PATH_FIRST_ORDER_WORKFLOW, $this->config->getFirstOrderWorkflow()],
+            'abandoned_workflow' => [Config::XML_PATH_ABANDONED_WORKFLOW, $this->config->getAbandonedCartWorkflow()],
+        ] as $key => [$path, $savedWorkflow]) {
+            if (!array_key_exists($key, $data)) {
+                continue;
             }
+            $postedId = ($id = (int)$data[$key]) > 0 ? (string)$id : '';
+            $savedId = $savedWorkflow > 0 ? (string)$savedWorkflow : '';
+            $availableWorkflowIds ??= $this->workflowIdsForStore(null);
+            if ($this->rowNormalizer->isMissingFromList($postedId, $savedId, $availableWorkflowIds)) {
+                // Missing-from-list preserve: leave the stored value untouched.
+                continue;
+            }
+            $this->configWriter->save($path, $postedId === '' ? '0' : $postedId);
         }
 
         if (array_key_exists('abandoned_cutoff', $data)) {
@@ -228,11 +248,57 @@ class WizardStepSaver
         // Per-language workflow mappings (multilingual modes a/b). The panel
         // sends the full desired state, so absent selections delete their
         // rows; single/c saves omit the key and leave the table untouched.
+        // The per-account available-workflow lists let the saver preserve a
+        // saved mapping row whose id is missing from its account's live list
+        // instead of dropping it on the full sync (PRO-1286).
         if (isset($data['mappings']) && is_array($data['mappings'])) {
-            return $this->mappingSaver->save($data['mappings']);
+            return $this->mappingSaver->save(
+                $data['mappings'],
+                0,
+                $this->availableWorkflowIdsByAccount()
+            );
         }
 
         return [];
+    }
+
+    /**
+     * Available workflow ids per mapping account key: 'default' (the shared /
+     * mode-B account) plus each detected language (mode A, where a language's
+     * rows route through that language's own Smaily account). An account whose
+     * list cannot be loaded maps to an empty list, which the saver reads as
+     * "unknown" and preserves.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function availableWorkflowIdsByAccount(): array
+    {
+        $byAccount = [Mapping::ACCOUNT_DEFAULT => $this->workflowIdsForStore(null)];
+        foreach ($this->accountResolver->detectedLanguages() as $language) {
+            $byAccount[$language] = $this->workflowIdsForStore(
+                $this->accountResolver->storeIdForAccountKey($language)
+            );
+        }
+
+        return $byAccount;
+    }
+
+    /**
+     * Workflow ids the Smaily account bound to the given store scope can list,
+     * as strings. An empty array means the list is unavailable (credentials
+     * missing or the listing failed) — the caller then keeps every saved id.
+     *
+     * @return array<int, string>
+     */
+    private function workflowIdsForStore(?int $storeId): array
+    {
+        try {
+            $workflows = $this->smailyClientProvider->forStore($storeId)->getAutomationWorkflows();
+        } catch (SmailyClientException) {
+            return [];
+        }
+
+        return array_map(static fn (array $workflow): string => (string)$workflow['id'], $workflows);
     }
 
     /**

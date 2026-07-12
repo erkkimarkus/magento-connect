@@ -36,9 +36,18 @@ class MappingSaver
      * @param array<int, mixed> $rows desired mapping rows:
      *        {trigger_type, language, account_key?, workflow_id, is_default_fallback?}
      * @param int $websiteId 0 = the global scope the Settings/wizard panels edit
+     * @param array<string, array<int, string>>|null $availableByAccount workflow
+     *        ids each account key (language, or 'default') can currently list.
+     *        When provided, a stale existing row (one the desired state no longer
+     *        contains) whose workflow id is NOT in its account's list is
+     *        preserved instead of deleted — a saved id missing from the freshly
+     *        loaded list (deleted in Smaily, or an unloadable/absent list) was
+     *        never offered in the select, so its absence is not a deliberate
+     *        clear (PRO-1286). Null keeps the plain full-sync delete (callers
+     *        that do not resolve the lists, e.g. migrations/tests).
      * @return array<int, array{field: string, message: string}> empty on success
      */
-    public function save(array $rows, int $websiteId = 0): array
+    public function save(array $rows, int $websiteId = 0, ?array $availableByAccount = null): array
     {
         $desired = [];
         foreach ($rows as $row) {
@@ -103,16 +112,21 @@ class MappingSaver
 
         $existing = $connection->fetchAll(
             $connection->select()
-                ->from($table, ['id', 'trigger_type', 'language', 'account_key'])
+                ->from($table, ['id', 'trigger_type', 'language', 'account_key', 'workflow_id'])
                 ->where('website_id = ?', $websiteId)
                 ->where('trigger_type IN (?)', self::MANAGED_TRIGGERS)
         );
         $staleIds = [];
         foreach ($existing as $row) {
             $key = $row['trigger_type'] . '|' . $row['language'] . '|' . $row['account_key'];
-            if (!isset($desired[$key])) {
-                $staleIds[] = (int)$row['id'];
+            if (isset($desired[$key])) {
+                continue;
             }
+            if ($availableByAccount !== null && $this->isMissingFromList($row, $availableByAccount)) {
+                // Saved id absent from its account's live list — keep the row.
+                continue;
+            }
+            $staleIds[] = (int)$row['id'];
         }
         if ($staleIds !== []) {
             $connection->delete($table, ['id IN (?)' => $staleIds]);
@@ -132,5 +146,25 @@ class MappingSaver
     private function isValidKey(string $value): bool
     {
         return $value === Mapping::LANGUAGE_DEFAULT || preg_match('/^[a-z]{2,3}$/', $value) === 1;
+    }
+
+    /**
+     * A stale existing row is preserved when its workflow id cannot be
+     * confirmed present in its account's freshly loaded list: an account key
+     * we did not resolve, or a resolved-but-empty list (load failure), both
+     * count as "unknown" and keep the row; only an id that IS in the account's
+     * list is a confirmed deliberate clear and gets deleted (PRO-1286).
+     *
+     * @param array<string, mixed> $row existing row {account_key, workflow_id, ...}
+     * @param array<string, array<int, string>> $availableByAccount
+     */
+    private function isMissingFromList(array $row, array $availableByAccount): bool
+    {
+        $accountKey = (string)($row['account_key'] ?? Mapping::ACCOUNT_DEFAULT);
+        if (!array_key_exists($accountKey, $availableByAccount)) {
+            return true;
+        }
+
+        return !in_array((string)($row['workflow_id'] ?? ''), $availableByAccount[$accountKey], true);
     }
 }
