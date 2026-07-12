@@ -4,6 +4,7 @@ Smaily Connect keeps your newsletter audience, marketing automations and
 (optionally) Smaily Campaign Intelligence in sync with your Magento store.
 
 - [Installation](#installation)
+- [Finding your way around](#finding-your-way-around)
 - [Connecting your Smaily account](#connecting-your-smaily-account)
 - [Subscriber synchronization](#subscriber-synchronization)
 - [Automations](#automations)
@@ -11,7 +12,7 @@ Smaily Connect keeps your newsletter audience, marketing automations and
 - [Product RSS feed](#product-rss-feed)
 - [Campaign Intelligence](#campaign-intelligence)
 - [Historical import (backfill)](#historical-import-backfill)
-- [Event logs and troubleshooting](#event-logs-and-troubleshooting)
+- [The log and troubleshooting](#the-log-and-troubleshooting)
 - [Privacy and GDPR](#privacy-and-gdpr)
 - [CLI reference](#cli-reference)
 - [FAQ](#faq)
@@ -50,6 +51,27 @@ Just update the package and run `bin/magento setup:upgrade` — see
 
 ---
 
+## Finding your way around
+
+Everything lives under **Marketing > Smaily Connect**, four pages:
+
+| Page | What it is |
+|---|---|
+| **Dashboard** | The landing page: a one-sentence health verdict, connection status for Smaily / Campaign Intelligence / browse tracking, operational counters (deliveries, failures) and the latest queue activity. Every number is a real local queue query. |
+| **Setup Wizard** | The guided five-step onboarding. On a fresh install every Smaily Connect page brings you here until setup is completed; you can re-run it any time — your settings are kept. |
+| **Settings** | The wizard's content as always-available tabs — Connection, Subscribers, Automations, Intelligence, RSS. Each tab saves instantly via AJAX into the same configuration the wizard and Stores > Configuration edit. Tabs are deep-linkable (`?tab=rss`). |
+| **Log** | One unified delivery log for both Smaily and Campaign Intelligence, with mass retry for failed rows. |
+
+Advanced fields (multilingual mode, abandoned-cart product fields, logging
+verbosity) and per-website / per-store-view overrides live in
+**Stores > Configuration > Smaily > Smaily Connect** as before — the
+Settings page and the wizard are views over that same configuration.
+
+After a major version upgrade the module posts a one-time admin
+notification suggesting a settings review — nothing is changed or blocked.
+
+---
+
 ## Connecting your Smaily account
 
 The fastest path is the guided wizard: **Marketing > Smaily Connect >
@@ -58,7 +80,8 @@ Intelligence, Done), each saved separately, with connection testing and
 live workflow lists built in. Completed steps stay unlocked in the step
 bar, so you can move back and forward between them freely — also when
 revisiting the wizard after finishing it. Everything the wizard writes
-lands in the regular configuration, so you can fine-tune it later at
+lands in the regular configuration, so you can fine-tune it later on the
+**Settings** page or at
 **Stores > Configuration > Smaily > Smaily Connect > API Connection**
 
 | Field | Notes |
@@ -238,24 +261,26 @@ off). Nothing is enabled without your explicit action.
 
 ## Historical import (backfill)
 
-**Marketing > Smaily Connect > Historical Import** (or the CLI) imports
-existing data in the background, a chunk per cron minute, without ever
-blocking live traffic:
+Historical imports live on the **Settings** page (or the CLI) and run in
+the background, a chunk per cron minute, without ever blocking live
+traffic:
 
-- **Subscribers → Smaily** (per website; both subscribed and unsubscribed,
-  so suppression state is correct)
-- **Catalog / Customers / Orders → Campaign Intelligence**
+- **Subscribers → Smaily** — Settings > **Subscribers** tab (per website;
+  both subscribed and unsubscribed, so suppression state is correct)
+- **Catalog / Customers / Orders → Campaign Intelligence** — Settings >
+  **Intelligence** tab
 
-The grid shows live progress and failures. Jobs are resumable — a restart
-continues from the last cursor.
+Each import button shows live progress right where you started it. Jobs
+are resumable — a restart continues from the last cursor — and safe to
+re-run: deliveries are deduplicated on the receiving side.
 
-## Event logs and troubleshooting
+## The log and troubleshooting
 
-- **Marketing > Smaily Connect > Event Log** — every Smaily delivery
-  (contact syncs, automation triggers) with status, attempts and the last
-  error. Select failed rows and **Retry**.
-- **Marketing > Smaily Connect > Intelligence Ingest Log** — the same for
-  engine deliveries.
+- **Marketing > Smaily Connect > Log** — every delivery in one grid:
+  Smaily (contact syncs, automation triggers) and Campaign Intelligence
+  (catalog, customers, orders, browse events), told apart by the
+  **Source** column, with status, attempts and the last error. Select
+  failed rows and **Retry** — each row is routed back to its own queue.
 - Deliveries retry automatically with backoff (1 min → 6 h, 5 attempts)
   before parking as *failed* for manual retry.
 - An admin notification appears when the engine has been unreachable for
@@ -293,7 +318,8 @@ continues from the last cursor.
 
 **Nothing is syncing.** Check that Magento cron runs (`bin/magento
 cron:run --group smaily_connect` manually to test), the connection is
-saved, and look at the Event Log for errors.
+saved, and look at the Log for errors — the Dashboard verdict points
+there when deliveries fail.
 
 **A contact unsubscribed in Smaily but is still subscribed in Magento.**
 Reconciliation runs every 15 minutes and only in *Subscribers only

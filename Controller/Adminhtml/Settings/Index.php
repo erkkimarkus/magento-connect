@@ -6,7 +6,7 @@
 
 declare(strict_types=1);
 
-namespace Smaily\Connect\Controller\Adminhtml\Dashboard;
+namespace Smaily\Connect\Controller\Adminhtml\Settings;
 
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
@@ -17,12 +17,13 @@ use Magento\Framework\Controller\ResultFactory;
 use Smaily\Connect\Model\Adminhtml\SetupGuard;
 
 /**
- * Operational dashboard — the Smaily Connect landing page. Redirects to the
- * setup wizard until setup has been completed once.
+ * Tabbed settings page — the wizard's step content as always-available tabs
+ * (Connection / Subscribers / Automations / Intelligence / RSS), saving via
+ * AJAX into the same system config paths as the wizard and system.xml.
  */
 class Index extends Action implements HttpGetActionInterface
 {
-    public const ADMIN_RESOURCE = 'Smaily_Connect::connect';
+    public const ADMIN_RESOURCE = 'Smaily_Connect::config';
 
     public function __construct(
         Context $context,
@@ -46,8 +47,8 @@ class Index extends Action implements HttpGetActionInterface
 
         /** @var Page $page */
         $page = $this->resultFactory->create(ResultFactory::TYPE_PAGE);
-        $page->setActiveMenu('Smaily_Connect::dashboard');
-        $page->getConfig()->getTitle()->prepend((string)__('Smaily Connect — Dashboard'));
+        $page->setActiveMenu('Smaily_Connect::settings');
+        $page->getConfig()->getTitle()->prepend((string)__('Smaily Connect — Settings'));
 
         return $page;
     }

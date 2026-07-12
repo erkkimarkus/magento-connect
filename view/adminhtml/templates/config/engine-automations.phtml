@@ -19,7 +19,7 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
     <h3><?= $escaper->escapeHtml(__('Campaign Intelligence Automations')) ?></h3>
 <?php if (!$viewModel->isEngineConnected()): ?>
     <p class="note">
-        <?= $escaper->escapeHtml(__('These engine-run automations (replenishment reminders, win-back and more) become available after connecting Campaign Intelligence below.')) ?>
+        <?= $escaper->escapeHtml(__('These engine-run automations (replenishment reminders, win-back and more) become available once Campaign Intelligence is connected.')) ?>
     </p>
 <?php elseif ($viewModel->getLoadError() !== null): ?>
     <div class="message message-error">

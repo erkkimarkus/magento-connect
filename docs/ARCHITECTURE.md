@@ -18,7 +18,7 @@ Api/                service contracts (queue handler interface)
 Block/              adminhtml config renderers
 Console/Command/    CLI (backfill, engine ping/disconnect, GDPR)
 Controller/         frontend: rss, relay, checkout optin, cart restore, privacy
-Controller/Adminhtml/  grids, dashboard, automations form
+Controller/Adminhtml/  dashboard, wizard, settings, unified log, JSON api
 Cron/               queue flushers, abandoned cart, reconcile, backfill tick,
                     janitor, health check
 Model/
@@ -37,7 +37,7 @@ Plugin/             newsletter email suppression, config validation,
                     checkout layout injection
 Setup/Patch/        legacy schema cleanup (Schema/), config migration (Data/)
 ViewModel/          template data providers
-view/               adminhtml grids/templates, frontend JS + templates
+view/               adminhtml pages/panels/grid, frontend JS + templates
 i18n/               translation packs (en_US canonical, et_EE)
 ```
 
@@ -95,7 +95,7 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
 ### Queue semantics (both queues)
 
 - **Retry policy:** backoff 60 s / 5 min / 15 min / 1 h / 6 h, max 5
-  attempts, then parked as `failed` for manual retry from the admin grids.
+  attempts, then parked as `failed` for manual retry from the admin Log.
 - **Claiming:** rows are claimed with a per-worker `claim_token`; only rows
   the worker actually won are processed, so concurrent flushes (manual cron,
   multi-node) can never double-send. Rows stuck in `sending` (killed
@@ -182,6 +182,44 @@ reaches the browser. Under Magento cookie restriction mode without cookie
 consent the tracker runs in sender-side anonymous mode (contract §6):
 events still flow with `session_id` + `event_id` but the
 `smaily_visitor_token` identity hint is omitted.
+
+## Admin UI
+
+Four pages under **Marketing > Smaily Connect** (menu.xml): Dashboard,
+Setup Wizard, Settings, Log. Design rules:
+
+- **One source of truth.** The wizard and the Settings page write through
+  the same `Model\Adminhtml\WizardStepSaver` into the same system-config
+  paths `etc/adminhtml/system.xml` edits. There is no parallel settings
+  store.
+- **Shared step partials.** The wizard's step content and the Settings
+  tabs are the SAME templates (`view/adminhtml/templates/panel/*.phtml`),
+  composed by two thin page templates (`wizard/index.phtml`,
+  `settings/index.phtml`). Shared behavior (AJAX saves, test connection,
+  live workflow dropdowns, backfill progress polling, field reactivity)
+  lives once in `panel/panels-js.phtml`, which defines
+  `window.smailyPanelsInit` — each page script passes jQuery in and drives
+  the stepper (wizard) or the deep-linkable `?tab=` tabs (settings).
+  Strings in these inline scripts are translated server-side with `__()`
+  (js-translation.json never collects `$t()` from phtml).
+- **Dashboard is operational truth.** Every number on
+  `dashboard/index.phtml` is a real local queue query
+  (`Model\Adminhtml\DashboardStats`); the health verdict reuses the
+  HealthCheck cron's failed-rows query (`Model\Health\QueueHealth`) and
+  engine-down flag, so the dashboard can never disagree with the admin
+  notifications. Unknowable numbers are omitted, not estimated.
+- **Unified log.** One grid (`smaily_log_grid`) over BOTH queues:
+  `Model\ResourceModel\Log\Collection` builds a `UNION ALL` of the two
+  queue tables as a derived table, keyed by the synthetic
+  `log_id` (`smaily-<id>` / `intelligence-<id>`) that
+  `Controller\Adminhtml\Log\MassRetry` splits to route retries back to the
+  right queue. Grid filters/sorting apply to the outer select.
+- **Wizard-first gating.** `Model\Adminhtml\SetupGuard`: while
+  `smaily_connect/internal/setup_completed` is unset, Dashboard/Settings/
+  Log redirect to the wizard. The guard also tracks
+  `smaily_connect/internal/last_seen_version` (module version read from
+  composer.json via `Model\ModuleVersion`) and posts a one-time admin
+  notice after a MAJOR version jump instead of any hard redirect.
 
 ## Wire contracts
 

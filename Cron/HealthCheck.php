@@ -8,16 +8,14 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Cron;
 
-use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\FlagManager;
 use Magento\Framework\Notification\NotifierInterface;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Smaily\Connect\Model\Engine\Client;
 use Smaily\Connect\Model\Engine\Exception\EngineException;
 use Smaily\Connect\Model\Engine\Settings;
+use Smaily\Connect\Model\Health\QueueHealth;
 use Smaily\Connect\Model\Logger\Logger;
-use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
-use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 
 /**
  * Proactive health notices (mirrors the Woo NotificationManager):
@@ -25,11 +23,14 @@ use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
  *   per incident.
  * - Failed queue rows exceed a threshold in 24h -> minor notice at most once
  *   a day.
+ *
+ * The flags and the failed-row query are shared with the admin dashboard
+ * (ViewModel\Adminhtml\DashboardData) so both surfaces tell the same story.
  */
 class HealthCheck
 {
-    private const FLAG_ENGINE_DOWN_SINCE = 'smaily_connect_engine_down_since';
-    private const FLAG_ENGINE_NOTIFIED = 'smaily_connect_engine_down_notified';
+    public const FLAG_ENGINE_DOWN_SINCE = 'smaily_connect_engine_down_since';
+    public const FLAG_ENGINE_NOTIFIED = 'smaily_connect_engine_down_notified';
     private const FLAG_FAILURES_NOTIFIED_AT = 'smaily_connect_failures_notified_at';
 
     private const ENGINE_DOWN_NOTIFY_SECONDS = 3600;
@@ -40,7 +41,7 @@ class HealthCheck
         private readonly Client $client,
         private readonly FlagManager $flagManager,
         private readonly NotifierInterface $notifier,
-        private readonly ResourceConnection $resourceConnection,
+        private readonly QueueHealth $queueHealth,
         private readonly DateTime $dateTime,
         private readonly Logger $logger
     ) {
@@ -94,21 +95,12 @@ class HealthCheck
             return;
         }
 
-        $cutoff = $this->dateTime->gmtDate('Y-m-d H:i:s', $now - 86400);
-        $connection = $this->resourceConnection->getConnection();
-        $failed = 0;
-        foreach ([EventResource::TABLE_NAME, IngestEventResource::TABLE_NAME] as $table) {
-            $select = $connection->select()
-                ->from($this->resourceConnection->getTableName($table), ['cnt' => 'COUNT(*)'])
-                ->where('status = ?', 'failed')
-                ->where('updated_at >= ?', $cutoff);
-            $failed += (int)$connection->fetchOne($select);
-        }
+        $failed = $this->queueHealth->failedSince(86400);
 
         if ($failed >= self::FAILED_EVENTS_THRESHOLD) {
             $this->notifier->addMinor(
                 (string)__('Smaily Connect: %1 events failed in the last 24 hours', $failed),
-                (string)__('Review the event logs under Marketing > Smaily Connect and retry the failed rows.')
+                (string)__('Review the log under Marketing > Smaily Connect > Log and retry the failed rows.')
             );
             $this->flagManager->saveFlag(self::FLAG_FAILURES_NOTIFIED_AT, $now);
         }

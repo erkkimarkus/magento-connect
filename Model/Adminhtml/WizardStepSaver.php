@@ -49,6 +49,7 @@ class WizardStepSaver
             'subscribers' => $this->saveSubscribers($data),
             'automations' => $this->saveAutomations($data),
             'intelligence' => $this->saveIntelligence($data),
+            'rss' => $this->saveRss($data),
             'finish' => $this->saveFinish(),
             default => [['field' => 'step', 'message' => (string)__('Unknown wizard step "%1".', $step)]],
         };
@@ -203,6 +204,19 @@ class WizardStepSaver
         $this->saveFlag(EngineSettings::XML_PATH_SYNC_CATALOG, $data, 'sync_catalog');
         $this->saveFlag(EngineSettings::XML_PATH_SYNC_CUSTOMERS, $data, 'sync_customers');
         $this->saveFlag(EngineSettings::XML_PATH_SYNC_ORDERS, $data, 'sync_orders');
+
+        return [];
+    }
+
+    /**
+     * Settings-page RSS tab (the wizard has no RSS step of its own).
+     *
+     * @param array<string, mixed> $data
+     * @return array<int, array{field: string, message: string}>
+     */
+    private function saveRss(array $data): array
+    {
+        $this->saveFlag(Config::XML_PATH_RSS_ENABLED, $data, 'rss_enabled');
 
         return [];
     }

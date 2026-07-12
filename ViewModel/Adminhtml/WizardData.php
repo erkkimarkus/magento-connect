@@ -21,7 +21,8 @@ use Smaily\Connect\Model\ContactSync\Mode;
 use Smaily\Connect\Model\Engine\Settings as EngineSettings;
 
 /**
- * Boot data for the native setup wizard: saved settings for prefill, store
+ * Boot data for the native setup wizard AND the tabbed settings page (both
+ * render the same step partials): saved settings for prefill, store
  * environment for guidance texts, and connection state for step gating.
  */
 class WizardData implements ArgumentInterface
@@ -80,6 +81,12 @@ class WizardData implements ArgumentInterface
                     ?: $this->engineSettings->getTenantId(),
                 'engineVersion' => $this->engineSettings->getEngineVersion(),
                 'browseTracking' => $this->engineSettings->isBrowseTrackingEnabled(),
+                'syncCatalog' => $this->engineSettings->isCatalogSyncEnabled(),
+                'syncCustomers' => $this->engineSettings->isCustomerSyncEnabled(),
+                'syncOrders' => $this->engineSettings->isOrderSyncEnabled(),
+            ],
+            'rss' => [
+                'enabled' => $this->config->isRssEnabled(),
             ],
             'totals' => $this->getStoreTotals(),
         ]);

@@ -62,19 +62,22 @@ docker exec magento2 bash -c 'cd /var/www/html && bin/magento cron:run --group s
 
 Manual smoke checklist:
 
-1. Admin > Marketing > Smaily Connect > Getting Started renders the checklist.
-2. Configuration: save Smaily API credentials (invalid credentials must block
-   the save; unreachable API must not).
+1. Admin > Marketing > Smaily Connect > Dashboard renders the health verdict,
+   connection strip, counters and recent activity (fresh installs redirect to
+   the Setup Wizard instead until it is completed).
+2. Settings: each tab saves via AJAX ("Saved." feedback) and the values land
+   in `core_config_data`; invalid Smaily credentials must not block saving.
 3. Subscribe on the storefront newsletter form -> a `contact.sync` row appears
-   in the Event Log and is delivered on the next cron run.
+   in the Log (source "Smaily") and is delivered on the next cron run.
 4. Place an order with the checkout newsletter checkbox ticked -> the email
    becomes a Magento subscriber and syncs to Smaily.
 5. Abandon a cart (add items as a logged-in customer, wait past the cutoff,
    run the cron) -> `automation.trigger` event fires once, never twice.
 6. `curl http://localhost:8080/smaily/rss/feed?limit=5` returns valid RSS with
    `smly:price` fields.
-7. Campaign Intelligence: paste a setup token, run backfills from Historical
-   Import, watch the Ingest Log drain.
+7. Campaign Intelligence: paste a setup token, run backfills from the
+   Settings > Intelligence tab, watch the Log (source "Campaign
+   Intelligence") drain.
 
 ## Upgrade migration test (2.8.x -> v3)
 

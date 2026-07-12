@@ -5,13 +5,45 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12_
+_Last updated: 2026-07-12 (PRO-1271 phase 2a)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **UI/UX parity phase 2a done (PRO-1271) — IA consolidation + full
+  dashboard.** The admin is now four pages under Marketing > Smaily
+  Connect: **Dashboard** (new landing page: one-sentence health verdict
+  reusing the HealthCheck cron's state/query via the extracted
+  `Model\Health\QueueHealth`, connection strip, truthful queue-backed
+  tiles — catalog tile omitted while the engine is disconnected —
+  recent-activity feed, quick links + contextual CTAs), **Setup Wizard**
+  (moved to `smaily_connect/wizard`), **Settings** (new tabbed page:
+  Connection / Subscribers / Automations incl. the embedded
+  engine-automations block / Intelligence incl. engine backfills /
+  RSS incl. the URL builder; deep-linkable `?tab=`, per-tab AJAX save via
+  the same WizardStepSaver + new `rss` step, live reactivity incl.
+  credential-edit → workflow-dropdown refresh) and **Log** (ONE unified
+  grid: `Model\ResourceModel\Log\Collection` UNION ALL over both queue
+  tables keyed by synthetic `log_id`, source filter, cross-queue mass
+  retry). Historical Import and the two old log pages/grids are gone
+  (jobs/queues untouched); wizard step content was extracted into shared
+  partials (`view/adminhtml/templates/panel/`, shared JS in
+  `panel/panels-js.phtml`) that both wizard and Settings render — still
+  one config source of truth. Wizard-first gating: setup-incomplete
+  installs redirect every Smaily page to the wizard
+  (`Model\Adminhtml\SetupGuard`); after a MAJOR version jump (tracked via
+  `smaily_connect/internal/last_seen_version`, version read from
+  composer.json) a one-time review notice is posted instead of a
+  redirect. i18n regenerated (304 phrases, invariants held), docs
+  (README/USER_GUIDE/ARCHITECTURE/TESTING/CHANGELOG) updated. Verified:
+  93 unit + 38 integration tests, phpcs/phpstan clean, setup:upgrade +
+  di:compile in the sandbox, and Playwright en + et_EE (menu = exactly 4
+  items, dashboard in degraded/ok states + incomplete-redirect, per-tab
+  saves land in `core_config_data` and restore, reactivity without saves,
+  unified log filter + 3-row cross-queue mass retry, zero module JS
+  console errors); sandbox config/queues restored to pre-test state.
 - **2.8.x migration** — sandbox-verified end-to-end: a store on the legacy
   2.8.x extension upgrades via plain `composer update` (same package name) and
   its settings carry over seamlessly.

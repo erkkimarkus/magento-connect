@@ -11,10 +11,9 @@
         <resources>
             <resource id="Magento_Backend::admin">
                 <resource id="Smaily_Connect::connect" title="Smaily Connect" sortOrder="100">
-                    <resource id="Smaily_Connect::config" title="Configuration" sortOrder="10"/>
-                    <resource id="Smaily_Connect::event_log" title="Event Log" sortOrder="20"/>
-                    <resource id="Smaily_Connect::backfill" title="Historical Import" sortOrder="30"/>
-                    <resource id="Smaily_Connect::automations" title="Intelligence Automations" sortOrder="40"/>
+                    <resource id="Smaily_Connect::config" title="Settings" sortOrder="10"/>
+                    <resource id="Smaily_Connect::event_log" title="Log" sortOrder="20"/>
+                    <resource id="Smaily_Connect::automations" title="Intelligence Automations" sortOrder="30"/>
                 </resource>
             </resource>
         </resources>

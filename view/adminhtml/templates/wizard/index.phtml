@@ -1,0 +1,156 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Native 5-step setup wizard: Connect -> Subscribers -> Automations ->
+ * Intelligence -> Done. The step content is the shared panel partials
+ * (view/adminhtml/templates/panel/) also rendered by the Settings page;
+ * every step saves via AJAX into the same system config paths the
+ * Stores > Configuration page edits — the wizard is a guided view over one
+ * source of truth. Steps 2+ unlock once the Smaily connection is verified
+ * (same gating as the Woo/Shopify plugins).
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+// Hosted on GitHub for now — update this URL once a hosted docs site exists.
+$userGuideUrl = 'https://github.com/erkkimarkus/magento-connect/blob/v3/docs/USER_GUIDE.md';
+
+$settingsUrl = $block->getUrl('smaily_connect/settings');
+$logUrl = $block->getUrl('smaily_connect/log');
+?>
+<div id="smaily-wizard" class="smaily-ui smaily-wizard">
+    <!-- Styles live in view/adminhtml/web/css/smaily-admin.css (loaded via the wizard layout XML). -->
+    <ul class="smaily-steps">
+        <li data-step="1"><?= $escaper->escapeHtml(__('1. Connect')) ?></li>
+        <li data-step="2"><?= $escaper->escapeHtml(__('2. Subscribers')) ?></li>
+        <li data-step="3"><?= $escaper->escapeHtml(__('3. Automations')) ?></li>
+        <li data-step="4"><?= $escaper->escapeHtml(__('4. Intelligence')) ?></li>
+        <li data-step="5"><?= $escaper->escapeHtml(__('5. Done')) ?></li>
+    </ul>
+
+    <div class="smaily-step-panel" data-step="1"><?= $block->getChildHtml('panel.connection') ?></div>
+    <div class="smaily-step-panel" data-step="2"><?= $block->getChildHtml('panel.subscribers') ?></div>
+    <div class="smaily-step-panel" data-step="3"><?= $block->getChildHtml('panel.automations') ?></div>
+    <div class="smaily-step-panel" data-step="4"><?= $block->getChildHtml('panel.intelligence') ?></div>
+
+    <!-- Step 5: Done (wizard-only) -->
+    <div class="smaily-step-panel" data-step="5">
+        <div class="smaily-card">
+            <h2><?= $escaper->escapeHtml(__('You are all set!')) ?></h2>
+            <p><?= $escaper->escapeHtml(__('Smaily Connect is now syncing in near-real-time. Here is where everything lives from now on:')) ?></p>
+            <ul style="line-height:2.2;">
+                <li><a href="<?= $escaper->escapeUrl($settingsUrl) ?>"><?= $escaper->escapeHtml(__('Settings')) ?></a> — <?= $escaper->escapeHtml(__('every setting from this wizard as always-available tabs, including the historical imports and the RSS feed URL builder')) ?></li>
+                <li><a href="<?= $escaper->escapeUrl($logUrl) ?>"><?= $escaper->escapeHtml(__('Log')) ?></a> — <?= $escaper->escapeHtml(__('every delivery to Smaily and Campaign Intelligence with retry; check here first if something seems off')) ?></li>
+                <li><?= $escaper->escapeHtml(__('Product RSS feed for the Smaily template editor:')) ?> <code><?= $escaper->escapeHtml($block->getBaseUrl() . 'smaily/rss/feed') ?></code><br/>
+                    <span class="note"><?= $escaper->escapeHtml(__('Need a category-filtered or sorted feed? Use the URL builder under Settings > RSS.')) ?>
+                        <a href="<?= $escaper->escapeUrl($settingsUrl . '?tab=rss') ?>"><?= $escaper->escapeHtml(__('Open the URL builder')) ?></a></span></li>
+                <li><a href="<?= $escaper->escapeUrl($userGuideUrl) ?>" target="_blank" rel="noopener noreferrer"><?= $escaper->escapeHtml(__('User Guide')) ?></a> — <?= $escaper->escapeHtml(__('the full merchant documentation: every feature, setting and troubleshooting steps')) ?></li>
+            </ul>
+            <p class="note"><?= $escaper->escapeHtml(__('Tip: make sure the Magento cron runs every minute — deliveries are queued and flushed by the smaily_connect cron group.')) ?></p>
+        </div>
+    </div>
+
+    <div class="smaily-footer">
+        <button type="button" class="action-secondary" id="smaily-w-back"><span><?= $escaper->escapeHtml(__('Back')) ?></span></button>
+        <div>
+            <span class="smaily-result" id="smaily-w-save-result"></span>
+            <button type="button" class="action-primary" id="smaily-w-next"><span><?= $escaper->escapeHtml(__('Continue')) ?></span></button>
+        </div>
+    </div>
+</div>
+
+<?= $block->getChildHtml('panel.js') ?>
+<script>
+require(['jquery'], function ($) {
+    'use strict';
+
+    var panels = window.smailyPanelsInit($);
+    // Strings are translated server-side — see panel/panels-js.phtml.
+    //
+    // step = the step currently shown; maxStep = the furthest step ever
+    // reached (from the saved config on load, then per-step saves). The
+    // stepper derives "done" (unlocked, clickable) from maxStep, so going
+    // Back never re-locks steps that were already completed.
+    var step = 1, maxStep = 1;
+
+    function render() {
+        $('.smaily-steps li').each(function () {
+            var s = $(this).data('step');
+            $(this).toggleClass('active', s === step).toggleClass('done', s !== step && s <= maxStep);
+        });
+        $('.smaily-step-panel').removeClass('active');
+        $('.smaily-step-panel[data-step=' + step + ']').addClass('active');
+        $('#smaily-w-back').toggle(step > 1 && step < 5);
+        $('#smaily-w-next').toggle(step < 5);
+        $('#smaily-w-next span').text(step === 4
+            ? '<?= $escaper->escapeJs(__('Finish')) ?>'
+            : '<?= $escaper->escapeJs(__('Continue')) ?>');
+        $('#smaily-w-save-result').text('');
+        window.scrollTo(0, 0);
+    }
+
+    /** Wraps a (possibly throwing) collector into a promise chain. */
+    function save(name, collector) {
+        return new Promise(function (resolve) { resolve(collector()); })
+            .then(function (data) { return panels.saveStep(name, data); });
+    }
+
+    var stepSavers = {
+        1: function () { return save('connect', panels.collect.connect); },
+        2: function () { return save('subscribers', panels.collect.subscribers); },
+        3: function () { return save('automations', panels.collect.automations); },
+        4: function () {
+            return save('intelligence', panels.collect.intelligence).then(function () {
+                return panels.saveStep('finish', {});
+            });
+        }
+    };
+
+    panels.initAll();
+
+    $('#smaily-w-next').on('click', function () {
+        var $button = $(this).prop('disabled', true);
+        panels.result('#smaily-w-save-result', '<?= $escaper->escapeJs(__('Saving…')) ?>', true);
+        stepSavers[step]().then(function () {
+            panels.result('#smaily-w-save-result', '', true);
+            step += 1;
+            maxStep = Math.max(maxStep, step);
+            if (step === 3) {
+                panels.loadWorkflows('#smaily-w-save-result');
+            }
+            render();
+        }).catch(function (error) {
+            panels.result('#smaily-w-save-result', error.message, false);
+        }).finally(function () {
+            $button.prop('disabled', false);
+        });
+    });
+    $('#smaily-w-back').on('click', function () {
+        step = Math.max(1, step - 1);
+        render();
+    });
+    $('.smaily-steps').on('click', 'li.done', function () {
+        step = $(this).data('step');
+        if (step === 3) {
+            panels.loadWorkflows('#smaily-w-save-result');
+        }
+        render();
+    });
+
+    if (panels.boot.setupCompleted) {
+        // Setup finished earlier: every step was completed, keep them all
+        // unlocked for revisits.
+        step = 5;
+    } else if (panels.isConnected()) {
+        step = 2;
+    }
+    maxStep = step;
+    if (step === 3) {
+        panels.loadWorkflows('#smaily-w-save-result');
+    }
+    render();
+});
+</script>

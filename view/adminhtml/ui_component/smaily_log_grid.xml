@@ -9,33 +9,33 @@
          xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Ui:etc/ui_configuration.xsd">
     <argument name="data" xsi:type="array">
         <item name="js_config" xsi:type="array">
-            <item name="provider" xsi:type="string">smaily_event_grid.smaily_event_grid_data_source</item>
+            <item name="provider" xsi:type="string">smaily_log_grid.smaily_log_grid_data_source</item>
         </item>
     </argument>
     <settings>
-        <spinner>smaily_event_columns</spinner>
+        <spinner>smaily_log_columns</spinner>
         <deps>
-            <dep>smaily_event_grid.smaily_event_grid_data_source</dep>
+            <dep>smaily_log_grid.smaily_log_grid_data_source</dep>
         </deps>
     </settings>
-    <dataSource name="smaily_event_grid_data_source" component="Magento_Ui/js/grid/provider">
+    <dataSource name="smaily_log_grid_data_source" component="Magento_Ui/js/grid/provider">
         <settings>
             <!-- The client-side grid data storage keys rows by entity_id
-                 unless told otherwise; these tables' primary key is `id`
-                 (and the queue tables carry an unrelated entity_id payload
-                 column), so without this the grid renders colliding,
-                 duplicated rows. -->
+                 unless told otherwise; this listing is a union of the two
+                 queue tables keyed by the synthetic composite log_id (and
+                 the rows carry an unrelated entity_id payload column), so
+                 without this the grid renders colliding, duplicated rows. -->
             <storageConfig>
-                <param name="indexField" xsi:type="string">id</param>
+                <param name="indexField" xsi:type="string">log_id</param>
             </storageConfig>
             <updateUrl path="mui/index/render"/>
         </settings>
         <aclResource>Smaily_Connect::event_log</aclResource>
         <dataProvider class="Magento\Framework\View\Element\UiComponent\DataProvider\DataProvider"
-                      name="smaily_event_grid_data_source">
+                      name="smaily_log_grid_data_source">
             <settings>
-                <requestFieldName>id</requestFieldName>
-                <primaryFieldName>id</primaryFieldName>
+                <requestFieldName>log_id</requestFieldName>
+                <primaryFieldName>log_id</primaryFieldName>
             </settings>
         </dataProvider>
     </dataSource>
@@ -53,7 +53,7 @@
                         <message translate="true">Retry the selected failed events?</message>
                         <title translate="true">Retry events</title>
                     </confirm>
-                    <url path="smaily_connect/events/massRetry"/>
+                    <url path="smaily_connect/log/massRetry"/>
                     <type>retry</type>
                     <label translate="true">Retry</label>
                 </settings>
@@ -61,23 +61,24 @@
         </massaction>
         <paging name="listing_paging"/>
     </listingToolbar>
-    <columns name="smaily_event_columns">
+    <columns name="smaily_log_columns">
         <selectionsColumn name="ids">
             <settings>
-                <indexField>id</indexField>
+                <indexField>log_id</indexField>
             </settings>
         </selectionsColumn>
-        <column name="id" sortOrder="10">
+        <column name="source" component="Magento_Ui/js/grid/columns/select" sortOrder="10">
             <settings>
-                <filter>textRange</filter>
-                <sorting>desc</sorting>
-                <label translate="true">ID</label>
+                <filter>select</filter>
+                <options class="Smaily\Connect\Ui\Component\LogSourceOptions"/>
+                <dataType>select</dataType>
+                <label translate="true">Source</label>
             </settings>
         </column>
-        <column name="event_type" sortOrder="20">
+        <column name="type" sortOrder="20">
             <settings>
                 <filter>text</filter>
-                <label translate="true">Event Type</label>
+                <label translate="true">Type</label>
             </settings>
         </column>
         <column name="entity_id" sortOrder="30">
@@ -86,7 +87,7 @@
                 <label translate="true">Entity</label>
             </settings>
         </column>
-        <column name="status" sortOrder="40">
+        <column name="status" component="Magento_Ui/js/grid/columns/select" sortOrder="40">
             <settings>
                 <filter>select</filter>
                 <options class="Smaily\Connect\Ui\Component\QueueStatusOptions"/>
@@ -110,6 +111,7 @@
             <settings>
                 <filter>dateRange</filter>
                 <dataType>date</dataType>
+                <sorting>desc</sorting>
                 <label translate="true">Created</label>
             </settings>
         </column>

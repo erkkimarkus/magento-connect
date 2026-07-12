@@ -1,0 +1,73 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Campaign Intelligence panel — shared by the setup wizard (step 4) and the
+ * Settings page (Intelligence tab). The Settings context adds the sync
+ * toggles and the engine historical imports (catalog / customers / orders).
+ * Behavior lives in panel/panels-js.phtml.
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+$isSettings = $block->getData('context') === 'settings';
+?>
+<div class="smaily-card">
+    <h2><?= $escaper->escapeHtml(__('Campaign Intelligence (optional)')) ?></h2>
+    <p><?= $escaper->escapeHtml(__('The Smaily recommendation engine uses your catalog, orders and (opt-in) browsing behavior to personalize newsletters and run smart automations like replenishment reminders and win-back. Skip this step if you do not have an Intelligence subscription — you can connect any time later.')) ?></p>
+    <div id="smaily-w-engine-disconnected">
+        <div class="smaily-field">
+            <label for="smaily-w-setup-url"><?= $escaper->escapeHtml(__('Setup URL or token from Smaily')) ?></label>
+            <input type="text" id="smaily-w-setup-url" placeholder="https://intelligence.smaily.com/setup/…"/>
+            <p class="note"><?= $escaper->escapeHtml(__('The one-time token is exchanged immediately and never stored.')) ?></p>
+        </div>
+        <button type="button" class="action-secondary" id="smaily-w-engine-connect">
+            <span><?= $escaper->escapeHtml(__('Connect')) ?></span>
+        </button>
+        <span class="smaily-result" id="smaily-w-engine-result"></span>
+    </div>
+    <div id="smaily-w-engine-connected" style="display:none;">
+        <p class="message message-success" id="smaily-w-engine-status"></p>
+        <?php if (!$isSettings): ?>
+        <p><?= $escaper->escapeHtml(__('Catalog, customer and order sync started automatically. Historical data can be imported any time under Marketing > Smaily Connect > Settings > Intelligence.')) ?></p>
+        <?php endif; ?>
+        <div class="smaily-inline-toggle">
+            <label><input type="checkbox" id="smaily-w-browse"/>
+                <?= $escaper->escapeHtml(__('Enable storefront browse tracking (product views, searches, cart activity)')) ?></label>
+            <p class="note"><?= $escaper->escapeHtml(__('Off by default. Respects Magento cookie restriction mode; events flow through your own server, so the API key never reaches the browser.')) ?></p>
+        </div>
+        <?php if ($isSettings): ?>
+        <div class="smaily-inline-toggle">
+            <label><input type="checkbox" id="smaily-w-sync-catalog"/>
+                <?= $escaper->escapeHtml(__('Sync catalog changes to the engine')) ?></label>
+        </div>
+        <div class="smaily-inline-toggle">
+            <label><input type="checkbox" id="smaily-w-sync-customers"/>
+                <?= $escaper->escapeHtml(__('Sync customer changes to the engine')) ?></label>
+        </div>
+        <div class="smaily-inline-toggle">
+            <label><input type="checkbox" id="smaily-w-sync-orders"/>
+                <?= $escaper->escapeHtml(__('Sync order changes to the engine')) ?></label>
+        </div>
+        <div class="smaily-card" style="background:#f8f8f8;">
+            <strong><?= $escaper->escapeHtml(__('Historical imports to Campaign Intelligence')) ?></strong>
+            <p class="note"><?= $escaper->escapeHtml(__('Send your existing data to the engine in the background — one chunk per cron minute. Imports are resumable and safe to re-run: deliveries are deduplicated on the receiving side.')) ?></p>
+            <?php foreach ([
+                'catalog' => __('Import catalog'),
+                'customers' => __('Import customers'),
+                'orders' => __('Import orders'),
+            ] as $jobType => $label): ?>
+            <div class="smaily-import-row" data-job-type="<?= $escaper->escapeHtmlAttr($jobType) ?>">
+                <button type="button" class="action-secondary smaily-w-engine-import">
+                    <span><?= $escaper->escapeHtml($label) ?></span>
+                </button>
+                <span class="smaily-result"></span>
+                <progress value="0" max="100" style="display:none;"></progress>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>

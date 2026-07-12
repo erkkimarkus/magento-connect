@@ -12,33 +12,10 @@
     </type>
 
     <!-- Admin grid data sources. -->
-    <virtualType name="Smaily\Connect\Ui\EventGridCollection"
-                 type="Magento\Framework\View\Element\UiComponent\DataProvider\SearchResult">
-        <arguments>
-            <argument name="mainTable" xsi:type="string">smaily_event_queue</argument>
-            <argument name="resourceModel" xsi:type="string">Smaily\Connect\Model\ResourceModel\Queue\Event</argument>
-        </arguments>
-    </virtualType>
-    <virtualType name="Smaily\Connect\Ui\IngestGridCollection"
-                 type="Magento\Framework\View\Element\UiComponent\DataProvider\SearchResult">
-        <arguments>
-            <argument name="mainTable" xsi:type="string">smaily_ingest_queue</argument>
-            <argument name="resourceModel" xsi:type="string">Smaily\Connect\Model\ResourceModel\Engine\IngestEvent</argument>
-        </arguments>
-    </virtualType>
-    <virtualType name="Smaily\Connect\Ui\BackfillGridCollection"
-                 type="Magento\Framework\View\Element\UiComponent\DataProvider\SearchResult">
-        <arguments>
-            <argument name="mainTable" xsi:type="string">smaily_backfill_job</argument>
-            <argument name="resourceModel" xsi:type="string">Smaily\Connect\Model\ResourceModel\Backfill\Job</argument>
-        </arguments>
-    </virtualType>
     <type name="Magento\Framework\View\Element\UiComponent\DataProvider\CollectionFactory">
         <arguments>
             <argument name="collections" xsi:type="array">
-                <item name="smaily_event_grid_data_source" xsi:type="string">Smaily\Connect\Ui\EventGridCollection</item>
-                <item name="smaily_ingest_grid_data_source" xsi:type="string">Smaily\Connect\Ui\IngestGridCollection</item>
-                <item name="smaily_backfill_grid_data_source" xsi:type="string">Smaily\Connect\Ui\BackfillGridCollection</item>
+                <item name="smaily_log_grid_data_source" xsi:type="string">Smaily\Connect\Model\ResourceModel\Log\Collection</item>
             </argument>
         </arguments>
     </type>

@@ -1,0 +1,75 @@
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Smaily Connect admin styles: shared panel chrome (.smaily-ui, used by the
+ * setup wizard AND the Settings page), the wizard stepper, the settings
+ * tabs and the dashboard. Loaded via the page layout XMLs.
+ */
+
+/* --- Shared panel chrome (wizard steps + settings tabs) ------------------ */
+.smaily-ui { max-width: 76rem; }
+.smaily-ui .smaily-card { background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 2rem; margin-bottom: 2rem; }
+.smaily-ui .smaily-field { margin-bottom: 1.6rem; max-width: 44rem; }
+.smaily-ui .smaily-field label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
+.smaily-ui .smaily-field .note { margin-top: 0.4rem; }
+.smaily-ui input[type=text], .smaily-ui input[type=password], .smaily-ui input[type=number], .smaily-ui select { width: 100%; max-width: 40rem; }
+.smaily-ui .smaily-choice { display: block; padding: 1.2rem; border: 1px solid #e3e3e3; border-radius: 4px; margin-bottom: 1rem; cursor: pointer; }
+.smaily-ui .smaily-choice input { margin-right: 0.8rem; }
+.smaily-ui .smaily-choice.selected { border-color: #eb5202; background: #fff8f3; }
+.smaily-ui .smaily-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; gap: 2rem; }
+.smaily-ui .smaily-footer > div { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; max-width: 40rem; }
+.smaily-ui .smaily-result { margin-left: 1rem; }
+.smaily-ui .smaily-result.ok { color: #006400; }
+.smaily-ui .smaily-result.err { color: #e22626; }
+.smaily-ui .smaily-inline-toggle { margin-bottom: 1rem; }
+.smaily-ui progress { width: 100%; max-width: 40rem; height: 1.4rem; }
+.smaily-ui #smaily-w-fields label { display: inline-block; width: 16rem; }
+.smaily-ui .smaily-muted { opacity: 0.5; }
+.smaily-ui .smaily-import-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.smaily-ui .smaily-import-row progress { flex-basis: 100%; }
+
+/* --- Wizard stepper ------------------------------------------------------- */
+.smaily-wizard .smaily-steps { display: flex; gap: 0; margin: 0 0 3rem; padding: 0; list-style: none; }
+.smaily-wizard .smaily-steps li { flex: 1; text-align: center; padding: 1rem 0.5rem; border-bottom: 3px solid #d0d0d0; color: #666; cursor: default; }
+.smaily-wizard .smaily-steps li.active { border-color: #eb5202; color: #333; font-weight: 600; }
+.smaily-wizard .smaily-steps li.done { border-color: #79a22e; color: #333; cursor: pointer; }
+.smaily-wizard .smaily-step-panel { display: none; }
+.smaily-wizard .smaily-step-panel.active { display: block; }
+
+/* --- Settings tabs ---------------------------------------------------------- */
+.smaily-settings .smaily-tabs { display: flex; gap: 0; margin: 0 0 3rem; padding: 0; list-style: none; border-bottom: 1px solid #e3e3e3; }
+.smaily-settings .smaily-tabs li { padding: 1rem 2rem; margin-bottom: -1px; border-bottom: 3px solid transparent; color: #666; cursor: pointer; }
+.smaily-settings .smaily-tabs li:hover { color: #333; }
+.smaily-settings .smaily-tabs li.active { border-color: #eb5202; color: #333; font-weight: 600; }
+.smaily-settings .smaily-tab-panel { display: none; }
+.smaily-settings .smaily-tab-panel.active { display: block; }
+.smaily-settings .smaily-footer .note { margin: 0; }
+
+/* --- Dashboard ------------------------------------------------------------- */
+.smaily-dashboard { max-width: 110rem; }
+.smaily-dashboard .smaily-verdict { display: flex; align-items: center; gap: 2rem; padding: 1.6rem 2rem; margin-bottom: 2rem; border-radius: 4px; border: 1px solid; font-size: 1.6rem; }
+.smaily-dashboard .smaily-verdict-ok { background: #f2f8ec; border-color: #79a22e; }
+.smaily-dashboard .smaily-verdict-degraded { background: #fffbf0; border-color: #eb5202; }
+.smaily-dashboard .smaily-verdict-incomplete { background: #fffbf0; border-color: #eb5202; }
+.smaily-dashboard .smaily-verdict-action { margin-left: auto; white-space: nowrap; }
+.smaily-dashboard .smaily-connections { display: flex; gap: 2rem; margin-bottom: 2rem; flex-wrap: wrap; }
+.smaily-dashboard .smaily-connection { flex: 1 1 20rem; background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 1.2rem 1.6rem; display: flex; align-items: center; gap: 1rem; }
+.smaily-dashboard .smaily-dot { width: 1rem; height: 1rem; border-radius: 50%; background: #d0d0d0; flex-shrink: 0; }
+.smaily-dashboard .smaily-connection.is-on .smaily-dot { background: #79a22e; }
+.smaily-dashboard .smaily-connection.is-off .smaily-dot { background: #d0d0d0; }
+.smaily-dashboard .smaily-connection-state { color: #666; margin-left: auto; text-align: right; }
+.smaily-dashboard .smaily-tiles { display: flex; gap: 2rem; margin-bottom: 2rem; flex-wrap: wrap; }
+.smaily-dashboard .smaily-tile { flex: 1 1 14rem; background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 1.6rem; }
+.smaily-dashboard .smaily-tile-value { display: block; font-size: 3.2rem; font-weight: 600; line-height: 1.2; }
+.smaily-dashboard .smaily-tile-label { color: #666; }
+.smaily-dashboard .smaily-tile-attention { border-color: #e22626; background: #fff5f5; }
+.smaily-dashboard .smaily-tile-attention .smaily-tile-value { color: #e22626; }
+.smaily-dashboard .smaily-columns { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+.smaily-dashboard .smaily-activity { flex: 2 1 40rem; min-width: 0; }
+.smaily-dashboard .smaily-activity .admin__table-wrapper { overflow-x: auto; }
+.smaily-dashboard .smaily-quick-links { flex: 1 1 24rem; }
+.smaily-dashboard .smaily-quick-links ul { margin: 0; padding-left: 1.8rem; line-height: 2.2; }
+.smaily-dashboard .smaily-empty { color: #666; }
+.smaily-dashboard .smaily-status-failed { color: #e22626; font-weight: 600; }
+.smaily-dashboard .smaily-status-sent { color: #006400; }

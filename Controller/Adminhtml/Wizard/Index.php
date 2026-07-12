@@ -6,19 +6,18 @@
 
 declare(strict_types=1);
 
-namespace Smaily\Connect\Controller\Adminhtml\Dashboard;
+namespace Smaily\Connect\Controller\Adminhtml\Wizard;
 
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Backend\Model\View\Result\Page;
 use Magento\Framework\App\Action\HttpGetActionInterface;
-use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\ResultFactory;
 use Smaily\Connect\Model\Adminhtml\SetupGuard;
 
 /**
- * Operational dashboard — the Smaily Connect landing page. Redirects to the
- * setup wizard until setup has been completed once.
+ * The guided setup wizard. Also the target of the wizard-first redirect all
+ * other Smaily Connect pages perform while setup is incomplete.
  */
 class Index extends Action implements HttpGetActionInterface
 {
@@ -34,20 +33,14 @@ class Index extends Action implements HttpGetActionInterface
     /**
      * @inheritDoc
      */
-    public function execute(): Page|Redirect
+    public function execute(): Page
     {
         $this->setupGuard->checkVersionChange();
-        if (!$this->setupGuard->isSetupCompleted()) {
-            /** @var Redirect $redirect */
-            $redirect = $this->resultFactory->create(ResultFactory::TYPE_REDIRECT);
-
-            return $redirect->setPath('smaily_connect/wizard');
-        }
 
         /** @var Page $page */
         $page = $this->resultFactory->create(ResultFactory::TYPE_PAGE);
-        $page->setActiveMenu('Smaily_Connect::dashboard');
-        $page->getConfig()->getTitle()->prepend((string)__('Smaily Connect — Dashboard'));
+        $page->setActiveMenu('Smaily_Connect::wizard');
+        $page->getConfig()->getTitle()->prepend((string)__('Smaily Connect — Setup Wizard'));
 
         return $page;
     }

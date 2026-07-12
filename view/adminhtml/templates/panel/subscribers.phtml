@@ -1,0 +1,93 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Subscribers panel — shared by the setup wizard (step 2) and the Settings
+ * page (Subscribers tab). The Settings context adds the master sync toggle
+ * the wizard implies. The contacts import (backfill) lives here on both
+ * surfaces; behavior lives in panel/panels-js.phtml.
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
+$viewModel = $block->getData('view_model');
+$isSettings = $block->getData('context') === 'settings';
+$totals = $viewModel->getStoreTotals();
+
+// Optional contact fields, server-rendered (same values the system.xml
+// multiselect edits).
+$syncFieldLabels = [
+    'first_name' => __('First name'),
+    'last_name' => __('Last name'),
+    'prefix' => __('Name prefix'),
+    'gender' => __('Gender'),
+    'birthday' => __('Date of birth'),
+    'customer_id' => __('Customer ID'),
+    'customer_group' => __('Customer group'),
+    'subscription_type' => __('Subscription type'),
+];
+$selectedSyncFields = $viewModel->getSelectedSyncFields();
+?>
+<div class="smaily-card">
+    <h2><?= $escaper->escapeHtml(__('Who should be synced to Smaily?')) ?></h2>
+    <?php if ($isSettings): ?>
+    <div class="smaily-inline-toggle">
+        <label><input type="checkbox" id="smaily-w-sync-enabled"/>
+            <?= $escaper->escapeHtml(__('Enable subscriber synchronization')) ?></label>
+    </div>
+    <?php endif; ?>
+    <div id="smaily-w-subscribers-body">
+        <p><?= $escaper->escapeHtml(__('This is a lawful-basis choice. Pick the preset that matches how you have asked your customers for permission — you can change it later under Configuration.')) ?></p>
+        <label class="smaily-choice">
+            <input type="radio" name="smaily-w-mode" value="consent" checked/>
+            <strong><?= $escaper->escapeHtml(__('Subscribers only (consent)')) ?></strong> — <?= $escaper->escapeHtml(__('recommended')) ?>
+            <p class="note"><?= $escaper->escapeHtml(__('Only customers who opted into the newsletter are synced. Unsubscribes in Smaily are mirrored back to Magento automatically (two-way sync).')) ?></p>
+        </label>
+        <label class="smaily-choice">
+            <input type="radio" name="smaily-w-mode" value="legitimate_interest"/>
+            <strong><?= $escaper->escapeHtml(__('All customers (legitimate interest)')) ?></strong>
+            <p class="note"><?= $escaper->escapeHtml(__('Every registered customer is synced; Smaily manages suppression. Make sure your privacy policy covers this basis.')) ?></p>
+        </label>
+        <label class="smaily-choice">
+            <input type="radio" name="smaily-w-mode" value="checkout_optin"/>
+            <strong><?= $escaper->escapeHtml(__('Checkout opt-in only')) ?></strong>
+            <p class="note"><?= $escaper->escapeHtml(__('Nobody is synced automatically — only shoppers who tick the newsletter checkbox at checkout.')) ?></p>
+        </label>
+
+        <div class="smaily-field" style="margin-top:2rem;">
+            <label><?= $escaper->escapeHtml(__('Extra fields to sync with each contact')) ?></label>
+            <div id="smaily-w-fields">
+                <?php foreach ($syncFieldLabels as $fieldValue => $fieldLabel): ?>
+                <label>
+                    <input type="checkbox"
+                           value="<?= $escaper->escapeHtmlAttr($fieldValue) ?>"
+                           <?= in_array($fieldValue, $selectedSyncFields, true) ? 'checked' : '' ?>/>
+                    <?= $escaper->escapeHtml($fieldLabel) ?>
+                </label>
+                <?php endforeach; ?>
+            </div>
+            <p class="note"><?= $escaper->escapeHtml(__('Empty values are never sent, so existing Smaily data is not wiped.')) ?></p>
+        </div>
+        <div class="smaily-inline-toggle">
+            <label><input type="checkbox" id="smaily-w-checkout-optin" checked/>
+                <?= $escaper->escapeHtml(__('Show a newsletter checkbox at checkout')) ?></label>
+        </div>
+        <div class="smaily-inline-toggle">
+            <label><input type="checkbox" id="smaily-w-suppress" checked/>
+                <?= $escaper->escapeHtml(__('Let Smaily send the opt-in confirmation emails (suppresses Magento\'s own)')) ?></label>
+        </div>
+    </div>
+
+    <div class="smaily-card" style="background:#f8f8f8;">
+        <strong><?= $escaper->escapeHtml(__('Import your existing subscribers')) ?></strong>
+        <p class="note"><?= $escaper->escapeHtml(__('Your store has %1 customers, %2 orders and %3 products. The import runs in the background, a chunk per minute, and never slows the storefront down.', $totals['customers'], $totals['orders'], $totals['products'])) ?></p>
+        <button type="button" class="action-secondary" id="smaily-w-backfill">
+            <span><?= $escaper->escapeHtml(__('Import subscribers to Smaily')) ?></span>
+        </button>
+        <span class="smaily-result" id="smaily-w-backfill-result"></span>
+        <progress id="smaily-w-backfill-bar" value="0" max="100" style="display:none;"></progress>
+    </div>
+</div>

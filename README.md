@@ -65,16 +65,17 @@ See [docs/UPGRADING.md](docs/UPGRADING.md).
 
 ## Quick start
 
-1. **Connect:** Stores > Configuration > Smaily > Smaily Connect — enter
-   your Smaily API subdomain, username and password.
-2. **Choose your audience:** pick a contact sync mode under Subscriber
-   Synchronization (the default syncs opted-in subscribers only).
-3. **Map automations:** select Smaily workflows for welcome, first order
-   and abandoned cart.
-4. **Import history:** Marketing > Smaily Connect > Historical Import.
+1. **Run the wizard:** Marketing > Smaily Connect opens the guided setup
+   on a fresh install — connect your Smaily account, choose your audience,
+   map automations and (optionally) Campaign Intelligence in five steps.
+2. **Everything after that:** Marketing > Smaily Connect > **Dashboard**
+   (health and activity at a glance), **Settings** (the same options as
+   always-available tabs, including historical imports) and **Log** (every
+   delivery, with retry).
 
-The **Getting Started** page (Marketing > Smaily Connect) walks through
-these steps with live status.
+Advanced fields and per-website overrides stay in Stores > Configuration >
+Smaily > Smaily Connect — the wizard and Settings edit that same
+configuration.
 
 ## Development
 

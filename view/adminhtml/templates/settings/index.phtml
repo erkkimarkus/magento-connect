@@ -1,0 +1,132 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Tabbed settings page: the wizard's step content (shared panel partials
+ * under view/adminhtml/templates/panel/) as always-available tabs, plus the
+ * Settings-only RSS tab. Tabs are deep-linkable (?tab=connection|
+ * subscribers|automations|intelligence|rss); every tab saves via AJAX to
+ * the shared savestep endpoint — the same config paths the wizard and
+ * Stores > Configuration edit.
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+$tabs = [
+    'connection' => __('Connection'),
+    'subscribers' => __('Subscribers'),
+    'automations' => __('Automations'),
+    'intelligence' => __('Intelligence'),
+    'rss' => __('RSS'),
+];
+$configUrl = $block->getUrl('adminhtml/system_config/edit', ['section' => 'smaily_connect']);
+?>
+<div id="smaily-settings" class="smaily-ui smaily-settings">
+    <ul class="smaily-tabs">
+        <?php foreach ($tabs as $tabId => $tabLabel): ?>
+        <li data-tab="<?= $escaper->escapeHtmlAttr($tabId) ?>"><?= $escaper->escapeHtml($tabLabel) ?></li>
+        <?php endforeach; ?>
+    </ul>
+
+    <div class="smaily-tab-panel" data-tab="connection"><?= $block->getChildHtml('panel.connection') ?></div>
+    <div class="smaily-tab-panel" data-tab="subscribers"><?= $block->getChildHtml('panel.subscribers') ?></div>
+    <div class="smaily-tab-panel" data-tab="automations">
+        <?= $block->getChildHtml('panel.automations') ?>
+        <div class="smaily-card">
+            <?= $block->getChildHtml('engine.automations') ?>
+        </div>
+    </div>
+    <div class="smaily-tab-panel" data-tab="intelligence"><?= $block->getChildHtml('panel.intelligence') ?></div>
+    <div class="smaily-tab-panel" data-tab="rss"><?= $block->getChildHtml('panel.rss') ?></div>
+
+    <div class="smaily-footer">
+        <p class="note">
+            <?= $escaper->escapeHtml(__('Need per-website or per-store-view overrides, or the advanced fields? They live in')) ?>
+            <a href="<?= $escaper->escapeUrl($configUrl) ?>"><?= $escaper->escapeHtml(__('Stores > Configuration > Smaily > Smaily Connect')) ?></a>.
+        </p>
+        <div>
+            <span class="smaily-result" id="smaily-s-save-result"></span>
+            <button type="button" class="action-primary" id="smaily-s-save"><span><?= $escaper->escapeHtml(__('Save')) ?></span></button>
+        </div>
+    </div>
+</div>
+
+<?= $block->getChildHtml('panel.js') ?>
+<script>
+require(['jquery'], function ($) {
+    'use strict';
+
+    var panels = window.smailyPanelsInit($);
+    // Strings are translated server-side — see panel/panels-js.phtml.
+
+    // tab id -> savestep step name.
+    var steps = {
+        connection: 'connect',
+        subscribers: 'subscribers',
+        automations: 'automations',
+        intelligence: 'intelligence',
+        rss: 'rss'
+    };
+    var active = 'connection';
+    var workflowsLoaded = false;
+
+    function activate(tab, updateUrl) {
+        if (!steps[tab]) {
+            tab = 'connection';
+        }
+        active = tab;
+        $('.smaily-tabs li').each(function () {
+            $(this).toggleClass('active', $(this).data('tab') === tab);
+        });
+        $('.smaily-tab-panel').removeClass('active')
+            .filter('[data-tab=' + tab + ']').addClass('active');
+        $('#smaily-s-save-result').text('');
+        if (tab === 'automations' && !workflowsLoaded) {
+            workflowsLoaded = true;
+            panels.loadWorkflows('#smaily-s-save-result');
+        }
+        if (updateUrl && window.history && window.history.replaceState) {
+            var url = new URL(window.location.href);
+            url.searchParams.set('tab', tab);
+            window.history.replaceState(null, '', url.toString());
+        }
+    }
+
+    panels.initAll();
+
+    $('.smaily-tabs').on('click', 'li', function () {
+        activate($(this).data('tab'), true);
+    });
+
+    $('#smaily-s-save').on('click', function () {
+        var $button = $(this).prop('disabled', true);
+        panels.result('#smaily-s-save-result', '<?= $escaper->escapeJs(__('Saving…')) ?>', true);
+        new Promise(function (resolve) { resolve(panels.collect[steps[active]]()); })
+            .then(function (data) { return panels.saveStep(steps[active], data); })
+            .then(function () {
+                panels.result('#smaily-s-save-result', '<?= $escaper->escapeJs(__('Saved.')) ?>', true);
+            })
+            .catch(function (error) {
+                panels.result('#smaily-s-save-result', error.message, false);
+            })
+            .finally(function () {
+                $button.prop('disabled', false);
+            });
+    });
+
+    // Live reactivity across tabs: edited credentials re-render the
+    // dependent workflow dropdowns (Automations tab) without saving.
+    var credentialTimer = null;
+    $('#smaily-w-subdomain, #smaily-w-username, #smaily-w-password').on('input', function () {
+        clearTimeout(credentialTimer);
+        credentialTimer = setTimeout(function () {
+            workflowsLoaded = true;
+            panels.loadWorkflows(null);
+        }, 1200);
+    });
+
+    activate(new URLSearchParams(window.location.search).get('tab') || 'connection', false);
+});
+</script>

@@ -1,0 +1,163 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Operational dashboard — the Smaily Connect landing page. Every number is
+ * a real local queue query (see Model\Adminhtml\DashboardStats); the health
+ * verdict reuses the HealthCheck cron's state so this page and the admin
+ * notifications always agree. Operational data only — no marketing metrics.
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+/** @var \Smaily\Connect\ViewModel\Adminhtml\DashboardData $viewModel */
+$viewModel = $block->getData('view_model');
+
+$verdict = $viewModel->getVerdict();
+$failed = $viewModel->getFailedLast24h();
+
+$urls = [
+    'wizard' => $block->getUrl('smaily_connect/wizard'),
+    'settings' => $block->getUrl('smaily_connect/settings'),
+    'log' => $block->getUrl('smaily_connect/log'),
+    'config' => $block->getUrl('adminhtml/system_config/edit', ['section' => 'smaily_connect']),
+];
+
+$statusLabels = [
+    'pending' => __('Pending'),
+    'sending' => __('Sending'),
+    'sent' => __('Sent'),
+    'failed' => __('Failed'),
+];
+$sourceLabels = [
+    'smaily' => __('Smaily'),
+    'intelligence' => __('Campaign Intelligence'),
+];
+
+// One-sentence health verdict, by priority: incomplete > failures > engine
+// unreachable > all good.
+if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCOMPLETE) {
+    $verdictText = __('Setup is not finished yet — complete the setup wizard to start syncing.');
+} elseif ($failed > 0) {
+    $verdictText = __('Smaily Connect is running, but %1 delivery(ies) failed in the last 24 hours.', $failed);
+} elseif ($viewModel->isEngineDown()) {
+    $verdictText = __('Smaily Connect is running, but Campaign Intelligence is currently unreachable — data is queued locally and will sync when it recovers.');
+} else {
+    $verdictText = __('Everything is running — deliveries to Smaily are flowing normally.');
+}
+?>
+<div id="smaily-dashboard" class="smaily-ui smaily-dashboard">
+    <div class="smaily-verdict smaily-verdict-<?= $escaper->escapeHtmlAttr($verdict) ?>">
+        <?= $escaper->escapeHtml($verdictText) ?>
+        <?php if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCOMPLETE): ?>
+            <a class="action-primary smaily-verdict-action" href="<?= $escaper->escapeUrl($urls['wizard']) ?>">
+                <span><?= $escaper->escapeHtml(__('Resume setup')) ?></span></a>
+        <?php elseif ($failed > 0): ?>
+            <a class="action-primary smaily-verdict-action" href="<?= $escaper->escapeUrl($urls['log']) ?>">
+                <span><?= $escaper->escapeHtml(__('Review failures')) ?></span></a>
+        <?php endif; ?>
+    </div>
+
+    <div class="smaily-connections">
+        <div class="smaily-connection <?= $viewModel->isSmailyConnected() ? 'is-on' : 'is-off' ?>">
+            <span class="smaily-dot"></span>
+            <strong><?= $escaper->escapeHtml(__('Smaily')) ?></strong>
+            <span class="smaily-connection-state">
+                <?php if ($viewModel->isSmailyConnected()): ?>
+                    <?= $escaper->escapeHtml(__('Connected (%1)', $viewModel->getSmailySubdomain())) ?>
+                <?php else: ?>
+                    <?= $escaper->escapeHtml(__('Not connected')) ?>
+                <?php endif; ?>
+            </span>
+        </div>
+        <div class="smaily-connection <?= $viewModel->isEngineConnected() ? 'is-on' : 'is-off' ?>">
+            <span class="smaily-dot"></span>
+            <strong><?= $escaper->escapeHtml(__('Campaign Intelligence')) ?></strong>
+            <span class="smaily-connection-state">
+                <?php if ($viewModel->isEngineDown()): ?>
+                    <?= $escaper->escapeHtml(__('Connected, currently unreachable')) ?>
+                <?php elseif ($viewModel->isEngineConnected()): ?>
+                    <?= $escaper->escapeHtml(__('Connected (%1)', $viewModel->getEngineTenantName())) ?>
+                <?php else: ?>
+                    <?= $escaper->escapeHtml(__('Not connected')) ?>
+                <?php endif; ?>
+            </span>
+        </div>
+        <div class="smaily-connection <?= $viewModel->isBrowseTrackingEnabled() ? 'is-on' : 'is-off' ?>">
+            <span class="smaily-dot"></span>
+            <strong><?= $escaper->escapeHtml(__('Browse tracking')) ?></strong>
+            <span class="smaily-connection-state">
+                <?= $escaper->escapeHtml($viewModel->isBrowseTrackingEnabled() ? __('Enabled') : __('Disabled')) ?>
+            </span>
+        </div>
+    </div>
+
+    <div class="smaily-tiles">
+        <div class="smaily-tile">
+            <span class="smaily-tile-value"><?= (int)$viewModel->getContactSyncsDelivered() ?></span>
+            <span class="smaily-tile-label"><?= $escaper->escapeHtml(__('Contact syncs delivered (30 days)')) ?></span>
+        </div>
+        <?php if ($viewModel->isEngineConnected()): ?>
+        <div class="smaily-tile">
+            <span class="smaily-tile-value"><?= (int)$viewModel->getCatalogItemsDelivered() ?></span>
+            <span class="smaily-tile-label"><?= $escaper->escapeHtml(__('Catalog items delivered (30 days)')) ?></span>
+        </div>
+        <?php endif; ?>
+        <div class="smaily-tile">
+            <span class="smaily-tile-value"><?= (int)$viewModel->getQueuedToday() ?></span>
+            <span class="smaily-tile-label"><?= $escaper->escapeHtml(__('Events queued today')) ?></span>
+        </div>
+        <div class="smaily-tile <?= $failed > 0 ? 'smaily-tile-attention' : '' ?>">
+            <span class="smaily-tile-value"><?= (int)$failed ?></span>
+            <span class="smaily-tile-label"><?= $escaper->escapeHtml(__('Failed deliveries (24 hours)')) ?></span>
+        </div>
+    </div>
+
+    <div class="smaily-columns">
+        <div class="smaily-card smaily-activity">
+            <h2><?= $escaper->escapeHtml(__('Recent activity')) ?></h2>
+            <?php $activity = $viewModel->getRecentActivity(10); ?>
+            <?php if (!$activity): ?>
+                <p class="smaily-empty"><?= $escaper->escapeHtml(__('No deliveries yet. Once subscribers, orders or catalog changes start flowing, the latest queue rows show up here.')) ?></p>
+            <?php else: ?>
+                <div class="admin__table-wrapper">
+                    <table class="admin__table-secondary">
+                        <thead>
+                            <tr>
+                                <th><?= $escaper->escapeHtml(__('Source')) ?></th>
+                                <th><?= $escaper->escapeHtml(__('Type')) ?></th>
+                                <th><?= $escaper->escapeHtml(__('Entity')) ?></th>
+                                <th><?= $escaper->escapeHtml(__('Status')) ?></th>
+                                <th><?= $escaper->escapeHtml(__('Updated')) ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($activity as $row): ?>
+                            <tr>
+                                <td><?= $escaper->escapeHtml($sourceLabels[$row['source']] ?? $row['source']) ?></td>
+                                <td><code><?= $escaper->escapeHtml($row['type']) ?></code></td>
+                                <td><?= $escaper->escapeHtml($row['entity_id']) ?></td>
+                                <td><span class="smaily-status smaily-status-<?= $escaper->escapeHtmlAttr($row['status']) ?>"><?= $escaper->escapeHtml($statusLabels[$row['status']] ?? $row['status']) ?></span></td>
+                                <td><?= $escaper->escapeHtml($block->formatDate($row['updated_at'], \IntlDateFormatter::MEDIUM, true)) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="note"><a href="<?= $escaper->escapeUrl($urls['log']) ?>"><?= $escaper->escapeHtml(__('Open the full log')) ?></a></p>
+            <?php endif; ?>
+        </div>
+
+        <div class="smaily-card smaily-quick-links">
+            <h2><?= $escaper->escapeHtml(__('Quick links')) ?></h2>
+            <ul>
+                <li><a href="<?= $escaper->escapeUrl($urls['settings']) ?>"><?= $escaper->escapeHtml(__('Settings')) ?></a> — <?= $escaper->escapeHtml(__('connection, subscribers, automations, Intelligence and RSS in one tabbed page')) ?></li>
+                <li><a href="<?= $escaper->escapeUrl($urls['log']) ?>"><?= $escaper->escapeHtml(__('Log')) ?></a> — <?= $escaper->escapeHtml(__('every delivery with retry for failed rows')) ?></li>
+                <li><a href="<?= $escaper->escapeUrl($urls['wizard']) ?>"><?= $escaper->escapeHtml(__('Setup Wizard')) ?></a> — <?= $escaper->escapeHtml(__('re-run the guided setup at any time; your settings are kept')) ?></li>
+                <li><a href="<?= $escaper->escapeUrl($urls['config']) ?>"><?= $escaper->escapeHtml(__('Stores > Configuration')) ?></a> — <?= $escaper->escapeHtml(__('advanced fields and per-website or per-store-view overrides')) ?></li>
+            </ul>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,41 @@
+<?php
+/**
+ * Copyright © Smaily. All rights reserved.
+ * See LICENSE.txt for license details.
+ *
+ * Automations panel — shared by the setup wizard (step 3) and the Settings
+ * page (Automations tab, where the engine-run automations block renders
+ * below it). Behavior lives in panel/panels-js.phtml.
+ *
+ * @var \Magento\Backend\Block\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+?>
+<div class="smaily-card">
+    <h2><?= $escaper->escapeHtml(__('Map store events to Smaily automations')) ?></h2>
+    <p><?= $escaper->escapeHtml(__('Each event triggers the Smaily automation workflow you pick. The lists below come live from your Smaily account — create the workflows there first if they are missing, then press Refresh.')) ?>
+       <button type="button" class="action-tertiary" id="smaily-w-refresh-workflows"><span><?= $escaper->escapeHtml(__('Refresh workflows')) ?></span></button>
+    </p>
+
+    <div class="smaily-field">
+        <label><input type="checkbox" id="smaily-w-welcome-enabled"/>
+            <?= $escaper->escapeHtml(__('Welcome — fires when someone becomes a subscriber')) ?></label>
+        <select id="smaily-w-welcome-workflow" class="smaily-w-workflow"></select>
+    </div>
+    <div class="smaily-field">
+        <label><input type="checkbox" id="smaily-w-firstorder-enabled"/>
+            <?= $escaper->escapeHtml(__('First order — fires on a customer\'s first purchase')) ?></label>
+        <select id="smaily-w-firstorder-workflow" class="smaily-w-workflow"></select>
+    </div>
+    <div class="smaily-field">
+        <label><input type="checkbox" id="smaily-w-abandoned-enabled"/>
+            <?= $escaper->escapeHtml(__('Abandoned cart — fires when a cart is left behind')) ?></label>
+        <select id="smaily-w-abandoned-workflow" class="smaily-w-workflow"></select>
+        <p class="note" style="margin-top:0.6rem;">
+            <?= $escaper->escapeHtml(__('Wait')) ?>
+            <input type="number" id="smaily-w-cutoff" min="10" max="1440" value="30" style="width:6rem; display:inline;"/>
+            <?= $escaper->escapeHtml(__('minutes of inactivity before the cart counts as abandoned. Each cart is mailed once; carts older than 24 hours are never mailed.')) ?>
+        </p>
+    </div>
+    <p class="note"><?= $escaper->escapeHtml(__('The automation receives the cart contents (up to 10 products) and a recovery link that restores the exact cart. For multilingual stores, choose a workflow routing mode under Configuration > API Connection > Multilingual Mode.')) ?></p>
+</div>
