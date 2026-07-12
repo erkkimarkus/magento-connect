@@ -5,7 +5,7 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1288 — engine-automations connected-states (off/active/test/validation-error) validated live vs the mock engine in en_US + et_EE; verification only, no code change)_
+_Last updated: 2026-07-12 (PRO-1292 — engine-automations trigger title/description are now admin-locale-aware with an `_en` fallback)_
 
 ## Where we are
 
@@ -61,6 +61,22 @@ _Last updated: 2026-07-12 (PRO-1288 — engine-automations connected-states (off
   locales; sandbox admin locale restored to en_US. The engine
   trigger-card active/test/off + validation-error states are now driven live too
   — see the PRO-1288 entry below.
+- **PRO-1292 fixed — engine-automations trigger title/description are now
+  admin-locale-aware.** `ViewModel\Adminhtml\AutomationsForm` read the engine
+  catalog's `name_en`/`description_en` only, so trigger titles/descriptions
+  stayed English under et_EE while the surrounding chrome localized (the latent
+  i18n gap flagged at the end of the PRO-1288 entry below). A new `localized()`
+  helper now picks `<field>_<lang>` where `<lang>` is the 2-letter code of the
+  resolved admin locale (`et` for et_EE), falling back to the `_en` field when
+  the localized field is absent or blank; the locale is resolved via the
+  standard `Magento\Framework\Locale\ResolverInterface` (adminhtml-bound to the
+  backend resolver — no other module block used a locale resolver before, so
+  this introduces the canonical mechanism). Defensive: unknown/unparseable
+  locale or a missing/whitespace-only localized field → `_en`. New unit test
+  `Test/Unit/ViewModel/AutomationsFormTest.php` (5 cases: et→`_et`, et with
+  `_et` missing→`_en`, et with `_et` blank→`_en`, en→`_en`, unknown→`_en`).
+  Gates: 137 unit tests green, phpcs 0 errors, phpstan clean. (The `recipe`
+  field already had an en/et fallback and is unchanged.)
 - **PRO-1288 done — engine-automations connected-states validated live
   (verification only, no code change).** The four states PRO-1281 Stage B left
   un-driven (the sandbox engine was disconnected) were exercised against a
@@ -621,6 +637,7 @@ _Last updated: 2026-07-12 (PRO-1288 — engine-automations connected-states (off
 | PRO-1201 | Hyvä theme work package | — |
 | PRO-1281 | Phase 3 design-led polish — DONE (Stage A tokens/components + Stage B screens; Playwright en/et green) | — |
 | PRO-1288 | Engine-automations connected-states validation — DONE (off/active/test/validation-error driven live en/et; no code change) | Low |
+| PRO-1292 | Engine-automations trigger title/description i18n — DONE (locale-aware `name_<lang>`/`description_<lang>` with `_en` fallback; unit-tested) | Low |
 
 Closed 2026-07-11: PRO-1199 (integration suite), PRO-1200 (i18n), PRO-1202 /
 PRO-1242 (contract v1.4.0), PRO-1231 (product-delete §3b), PRO-1252

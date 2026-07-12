@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\ViewModel\Adminhtml;
 
+use Magento\Framework\Locale\ResolverInterface as LocaleResolver;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
 use Smaily\Connect\Model\Client\Exception\SmailyClientException;
 use Smaily\Connect\Model\Client\SmailyClientProvider;
@@ -31,7 +32,8 @@ class AutomationsForm implements ArgumentInterface
     public function __construct(
         private readonly Settings $settings,
         private readonly Client $client,
-        private readonly SmailyClientProvider $smailyClientProvider
+        private readonly SmailyClientProvider $smailyClientProvider,
+        private readonly LocaleResolver $localeResolver
     ) {
     }
 
@@ -81,8 +83,8 @@ class AutomationsForm implements ArgumentInterface
             $map = (array)($existing['automation_map'] ?? []);
             $rows[] = [
                 'key' => $key,
-                'name' => (string)($trigger['name_en'] ?? $key),
-                'description' => (string)($trigger['description_en'] ?? ''),
+                'name' => $this->localized($trigger, 'name', $key),
+                'description' => $this->localized($trigger, 'description', ''),
                 'recipe' => (string)($trigger['recipe_en'] ?? $trigger['recipe_et'] ?? ''),
                 // Fail-closed defaults per contract §13.
                 'enabled' => (bool)($existing['enabled'] ?? false),
@@ -113,6 +115,42 @@ class AutomationsForm implements ArgumentInterface
         } catch (SmailyClientException) {
             return [];
         }
+    }
+
+    /**
+     * Pick a catalog field in the current admin locale, `_en` fallback.
+     *
+     * The engine catalog carries `<field>_<lang>` pairs (e.g. name_et); an
+     * unknown locale or a missing/blank localized field yields the `_en`
+     * value so titles never render empty.
+     *
+     * @param array<string, mixed> $trigger
+     */
+    private function localized(array $trigger, string $field, string $default): string
+    {
+        $lang = $this->localeLanguage();
+        if ($lang !== '' && $lang !== 'en') {
+            $value = trim((string)($trigger[$field . '_' . $lang] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        $fallback = trim((string)($trigger[$field . '_en'] ?? ''));
+
+        return $fallback !== '' ? $fallback : $default;
+    }
+
+    /**
+     * The 2-letter (ISO 639-1) code of the resolved admin locale — 'et' for
+     * et_EE. An unrecognizable locale yields '' (treated as English).
+     */
+    private function localeLanguage(): string
+    {
+        $locale = (string)$this->localeResolver->getLocale();
+        $language = strtolower(strtok($locale, '_') ?: '');
+
+        return preg_match('/^[a-z]{2,3}$/', $language) === 1 ? $language : '';
     }
 
     private function load(): void
