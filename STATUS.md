@@ -5,7 +5,7 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1286 — missing-workflow-id preserve rule extended to all four save surfaces via the shared ConfigRowNormalizer::isMissingFromList; 132 unit + 56 integration green, di:compile green)_
+_Last updated: 2026-07-12 (PRO-1288 — engine-automations connected-states (off/active/test/validation-error) validated live vs the mock engine in en_US + et_EE; verification only, no code change)_
 
 ## Where we are
 
@@ -58,10 +58,36 @@ _Last updated: 2026-07-12 (PRO-1286 — missing-workflow-id preserve rule extend
   reactivity, backfill progress component, engine empty-state, log Details
   pill + redaction, dashboard tiles/pills/verdict, RSS deep-link opens the
   group, wizard step nav) with **zero module JS console errors** in both
-  locales; sandbox admin locale restored to en_US. Not driven live: the engine
-  trigger-card active/test/off + validation-error states (the sandbox engine is
-  deliberately disconnected, so the not-connected empty-state is what renders —
-  the card markup is code-complete and di-compiled).
+  locales; sandbox admin locale restored to en_US. The engine
+  trigger-card active/test/off + validation-error states are now driven live too
+  — see the PRO-1288 entry below.
+- **PRO-1288 done — engine-automations connected-states validated live
+  (verification only, no code change).** The four states PRO-1281 Stage B left
+  un-driven (the sandbox engine was disconnected) were exercised against a
+  CONNECTED engine (the shopify-connect `packages/mock-engine`, served on the
+  docker bridge at `172.20.0.1:9876`; connected via the real Settings >
+  Intelligence setup-exchange). Playwright drove all four in **en_US AND
+  et_EE**: **off** — both triggers render `.smaily-pill--off` ("Off"/"Väljas")
+  with no stored config (fail-closed default); **active** — a seeded
+  enabled+non-test config renders `.smaily-pill--active` ("Active"/"Aktiivne")
+  with the green card accent; **test** — enabled+test renders
+  `.smaily-pill--test` ("Test mode"/"Testrežiim") with the blue accent;
+  **per-field validation error** — an invalid Test Emails value posts to the
+  engine, which 422s, and the card's inline-status shows the field-level
+  message "winback_risk / test_emails.0: Invalid email …" (Estonian: "… Midagi
+  ei salvestatud …") — a named trigger/field, not a raw exception fragment. The
+  not-connected empty-state and the catalog-load-failed `.smaily-banner--warning`
+  (+ `is-degraded` dimming) were spot-checked and still render (banner driven
+  with a revoked-key 401 — a transient 500 is retried and would not surface it).
+  **Zero module JS console errors** in either locale. Card markup, computed
+  run-mode pill and inline-status all render as designed — no visual fix needed.
+  Sandbox restored afterwards: engine disconnected (only
+  `smaily_connect/intelligence/browse_tracking=0` remains, as before), admin
+  locale back to en_US. Known follow-up (pre-existing, not a PRO-1288
+  regression): the engine trigger **name/description** come from the catalog's
+  `name_en`/`description_en` only, so they stay English under et_EE while all
+  surrounding chrome localizes — a latent i18n gap in the catalog-driven
+  content, out of scope here.
 - **PRO-1281 Stage A done — Phase 3 design foundation (CSS only, no screens
   touched).** Landed the Design agent's visual system into
   `view/adminhtml/web/css/smaily-admin.css` (already loaded on all four admin
@@ -594,6 +620,7 @@ _Last updated: 2026-07-12 (PRO-1286 — missing-workflow-id preserve rule extend
 | PRO-1198 | Release coordination with Smaily (upstream/Marketplace path) | High — Erkki's decision |
 | PRO-1201 | Hyvä theme work package | — |
 | PRO-1281 | Phase 3 design-led polish — DONE (Stage A tokens/components + Stage B screens; Playwright en/et green) | — |
+| PRO-1288 | Engine-automations connected-states validation — DONE (off/active/test/validation-error driven live en/et; no code change) | Low |
 
 Closed 2026-07-11: PRO-1199 (integration suite), PRO-1200 (i18n), PRO-1202 /
 PRO-1242 (contract v1.4.0), PRO-1231 (product-delete §3b), PRO-1252
