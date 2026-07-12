@@ -50,7 +50,7 @@ package. Until then, install it with a path repository:
 
 ```bash
 composer config repositories.smaily-hyva path vendor/smaily/smailyformagento/compat/hyva
-composer require hyva-themes/magento2-smaily-connect:@alpha
+composer require smaily/module-connect-hyva:@alpha
 bin/magento module:enable Hyva_SmailyConnect
 bin/magento setup:upgrade
 bin/magento hyva:config:generate
@@ -60,12 +60,11 @@ npm --prefix app/design/frontend/<Vendor>/<theme>/web/tailwind run build-prod
 bin/magento cache:flush
 ```
 
-> The composer package name follows the `hyva-themes/magento2-*` compat
-> convention. Whether the published package lives under the `hyva-themes`
-> vendor (adopted into their compat-module tracker) or under `smaily/` is
-> an open release decision — see `docs/HYVA_SUPPORT.md`.
+> The composer package is published under Smaily's own vendor namespace as
+> `smaily/module-connect-hyva`; the Magento module name keeps the Hyvä
+> compat-module convention (`Hyva_SmailyConnect`) — see
+> `docs/HYVA_SUPPORT.md`.
 
 ## License
 
-GPL-3.0-only, same as Smaily Connect (may be relicensed to match the Hyvä
-ecosystem convention if adopted into the hyva-themes organization).
+GPL-3.0-only, same as Smaily Connect.

@@ -43,10 +43,11 @@ changes), **OUT-OF-SCOPE**.
 
 ## What the compat module provides (`compat/hyva/`)
 
-Module `Hyva_SmailyConnect`, composer `hyva-themes/magento2-smaily-connect`
-(the standard Hyvä compat-module convention; final vendor namespace is an
-open release decision). It lives in this repository and will eventually be
-published as its own package. It is excluded from the release ZIP artifact
+Module `Hyva_SmailyConnect`, composer `smaily/module-connect-hyva` (the
+module name keeps the Hyvä compat-module naming convention; the composer
+package is published under Smaily's own vendor namespace — decided, see
+"Open release decisions"). It lives in this repository and will eventually
+be published as its own package. It is excluded from the release ZIP artifact
 but kept in the composer package on purpose: it is inert there — nothing
 loads `compat/hyva/registration.php` — while enabling installation via a
 path repository until the separate package exists (see
@@ -190,9 +191,10 @@ needs the frontend half.
 
 ## Open release decisions
 
-1. Publish vendor/name: `hyva-themes/magento2-smaily-connect` (requires
-   adoption into the Hyvä compat-module tracker) vs `smaily/…`. The module
-   code is name-agnostic apart from composer.json.
+1. ~~Publish vendor/name~~ — **decided: `smaily/module-connect-hyva`**
+   (Smaily's own vendor namespace; `hyva-themes/…` would have required
+   adoption into the Hyvä compat-module tracker). The Magento module name
+   stays `Hyva_SmailyConnect` per the Hyvä compat convention.
 2. Hyvä Checkout: confirm the out-of-scope boundary above.
 3. Whether the compat module stays in this repo (current setup: developed
    here, excluded from the main package artifacts) or moves to its own

@@ -76,8 +76,9 @@ _Last updated: 2026-07-12 (real-Smaily-credentials walk executed — all 8 surfa
   now, the core My Account pattern. Both `TODO(hyva-store)` markers
   resolved (cart_add verified on stock Hyvä; precise note kept for
   third-party AJAX-cart modules that bypass the submit event). Remaining on
-  the work pack: compat-package publication (vendor/name — Erkki's release
-  decision) and the Hyvä Checkout boundary confirmation. Sandbox left with
+  the work pack: compat-package publication (name decided:
+  `smaily/module-connect-hyva`) and the Hyvä Checkout boundary
+  confirmation. Sandbox left with
   Hyvä on the default store view + Luma on `et`; engine restored to
   disconnected.
 - **UI/UX parity phase 2b done (PRO-1272) — observability depth.**
@@ -355,7 +356,7 @@ _Last updated: 2026-07-12 (real-Smaily-credentials walk executed — all 8 surfa
 - **Hyvä compat skeleton + work package done (PRO-1201)** — full storefront
   audit with file:line evidence in `docs/HYVA_SUPPORT.md`. Compat
   module `Hyva_SmailyConnect` under `compat/hyva/` (standard Hyvä pattern:
-  `hyva_` layout handles, composer `hyva-themes/magento2-smaily-connect`,
+  `hyva_` layout handles, composer `smaily/module-connect-hyva`,
   Tailwind registration observer for `hyva:config:generate`): vanilla-JS
   ports of tracker + attribution delivered as static files + inert JSON
   config blocks (no inline executable script — strict-CSP-safe; no
@@ -425,6 +426,7 @@ PRO-1267 (engine: Magento product-identity contract note).
    `docs/HYVA_SUPPORT.md`; the verification matrix itself is now fully
    executed and green): (a) confirm Hyvä Checkout (commercial, Magewire)
    stays out of scope for the first Hyvä release — free Hyvä's
-   Luma-fallback checkout is the supported path and is verified working;
-   (b) compat package vendor/name (`hyva-themes/magento2-smaily-connect`
-   needs adoption into their tracker vs publishing under `smaily/`).
+   Luma-fallback checkout is the supported path and is verified working.
+   The compat package vendor/name is decided: `smaily/module-connect-hyva`
+   (module PHP name stays `Hyva_SmailyConnect` per the Hyvä convention);
+   actual publication remains part of the release train.

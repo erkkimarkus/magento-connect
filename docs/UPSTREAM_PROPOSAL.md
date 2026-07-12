@@ -148,28 +148,28 @@ button, exactly as it does today for 2.8.x.
 
 ## 6. Open items, stated honestly
 
-- **A click-through with real credentials is still owed.** All admin UX flows were
-  browser-validated against the sandbox, but without real Smaily or engine
-  credentials — i.e. the failure/empty paths are verified in-browser, the happy
-  paths against live services are exercised by the test suites but not yet
-  clicked through. The checkout opt-in checkbox rendering is likewise unverified
-  in-browser (the sandbox catalog has no products; its label is confirmed present
-  in the storefront translation bundle). Both belong in the review plan before any
-  release.
-- **Hyvä is not yet verified** — a compatibility module skeleton exists
-  (`compat/hyva/`, module `Hyva_SmailyConnect`: framework-free tracker and
-  attribution delivery, Tailwind templates, standard Hyvä compat-module
-  packaging) but has not run against a real Hyvä store yet. The audit,
-  verification matrix and remaining work are detailed in
-  [HYVA_SUPPORT.md](HYVA_SUPPORT.md). Classic Luma/Blank themes are fully
-  covered.
+- **The Smaily-side happy paths are verified against a live Smaily account.**
+  Test Connection, live workflow dropdowns, storefront subscribe → contact sync,
+  the subscriber backfill, guest checkout opt-in and the abandoned-cart / welcome
+  automation triggers were each clicked through against a real Smaily test
+  account and verified server-side over the Smaily API (the walk also caught and
+  fixed a workflow-listing bug — see the changelog). What remains open is a pass
+  against a live Campaign Intelligence tenant: the engine happy paths are
+  verified against the contract mock only.
+- **Hyvä is verified on a real Hyvä 1.5.2 store** — the compatibility module
+  (`compat/hyva/`, module `Hyva_SmailyConnect`, to be published as
+  `smaily/module-connect-hyva`) passed its full verification matrix, including a
+  strict-CSP theme variant, with a Luma store view as the regression control.
+  Audit and the executed matrix are in [HYVA_SUPPORT.md](HYVA_SUPPORT.md).
+  Classic Luma/Blank themes are fully covered.
 - **Campaign Intelligence dependency**: the extension builds against engine
   contract v1.4.0; the engine repository is currently private, which is why the
   staleness check needs a read token. Everything engine-related is optional at
   runtime — a store that never connects the engine gets the full classic feature
   set with zero engine traffic.
-- Version is **3.0.0-alpha1**: the alpha label reflects the two verification gaps
-  above, not known defects — gates are green and the sandbox is clean.
+- Version is **3.0.0-alpha1**: the alpha label reflects the remaining engine-tenant
+  verification gap above, not known defects — gates are green and the sandbox is
+  clean.
 
 ## 7. Decision checklist
 
@@ -178,8 +178,9 @@ door is reversible; each door is cheap to hold and expensive to walk back.
 
 1. **Share the fork with Smaily and start the staged review** (§3). First move;
    costs nothing irreversible, unlocks everything else.
-2. **Real-credentials click-through** (§6) against a Smaily account and an engine
-   tenant — closes the last verification gap. Do before any tag.
+2. **Live engine-tenant click-through** (§6) — the Smaily-account half is done;
+   a pass against a real Campaign Intelligence tenant closes the last
+   verification gap. Do before any tag.
 3. **First public GitHub release (alpha/beta tag)** — creates a downloadable ZIP.
    Low blast radius (opt-in manual installs only), but it is the first public
    artifact of the rewrite; do it on the upstream repo, after door 1–2.
