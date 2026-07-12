@@ -9,10 +9,10 @@
  * because Hyvä does not style Luma's fieldset/legend/actions-toolbar
  * markup. Uses Hyvä's stock `btn btn-primary` + `form-checkbox` classes.
  *
- * TODO(hyva-store): eyeball on a real Hyvä store after
- * `hyva:config:generate` + Tailwind rebuild (classes must survive the
- * content scan; this module registers itself for it — see
- * Observer/RegisterModuleForHyvaConfig.php).
+ * Verified on Hyvä 1.5.2: after `hyva:config:generate` + Tailwind rebuild
+ * the classes survive the content scan (this module registers itself for
+ * it — see Observer/RegisterModuleForHyvaConfig.php) and the form renders
+ * fully styled.
  *
  * @var \Magento\Framework\View\Element\Template $block
  * @var \Magento\Framework\Escaper $escaper

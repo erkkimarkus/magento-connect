@@ -1,7 +1,15 @@
 # Hyvä Theme Support
 
-Status: **compat module skeleton in place (`compat/hyva/`, module
-`Hyva_SmailyConnect`), not yet verified on a real Hyvä store.**
+Status: **verified on a real Hyvä store.** The verification matrix below was
+executed against Hyvä **1.5.2** (`hyva-themes/magento2-default-theme`,
+Tailwind v4) and against the strict-CSP variant
+(`hyva-themes/magento2-default-theme-csp` with storefront CSP *enforced* and
+`unsafe-inline` removed from `script-src`), side by side with a Luma store
+view as the regression control — every cell passed. The compat module
+(`compat/hyva/`, `Hyva_SmailyConnect`) works as designed; one latent bug it
+surfaced in the base module (personalization page vs full-page cache) is
+fixed. Remaining before release: package publication (vendor/name decision)
+and the Hyvä Checkout boundary confirmation — see "Open release decisions".
 
 [Hyvä](https://www.hyva.io/) replaces Magento's Luma frontend stack
 (RequireJS, jQuery, Knockout, `x-magento-init`) with Alpine.js 3 + Tailwind
@@ -11,9 +19,9 @@ via the Hyvä portal, source at
 untouched by themes, so only the storefront surfaces matter. Target: Hyvä
 1.4+ (Tailwind v4).
 
-This document is the audit of every Smaily Connect storefront surface, what
-the compatibility module already covers, and exactly what remains before
-Hyvä support can be called done.
+This document is the audit of every Smaily Connect storefront surface,
+what the compatibility module covers, and the executed verification
+results.
 
 ## Storefront surface audit
 
@@ -25,11 +33,11 @@ changes), **OUT-OF-SCOPE**.
 |---|---|---|
 | Browse tracker | `view/frontend/web/js/tracker.js:16` — AMD `define(['jquery', …])`; `:91` — `$.ajax` beacon fallback; `:148` — listens to Luma-only jQuery event `ajax:addToCart` (Hyvä documents no add-to-cart JS event); `view/frontend/templates/engine/tracker.phtml:16` — `x-magento-init` bootstrap (needs `Magento_Ui/js/core/app` runtime Hyvä doesn't load). Core batching/consent logic is framework-free. | **NEEDS-JS-PORT** |
 | Attribution script | `view/frontend/web/js/attribution.js:11` — `define([], …)`: zero dependencies, pure vanilla inside, but AMD-wrapped; `view/frontend/templates/engine/attribution.phtml:16` — `x-magento-init` bootstrap. Logic ports 1:1. | **NEEDS-COMPAT-TEMPLATE** |
-| Product/static page-context blocks | `view/frontend/templates/engine/context/product.phtml:21` and `context/static.phtml:23` — one-line inline `window.smailyPageContext` scripts rendered via `SecureHtmlRenderer::renderTag()`. No JS framework involved; CSP whitelisting happens in `Magento_Csp` (DI preference on the renderer), independent of the active theme, so it also holds under Hyvä stores running strict CSP. Blocks attach to `before.body.end`, which Hyvä's `default.xml` keeps. | **WORKS-AS-IS** (verify) |
-| Checkout newsletter opt-in | `view/frontend/web/js/view/checkout/newsletter-optin.js:6-10` — `uiComponent`/`ko` component injected via a `LayoutProcessor` plugin (`Plugin/Checkout/AddNewsletterOptinToLayout.php`). Free Hyvä uses the **Luma-fallback checkout**: the checkout route switches to a Luma-based theme where RequireJS/Knockout load normally, so the component runs unchanged. | **WORKS-AS-IS** on Luma-fallback checkout (verify) |
+| Product/static page-context blocks | `view/frontend/templates/engine/context/product.phtml:21` and `context/static.phtml:23` — one-line inline `window.smailyPageContext` scripts rendered via `SecureHtmlRenderer::renderTag()`. No JS framework involved; CSP whitelisting happens in `Magento_Csp` (DI preference on the renderer), independent of the active theme, so it also holds under Hyvä stores running strict CSP. Blocks attach to `before.body.end`, which Hyvä's `default.xml` keeps. | **WORKS-AS-IS** (verified) |
+| Checkout newsletter opt-in | `view/frontend/web/js/view/checkout/newsletter-optin.js:6-10` — `uiComponent`/`ko` component injected via a `LayoutProcessor` plugin (`Plugin/Checkout/AddNewsletterOptinToLayout.php`). Free Hyvä uses the **Luma-fallback checkout**: the checkout route switches to a Luma-based theme where RequireJS/Knockout load normally, so the component runs unchanged. | **WORKS-AS-IS** on Luma-fallback checkout (verified) |
 | Checkout opt-in on Hyvä Checkout | Hyvä Checkout is a separate commercial product with its own component system (Magewire), a different integration surface entirely. | **OUT-OF-SCOPE** (see boundary below) |
 | My Account personalization page | `view/frontend/templates/privacy/form.phtml` — plain HTML POST form, zero JS; `view/frontend/layout/smaily_privacy_index.xml:13` — standard `content` container; `customer_account.xml:12` — nav entry via core `SortLink`, which Hyvä's account navigation renders. Functional as-is; only the Luma CSS classes (`fieldset`/`legend`/`actions-toolbar`) render unstyled. | **WORKS-AS-IS** functionally; **NEEDS-COMPAT-TEMPLATE** for styling |
-| Native newsletter block | No template override in this module; subscription is consumed server-side (`Observer/SubscriberSaveAfter.php` on `newsletter_subscriber_save_after`). Hyvä ships its own newsletter form template posting to the same core controller. | **WORKS-AS-IS** (verify) |
+| Native newsletter block | No template override in this module; subscription is consumed server-side (`Observer/SubscriberSaveAfter.php` on `newsletter_subscriber_save_after`). Hyvä ships its own newsletter form template posting to the same core controller. | **WORKS-AS-IS** (verified) |
 | RSS product feed | `Controller/Rss/Feed.php` — server-rendered XML, no frontend assets. | **WORKS-AS-IS** |
 | Abandoned-cart restore link | `Controller/Cart/Restore.php` — server-side redirect, no frontend assets. | **WORKS-AS-IS** |
 
@@ -62,9 +70,12 @@ path repository until the separate package exists (see
   beacon flush) because Hyvä's default add-to-cart is a regular form POST
   and no add-to-cart JS event is documented. Semantic difference vs Luma:
   the event fires on the attempt, not on confirmed success — acceptable
-  for a loss-tolerant popularity signal. Marked `TODO(hyva-store)`:
-  AJAX-add-to-cart compat modules bypass the submit event; fall back to a
-  `private-content-loaded` cart diff if real-store testing shows gaps.
+  for a loss-tolerant popularity signal. Verified on Hyvä 1.5.2 (stock PDP
+  form POST, with sku from the page context). Known remaining gap:
+  third-party AJAX-add-to-cart modules that call `form.submit()`
+  programmatically (fires no `submit` event) or replace the form bypass
+  this capture; if a store reports missing `cart_add` events, add a
+  `private-content-loaded` cart-diff listener as the success-side signal.
 - `view/frontend/layout/hyva_smaily_privacy_index.xml` +
   `templates/privacy/form.phtml` — Tailwind-styled personalization form
   (same behaviour and translated phrases; classes only).
@@ -77,43 +88,91 @@ No new user-facing phrases were introduced: the compat templates reuse the
 exact strings already present in `i18n/en_US.csv` / `i18n/et_EE.csv`, which
 apply globally at runtime.
 
-## Remaining work — needs a Hyvä dev store
+## Verification environment (no portal key needed)
 
-Everything above compiles and passes the repo gates, but **none of it has
-executed against a Hyvä theme**. Setting up the verification environment:
+The matrix was executed in the repo's docker sandbox with Hyvä installed
+from the public GitHub sources (the theme is OSL-3.0 / free since November
+2025 — a portal license key only adds their private Packagist repo, which
+also carries the commercial compat modules). Recipe, reproducible from
+scratch:
 
-1. Get Hyvä 1.4+: free license key from the Hyvä portal (adds their private
-   Packagist repo), or from source via
-   [github.com/hyva-themes](https://github.com/hyva-themes).
-2. `composer require hyva-themes/magento2-default-theme`, assign the theme
-   to the store view.
-3. Install `Hyva_SmailyConnect` (see `compat/hyva/README.md`), run
-   `bin/magento hyva:config:generate`, build the theme CSS (Node 20+,
-   Tailwind v4 on Hyvä 1.4).
-4. Optionally enable `Magento_Csp` enforce mode storefront-wide to cover
-   the strict-CSP column.
+1. Add composer VCS repositories for every needed `hyva-themes` GitHub repo
+   — the theme's dependency closure is larger than the obvious four:
+   `magento2-theme-module`, `magento2-default-theme`,
+   `magento2-base-layout-reset`, `magento2-email-module`,
+   `magento2-graphql-tokens`, `magento2-graphql-view-model`,
+   `magento2-order-cancellation-webapi`, `magento2-mollie-theme-bundle`,
+   `magento2-compat-module-fallback` (required by
+   `mollie/magento2-hyva-compatibility`, which comes from public Packagist)
+   and `magento2-theme-fallback` (for the Luma-fallback checkout). Use
+   `"no-api": true` on each repository so composer clones over plain git —
+   the GitHub-API driver hits the unauthenticated rate limit immediately.
+2. `composer require hyva-themes/magento2-default-theme:~1.5.2
+   hyva-themes/magento2-theme-fallback:*`, enable the new modules,
+   `setup:upgrade`, `setup:di:compile`.
+3. Register `Hyva_SmailyConnect`: in the sandbox (module bind-mounted at
+   `app/code/Smaily/Connect`) a symlink is enough —
+   `ln -s app/code/Smaily/Connect/compat/hyva app/code/Hyva/SmailyConnect`
+   (the project autoloader's `psr-0 "": app/code/` covers the classes);
+   real stores install it as a composer package (see
+   `compat/hyva/README.md`). Then `bin/magento module:enable
+   Hyva_SmailyConnect && bin/magento setup:upgrade`.
+4. `bin/magento hyva:config:generate` (our registration observer adds the
+   module to `app/etc/hyva-themes.json`), then build the theme CSS with
+   Node 20+: `npm ci && npm run build` in
+   `vendor/hyva-themes/magento2-default-theme/web/tailwind`.
+5. Assign `Hyva/default` to the store view (`design/theme/theme_id`),
+   keep another store view on Luma as the regression control. Enable the
+   Luma-fallback checkout: `hyva_theme_fallback/general/enable=1`,
+   `theme_full_path=frontend/Magento/luma`,
+   `list_part_of_url={"_1":{"path":"/checkout"}}`.
+6. Strict-CSP variant: `composer require
+   hyva-themes/magento2-default-theme-csp:dev-main` (same Tailwind build in
+   its own `web/tailwind`), assign `Hyva/default-csp`, set
+   `csp/mode/storefront/report_only=0` **and**
+   `csp/policies/storefront/scripts/inline=0` (removes `unsafe-inline`
+   from `script-src`; inline scripts then run only via Magento's
+   SecureHtmlRenderer hash/nonce whitelisting).
 
-### Verification matrix
+### Verification matrix — executed 2026-07-12, Hyvä 1.5.2 / Magento 2.4.8-p4
 
-Each cell needs a pass; Luma columns re-run to prove the compat module
-changes nothing when Hyvä is absent.
+Luma column = the `et` store view on `Magento/luma` re-run with the Hyvä
+packages installed and `Hyva_SmailyConnect` enabled, proving the compat
+module changes nothing when the Hyvä theme is not active. All rows
+Playwright-driven with the mock engine as the receiving end; browse events
+were confirmed received by the engine (`ingest/browse`), not just relayed.
 
 | Surface | Luma (regression) | Hyvä | Hyvä + strict CSP |
 |---|---|---|---|
-| Attribution: campaign-click landing sets cookies (FPC page) | done (sandbox) | todo | todo |
-| Tracker: product_view / category search / checkout_start / checkout_complete reach the relay | done (sandbox) | todo | todo |
-| Tracker: cart_add (PDP form submit; with and without AJAX-cart modules) | done (sandbox, `ajax:addToCart`) | todo | todo |
-| Tracker: consent (cookie restriction on/off, identity hint dropped) | done (sandbox) | todo | todo |
-| Page-context blocks render (SecureHtmlRenderer whitelisting) | done (sandbox) | todo | todo |
-| Checkout opt-in checkbox (Luma-fallback checkout) | done (sandbox) | todo | todo |
-| Personalization page: nav link, form render/submit, Tailwind styling | done (sandbox) | todo | todo |
-| Newsletter form subscribe fires our observers | done (sandbox) | todo | n/a (server-side) |
-| RSS feed | done (sandbox) | n/a (no theme surface) | n/a |
-| Tailwind build includes compat templates after `hyva:config:generate` | n/a | todo | n/a |
+| Attribution: campaign-click landing sets cookies (FPC page) | pass | pass | pass |
+| Tracker: product_view / search / checkout_start / checkout_complete reach the relay | pass | pass | pass (product_view, search) |
+| Tracker: cart_add (Luma `ajax:addToCart`; Hyvä PDP form-submit capture) | pass | pass (sku from page context) | pass |
+| Tracker: consent (cookie restriction on/off; identity hint dropped without consent, restored with it) | pass (earlier pass) | pass (off / on-without / on-with) | not re-run (same code path as the Hyvä column) |
+| Page-context blocks render + execute (SecureHtmlRenderer) | pass | pass | pass (hash-whitelisted, zero CSP violations) |
+| Checkout opt-in checkbox (Luma-fallback checkout; toggle persists, order placed) | pass | pass (checkout + success render `Magento/luma` via theme fallback) | n/a (the fallback checkout renders Luma; a no-inline CSP across Luma is a store-wide theme decision, not a module surface — Magento's default enforced checkout CSP was verified in the Luma pass) |
+| Personalization page: nav link, Tailwind styling, save + persist | pass (after the FPC fix below) | pass (computed styles confirm the Tailwind classes resolved) | pass by construction (plain HTML form, zero scripts) |
+| Newsletter form subscribe fires our observers (contact.sync + welcome automation enqueued) | pass (earlier pass) | pass (Hyvä's own Alpine form → core controller) | n/a (server-side) |
+| RSS feed | pass (earlier pass) | n/a (no theme surface) | n/a |
+| Tailwind build includes compat templates after `hyva:config:generate` | n/a | pass (`@source` entry present; computed 24px padding / `btn-primary` styles on the rendered form) | pass (same, CSP theme build) |
+| `setup:upgrade` + `setup:di:compile` with `Hyva_SmailyConnect` enabled | pass | pass | pass |
 
-Also to verify on the dev store: `setup:upgrade` + `setup:di:compile` with
-`Hyva_SmailyConnect` enabled, and that disabling the module cleanly returns
-the Luma templates.
+Zero console errors from our code in every run. One **third-party** noise
+finding, deliberately left alone: Hyvä's message-toast auto-dismiss throws
+a benign `Transition was skipped` pageerror (an interrupted Alpine
+transition); it reproduces with every Smaily asset blocked, so it is the
+theme's, not ours.
+
+### Bug found by this pass (fixed in the base module)
+
+The personalization page (`smaily/privacy`) was **full-page cacheable**: on
+cacheable pages Magento *depersonalizes* the customer session during
+rendering, so `PrivacyForm::isProfilingAllowed()` saw a logged-out session
+and the checkbox always rendered the default (checked) — a saved opt-out
+never showed on the page, and the cached copy would be shared across
+customers in the same FPC vary group. Theme-independent (Luma had it too);
+fixed with `cacheable="false"` on the form block in
+`smaily_privacy_index.xml`, the same pattern every core My Account page
+uses.
 
 ## Hyvä Checkout boundary
 

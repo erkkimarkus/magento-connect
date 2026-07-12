@@ -59,7 +59,7 @@ See [docs/UPGRADING.md](docs/UPGRADING.md).
 | [User Guide](docs/USER_GUIDE.md) | Setup, every setting explained, CLI reference, FAQ |
 | [Upgrading](docs/UPGRADING.md) | Migrating from Smaily for Magento 2.8.x |
 | [Architecture](docs/ARCHITECTURE.md) | How the module works inside (for developers) |
-| [Hyvä Support](docs/HYVA_SUPPORT.md) | Hyvä theme compatibility: audit, compat module, verification plan |
+| [Hyvä Support](docs/HYVA_SUPPORT.md) | Hyvä theme compatibility: audit, compat module, verification results |
 | [Testing](TESTING.md) | Test suites, sandbox, upgrade verification |
 | [Contributing](CONTRIBUTING.md) | Development environment and quality gates |
 | [Backlog](BACKLOG.md) | Known deferred work |

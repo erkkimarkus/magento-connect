@@ -10,11 +10,13 @@ registration via `hyva:config:generate`.
 The main `Smaily_Connect` module stays theme-agnostic; this module only
 swaps the storefront templates that depend on Luma's JS stack.
 
-> **Status: skeleton, not yet verified on a Hyvä store.** The code compiles
-> and mirrors the audited Luma behaviour 1:1, but nothing here has run
-> against a real Hyvä theme yet. See `docs/HYVA_SUPPORT.md` in the
-> repository root for the audit, the verification matrix and the remaining
-> work. `TODO(hyva-store)` comments mark the spots that need a live store.
+> **Status: verified on Hyvä 1.5.2** (default theme AND the strict-CSP
+> variant `Hyva/default-csp` with enforced no-inline `script-src`), with a
+> Luma store view as the regression control — see `docs/HYVA_SUPPORT.md`
+> in the repository root for the audit and the executed verification
+> matrix. Known remaining gap: third-party AJAX-add-to-cart modules that
+> submit programmatically bypass the `cart_add` form-submit capture (a
+> `private-content-loaded` cart-diff fallback is the documented plan B).
 
 ## What it does
 

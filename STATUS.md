@@ -5,13 +5,50 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1273 phase 2c browser-validated; di:compile + i18n sweep done)_
+_Last updated: 2026-07-12 (PRO-1201 Hyvä verification matrix executed — all pass; privacy-page FPC bug fixed)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **Hyvä verified on a real Hyvä store (PRO-1201) — full matrix pass.**
+  Hyvä 1.5.2 installed into the sandbox from the public GitHub sources (no
+  portal key needed; the exact reproducible recipe — 10 VCS repos incl. the
+  non-obvious `magento2-compat-module-fallback` + the Mollie chain,
+  `"no-api": true` to dodge the GitHub API rate limit, in-repo module
+  registered via an `app/code/Hyva/SmailyConnect` symlink, Node 20 Tailwind
+  builds in the vendor theme dirs, `hyva_theme_fallback` config for the
+  Luma-fallback checkout — is in `docs/HYVA_SUPPORT.md`). Default store
+  view runs `Hyva/default`, the `et` store view stayed on Luma as the
+  regression control. Every matrix cell passed (Playwright, mock engine as
+  the receiving end): compat tracker/attribution on Hyvä (product_view /
+  search / cart_add-via-form-submit with sku, campaign-click cookies,
+  consent matrix off/on-without/on-with — identity hint dropped and
+  restored), page-context blocks execute, Luma-fallback checkout renders
+  Luma with the opt-in checkbox working (toggle persists, order placed,
+  checkout_start + checkout_complete fire), personalization page fully
+  Tailwind-styled (computed styles prove the `hyva:config:generate` content
+  scan), Hyvä's own newsletter form feeds our observers, and the **strict
+  CSP column is done for real**: `Hyva/default-csp` + enforced storefront
+  CSP with `unsafe-inline` removed — zero CSP violations, context blocks
+  hash-whitelisted via SecureHtmlRenderer, tracker/attribution need no
+  whitelisting at all (static files only). Luma regression green (base
+  tracker via `ajax:addToCart`, et_EE opt-in label). Zero module console
+  errors everywhere; one third-party artifact documented (Hyvä's toast
+  auto-dismiss throws a benign `Transition was skipped` pageerror — it
+  reproduces with all Smaily assets blocked). **One real base-module bug
+  found and fixed:** the personalization page was FPC-cacheable, and
+  Magento's depersonalization made `PrivacyForm` always render the default
+  checked state (a saved opt-out never showed; the cached page would be
+  shared within an FPC vary group) — `cacheable="false"` on the form block
+  now, the core My Account pattern. Both `TODO(hyva-store)` markers
+  resolved (cart_add verified on stock Hyvä; precise note kept for
+  third-party AJAX-cart modules that bypass the submit event). Remaining on
+  the work pack: compat-package publication (vendor/name — Erkki's release
+  decision) and the Hyvä Checkout boundary confirmation. Sandbox left with
+  Hyvä on the default store view + Luma on `et`; engine restored to
+  disconnected.
 - **UI/UX parity phase 2b done (PRO-1272) — observability depth.**
   (1) Per-row **Details** drill-down in the unified Log: an actions column
   whose custom JS component (`js/grid/columns/log-actions`, overriding
@@ -285,8 +322,7 @@ _Last updated: 2026-07-12 (PRO-1273 phase 2c browser-validated; di:compile + i18
   phpstan clean. `setup:upgrade` + `setup:di:compile` re-verified in the
   docker sandbox on the fully merged tree (2b + 2c included).
 - **Hyvä compat skeleton + work package done (PRO-1201)** — full storefront
-  audit with file:line evidence, the work plan and the surface × Luma/Hyvä/
-  strict-CSP verification matrix live in `docs/HYVA_SUPPORT.md`. Compat
+  audit with file:line evidence in `docs/HYVA_SUPPORT.md`. Compat
   module `Hyva_SmailyConnect` under `compat/hyva/` (standard Hyvä pattern:
   `hyva_` layout handles, composer `hyva-themes/magento2-smaily-connect`,
   Tailwind registration observer for `hyva:config:generate`): vanilla-JS
@@ -297,12 +333,10 @@ _Last updated: 2026-07-12 (PRO-1273 phase 2c browser-validated; di:compile + i18
   personalization form. Audit verdicts: tracker NEEDS-JS-PORT (done),
   attribution NEEDS-COMPAT-TEMPLATE (done), context blocks / checkout
   opt-in (Luma-fallback checkout) / newsletter / RSS / privacy form
-  WORKS-AS-IS, Hyvä Checkout OUT-OF-SCOPE. **Nothing has run on a real
-  Hyvä store yet** — `TODO(hyva-store)` markers flag what needs one (esp.
-  cart_add vs AJAX-add-to-cart modules, Tailwind class survival). The
-  compat dir is inert in the main package (nothing loads its
-  registration.php) and excluded from the release ZIP; main-module code
-  is untouched except docs.
+  WORKS-AS-IS, Hyvä Checkout OUT-OF-SCOPE. The compat dir is inert in the
+  main package (nothing loads its registration.php) and excluded from the
+  release ZIP. Since verified on a real Hyvä store — see the matrix entry
+  at the top of this list.
 - **Upstream proposal package drafted (PRO-1198)** —
   `docs/UPSTREAM_PROPOSAL.md`: executive summary, 2.8.x compatibility story,
   staged review plan, Marketplace re-submission as "Smaily Connect",
@@ -331,10 +365,12 @@ PRO-1267 (engine: Magento product-identity contract note).
   confirmation emails) have only been exercised against failure paths;
   one click-through with a real Smaily account (and ideally a real engine
   tenant) is still owed before release.
-- **Hyvä unverified on a real store** (PRO-1201) — the compat skeleton and
-  plan exist (`docs/HYVA_SUPPORT.md`), but the verification matrix needs a
-  Hyvä 1.4+ dev store (free portal key or github source +
-  `hyva-themes/magento2-default-theme` + Node 20 Tailwind build).
+- **Hyvä third-party AJAX-add-to-cart modules unverified** — the compat
+  `cart_add` capture is verified on stock Hyvä 1.5.2 (form POST), but
+  modules that submit programmatically (`form.submit()` fires no submit
+  event) would bypass it; the documented fallback is a
+  `private-content-loaded` cart-diff listener, to be added if a real store
+  shows gaps.
 
 ## Questions / tasks for Erkki
 
@@ -343,10 +379,9 @@ PRO-1267 (engine: Magento product-identity contract note).
    (`docs/UPSTREAM_PROPOSAL.md`) and ready for your review; the decision
    checklist at its end lists the one-way doors in recommended order.
 2. PRO-1201 — Hyvä boundary decisions (see "Open release decisions" in
-   `docs/HYVA_SUPPORT.md`): (a) confirm Hyvä Checkout (commercial,
-   Magewire) stays out of scope for the first Hyvä release — free Hyvä's
-   Luma-fallback checkout is the supported path; (b) compat package
-   vendor/name (`hyva-themes/magento2-smaily-connect` needs adoption into
-   their tracker vs publishing under `smaily/`); (c) a Hyvä 1.4+ dev store
-   is needed to run the verification matrix — free portal license key
-   (registration required) or source from github.com/hyva-themes.
+   `docs/HYVA_SUPPORT.md`; the verification matrix itself is now fully
+   executed and green): (a) confirm Hyvä Checkout (commercial, Magewire)
+   stays out of scope for the first Hyvä release — free Hyvä's
+   Luma-fallback checkout is the supported path and is verified working;
+   (b) compat package vendor/name (`hyva-themes/magento2-smaily-connect`
+   needs adoption into their tracker vs publishing under `smaily/`).

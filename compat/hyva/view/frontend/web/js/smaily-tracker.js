@@ -169,10 +169,13 @@
     // phase) and flush immediately — sendBeacon survives the navigation.
     // Semantic difference vs Luma: fires on the ATTEMPT, not on confirmed
     // success (acceptable for a loss-tolerant popularity signal).
-    // TODO(hyva-store): verify on a real Hyvä store; AJAX add-to-cart
-    // compat modules and programmatic form.submit() bypass the submit
-    // event. If gaps show, add a `private-content-loaded` cart-diff
-    // listener (event.detail.data.cart) as the success-side signal.
+    // Verified on Hyvä 1.5.2 (default theme, PDP form POST): the event
+    // fires with the page-context sku and flushes before navigation.
+    // Known remaining gap: third-party AJAX-add-to-cart modules that call
+    // form.submit() programmatically (fires no `submit` event) or replace
+    // the form bypass this capture. If a store reports missing cart_add
+    // events, add a `private-content-loaded` cart-diff listener
+    // (event.detail.data.cart) as the success-side signal.
     document.addEventListener('submit', function (submitEvent) {
         var form = submitEvent.target,
             action = form && form.getAttribute ? String(form.getAttribute('action') || '') : '';
