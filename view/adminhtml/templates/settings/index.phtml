@@ -60,7 +60,15 @@ $clearOverrideUrl = $block->getUrl('smaily_connect/config/clearoverride');
         </div>
     </div>
     <div class="smaily-tab-panel" data-tab="automations">
+        <h3><?= $escaper->escapeHtml(__('Automations')) ?></h3>
+        <p class="smaily-tab-desc"><?= $escaper->escapeHtml(__('How store events and Campaign Intelligence triggers fire Smaily workflows.')) ?></p>
         <?= $block->getChildHtml('panel.automations') ?>
+        <div class="smaily-tab-footer">
+            <button type="button" class="action-primary" id="smaily-w-automations-save">
+                <span><?= $escaper->escapeHtml(__('Save automations')) ?></span>
+            </button>
+            <span class="smaily-result" id="smaily-w-automations-result"></span>
+        </div>
         <div class="smaily-card">
             <?= $block->getChildHtml('engine.automations') ?>
         </div>
@@ -239,6 +247,10 @@ require(['jquery'], function ($) {
 
     $('#smaily-w-subscribers-save').on('click', function () {
         saveTab($(this), 'subscribers', '#smaily-w-subscribers-result');
+    });
+
+    $('#smaily-w-automations-save').on('click', function () {
+        saveTab($(this), 'automations', '#smaily-w-automations-result');
     });
 
     // Live reactivity across tabs: edited credentials re-render the

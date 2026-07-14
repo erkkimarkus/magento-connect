@@ -366,7 +366,17 @@ window.smailyPanelsInit = function ($) {
     // --- Live reactivity within panels --------------------------------------
     function reactAutomationRow(checkboxSelector, selectSelector) {
         var apply = function () {
-            $(selectSelector).prop('disabled', !$(checkboxSelector).is(':checked'));
+            var on = $(checkboxSelector).is(':checked');
+            $(selectSelector).prop('disabled', !on);
+            // Card + run-mode pill follow the enable toggle (store-event cards).
+            var $card = $(checkboxSelector).closest('.smaily-store-trigger');
+            if ($card.length) {
+                $card.toggleClass('is-active', on).toggleClass('is-off', !on);
+                $card.find('.smaily-store-pill')
+                    .attr('class', 'smaily-pill smaily-store-pill smaily-pill--' + (on ? 'active' : 'off'))
+                    .find('.smaily-store-pill__text')
+                    .text(on ? '<?= $escaper->escapeJs(__('Active')) ?>' : '<?= $escaper->escapeJs(__('Off')) ?>');
+            }
         };
         $(document).on('change', checkboxSelector, apply);
         apply();
@@ -694,6 +704,15 @@ window.smailyPanelsInit = function ($) {
                 abandoned_workflow: $('#smaily-w-abandoned-workflow').val(),
                 abandoned_cutoff: parseInt($('#smaily-w-cutoff').val(), 10) || 30
             };
+            // Abandoned-cart product fields (Settings tab only). Always posted so
+            // clearing every box saves an empty selection; absent block (wizard)
+            // omits the key and leaves the stored value untouched.
+            var $fields = $('#smaily-w-abandoned-fields');
+            if ($fields.length) {
+                data.abandoned_fields = $fields.find('input:checked').map(function () {
+                    return $(this).val();
+                }).get();
+            }
             var mode = currentMlMode();
             if (isMultilingual && (mode === 'a' || mode === 'b')) {
                 // The full desired mapping state: cleared selects post no

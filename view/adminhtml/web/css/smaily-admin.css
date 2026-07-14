@@ -530,6 +530,25 @@
 .smaily-engine-empty__body { font-size: var(--fs-13); color: var(--s-text-2); max-width: 40ch; margin: 0 auto var(--sp-4); line-height: 1.5; }
 .smaily-engine-automations.is-degraded .smaily-engine-triggers { opacity: .55; }
 
+/* Engine-trigger validation (PRO-1401): field-level danger on the offending
+ * control, indexed to the exact row; the summary count sits in a top
+ * .smaily-banner--error. Valid rows are untouched. */
+.smaily-engine-trigger__ctrl.is-invalid > span { color: var(--s-danger); }
+.smaily-engine-trigger__ctrl.is-invalid select,
+.smaily-engine-trigger__ctrl.is-invalid input { border-color: var(--s-danger); background: var(--s-danger-soft); }
+.smaily-engine-trigger__field-error { font-size: var(--fs-11); font-weight: 600; color: var(--s-danger); margin-top: 2px; }
+.smaily-engine-automations__footer { display: flex; align-items: center; gap: 14px; margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--s-border); }
+
+/* Store-event automations (PRO-1401): the trigger cards reuse the
+ * .smaily-engine-trigger family; the abandoned-cart card adds a full-width
+ * product-field checkbox set below its control row. */
+.smaily-store-trigger__fields { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--s-border); }
+.smaily-store-trigger__fields-label { font-size: var(--fs-11); font-weight: 700; color: var(--s-text-3); text-transform: uppercase; letter-spacing: .4px; margin-bottom: var(--sp-3); }
+.smaily-store-trigger__fields label {
+    display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 170px;
+    margin: 0 var(--sp-6) var(--sp-3) 0; font-size: var(--fs-13); color: var(--s-text-2);
+}
+
 /* --- Log details slide-out: attempt timeline ------------------------------ */
 .smaily-log-details-retry { display: flex; gap: var(--sp-2); align-items: center; background: var(--s-info-soft); border: 1px solid var(--s-info-border); color: var(--s-info); border-radius: var(--r-3); padding: 11px 14px; font-size: var(--fs-13); line-height: 1.45; }
 .smaily-log-details-retry.is-terminal { background: var(--s-neutral-soft); border-color: var(--s-neutral-border); color: var(--s-text-2); }

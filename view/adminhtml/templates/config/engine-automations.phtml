@@ -118,7 +118,7 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
             </div>
         <?php endforeach; ?>
     </div>
-    <div style="margin-top: 1rem; display:flex; align-items:center; gap:1rem;">
+    <div class="smaily-engine-automations__footer">
         <button type="button" id="smaily-engine-automations-save" class="action-primary">
             <span><?= $escaper->escapeHtml(__('Save Intelligence Automations')) ?></span>
         </button>
@@ -130,7 +130,47 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
         // Strings translated server-side with __(): $t() inside phtml inline
         // scripts is never collected into js-translation.json.
 
+        // Client-side validation (PRO-1401): a workflow is required once a
+        // trigger is Enabled. Errors are field-level (danger on the offending
+        // row's Workflow select) and summarised in a top banner with a count —
+        // valid rows are left untouched. Clears on every attempt.
+        function clearValidation() {
+            $('#smaily-engine-automations-errors').remove();
+            $('#smaily-engine-automations-table .smaily-engine-trigger__ctrl')
+                .removeClass('is-invalid').find('.smaily-engine-trigger__field-error').remove();
+        }
+
+        function validate() {
+            clearValidation();
+            var invalid = 0;
+            $('#smaily-engine-automations-table .smaily-engine-trigger').each(function () {
+                var enabled = $(this).find('[data-field="enabled"]').is(':checked');
+                var $workflow = $(this).find('[data-field="workflow_id"]');
+                if (enabled && !$workflow.val()) {
+                    invalid += 1;
+                    $workflow.closest('.smaily-engine-trigger__ctrl').addClass('is-invalid')
+                        .append($('<div class="smaily-engine-trigger__field-error"></div>')
+                            .text('<?= $escaper->escapeJs(__('A workflow is required when this trigger is enabled.')) ?>'));
+                }
+            });
+            if (invalid > 0) {
+                var msg = '<?= $escaper->escapeJs(__('%1 automation(s) could not be saved. Pick a Smaily workflow for every enabled trigger, then save again.')) ?>'
+                    .replace('%1', invalid);
+                $('<div class="smaily-banner smaily-banner--error" id="smaily-engine-automations-errors">' +
+                    '<span class="smaily-banner__icon">&#9888;</span><div class="smaily-banner__body">' +
+                    '<div class="smaily-banner__message"></div></div></div>')
+                    .find('.smaily-banner__message').text(msg).end()
+                    .insertBefore('#smaily-engine-automations-table');
+            }
+            return invalid === 0;
+        }
+
         $('#smaily-engine-automations-save').on('click', function () {
+            if (!validate()) {
+                $('#smaily-engine-automations-result')
+                    .text('<?= $escaper->escapeJs(__('Saving failed.')) ?>').css('color', '#e22626');
+                return;
+            }
             var params = new URLSearchParams();
             params.set('form_key', window.FORM_KEY);
             $('#smaily-engine-automations-table .smaily-engine-trigger').each(function () {
@@ -162,6 +202,7 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
                 body: params.toString()
             }).then(function (response) { return response.json(); }).then(function (data) {
                 if (data.saved) {
+                    clearValidation();
                     $result.text('<?= $escaper->escapeJs(__('Saved.')) ?>').css('color', '#006400');
                 } else {
                     $result.text((data.errors || []).join(' ')
