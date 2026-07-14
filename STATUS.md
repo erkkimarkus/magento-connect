@@ -85,18 +85,22 @@ added, and a real cron-registration bug found + fixed along the way)_
   `HealthCheck`) has ever run on ANY install — sandbox or production — no
   matter how often `bin/magento cron:run` fires (this supersedes the
   previous session's "sandbox has no cron daemon" note, which masked the
-  real cause). Fix: added `etc/cron_groups.xml` (the canonical mechanism)
-  mirroring Magento's own `default` group values (`schedule_generate_every:
-  15`, `schedule_ahead_for: 20`, `schedule_lifetime: 15`, `use_separate_
-  process: 0`, …). Verified live and unconfounded: with `cron_groups.xml`
-  present the four scope-config values resolve to non-null, `cron:run`
+  real cause). Fix: added `etc/cron_groups.xml` (the canonical mechanism),
+  carrying the exact cadence the original author had put in the wrong file
+  — `schedule_generate_every: 1`, `schedule_ahead_for: 4`,
+  `schedule_lifetime: 15`, `history_cleanup_every: 10`,
+  `history_success_lifetime: 60`, `history_failure_lifetime: 4320`,
+  `use_separate_process: 1` (suits the `* * * * *` jobs and keeps the long
+  backfill/ingest ticks off the parent cron process) — and **removed the
+  now-dead `<system><cron>` block from `config.xml`** so there is one
+  working source of truth instead of one live and one silently-inert copy
+  of the same values. Verified live and unconfounded: with `cron_groups.xml`
+  alone, the group's scope-config values resolve to non-null
+  (`schedule_ahead_for` `NULL → 4`), `cron:run --group smaily_connect`
   generates `smaily_backfill_tick` schedule rows, and a queued job flows
-  `pending` → `running` → terminal exactly as designed. The old, inert
-  `<system><cron>` block in `config.xml` (`generate_every: 1 / ahead_for:
-  4 / separate_process: 1` — never in effect, since Magento never read it)
-  is left in place, superseded by `cron_groups.xml`; **removing that dead
-  block is a queued follow-up** (§ Questions/tasks for Erkki) rather than
-  part of this pass, to keep the fix additive and the diff surgical.
+  `pending` → `running` → terminal exactly as designed (a real job driven
+  end-to-end; its rows "failed" only because the sandbox has no live
+  Smaily credentials — the lifecycle is the point).
   **Verification:** 158 unit tests green (8 new, all in
   `JobStatusAggregatorTest`), phpcs 0 errors, phpstan clean, sandbox
   `setup:upgrade` + `setup:di:compile` green. Playwright drove Settings >
@@ -1147,10 +1151,3 @@ PRO-1267 (engine: Magento product-identity contract note).
    The compat package vendor/name is decided: `smaily/module-connect-hyva`
    (module PHP name stays `Hyva_SmailyConnect` per the Hyvä convention);
    actual publication remains part of the release train.
-3. PRO-1397 follow-up (Low; cleanup) — `etc/config.xml` still carries a dead
-   `<default><system><cron><smaily_connect>` block that Magento never reads
-   (cron-group cadence comes only from `etc/cron_groups.xml`, added this
-   pass; confirmed inert — scopeConfig returns NULL for those paths without
-   the groups file). It is harmless but is a second, disagreeing source of
-   truth for the same knobs. Deleting it wasn't done here (kept the diff
-   surgical / the block is pre-existing) — OK to remove in a later cleanup.
