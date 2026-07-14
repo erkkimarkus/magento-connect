@@ -103,6 +103,15 @@
 .smaily-wizard .smaily-step-panel.active { display: block; }
 
 /* --- Settings tabs ---------------------------------------------------------- */
+/* PRO-1391 final polish: Magento admin's own body font is the "Open Sans"
+ * webfont (with default, un-antialiased smoothing) — a genuinely different
+ * stack from the design pack's system-font recipe (--font, above), which is
+ * also what the rest of this sheet's components (pill, choice-card, etc.)
+ * already opt into. Switching our own pages onto --font (no new asset — same
+ * OS-installed fonts the design pack renders with) plus matching smoothing
+ * closes that gap. Scoped to .smaily-settings only, not the wizard. */
+.smaily-settings { font-family: var(--font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.smaily-settings input, .smaily-settings select, .smaily-settings button { font-family: var(--font); }
 .smaily-settings .smaily-tabs { display: flex; gap: 0; margin: 0 0 3rem; padding: 0; list-style: none; border-bottom: 1px solid #e3e3e3; }
 .smaily-settings .smaily-tabs li { padding: 1rem 2rem; margin-bottom: -1px; border-bottom: 3px solid transparent; color: #666; cursor: pointer; }
 .smaily-settings .smaily-tabs li:hover { color: #333; }

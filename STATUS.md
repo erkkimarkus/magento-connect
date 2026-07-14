@@ -5,14 +5,83 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1391 — visual-fidelity pass on the Settings >
-Connection tab: design-pack tokens/components ported for near-pixel parity,
-CSS-only, on top of the PRO-1379 rebuild)_
+_Last updated: 2026-07-14 (PRO-1391 final-polish pass — Settings > Connection
+tab: in-card intro gated to the wizard only, field/button wording aligned to
+sibling wording, font rendering corrected)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
+
+- **PRO-1391 final-polish done — four refinements on Settings > Connection
+  after Erkki's side-by-side review of the PRO-1391 visual-fidelity pass.**
+  (1) **In-card intro dropped in the Settings context.** The card's
+  `Connect your Smaily account` h2 + long credentials paragraph — carried
+  over unchanged from the PRO-1379 rebuild's note that removing it "would
+  touch the shared markup, out of scope for a CSS-only pass" — is now gated
+  behind the shared `panel/connection.phtml` partial's existing
+  `$isSettings` flag (`$block->getData('context') === 'settings'`), the
+  same mechanism already used for the subdomain suffix chip and the
+  in-card status line. Settings now goes straight from its own outer
+  "Connection" h3+description (`settings/index.phtml`, already Settings-
+  only) to the fields, matching the design pack's return-visit frame and
+  both sibling plugins' `inSettings`-gated `Step1Connect`/`CredentialBlock`
+  (confirmed by reading Woo's actual TSX, not just the text-map summary).
+  The wizard keeps the intro — untouched. (2) **Field/button wording
+  aligned to sibling wording.** "API Username"/"API Password"/
+  "Test Connection" → "API username"/"API password"/"Test connection"
+  (lowercase second word) in `panel/connection.phtml` (both the default-
+  account and mode-A per-language blocks) and `settings/index.phtml`'s tab
+  footer, plus the one dependent JS-toast string in `panel/panels-js.phtml`
+  ("press Test connection first."). Verified against BOTH siblings' actual
+  source (Woo `CredentialBlock.tsx`, Shopify `SmailyConnectForm.tsx` —
+  word-for-word identical: "Subdomain" / "API username" / "API password" /
+  "Test connection") and the design pack's own `Settings.dc.html` button
+  markup ("Test connection"). **Deliberate deviation from the design pack:**
+  the pack's mockup literally labels the first field "API subdomain", but
+  both siblings and our own existing text-map canonical say plain
+  "Subdomain" — kept "Subdomain" per this doc's own tie-break rule
+  (sibling wording wins on pack/sibling conflict). i18n: `i18n/en_US.csv` +
+  `i18n/et_EE.csv` updated (case-only key renames — Estonian translations
+  unchanged; case-insensitive sort order and en↔et parity verified
+  unaffected by the rename). (3) **Helper text size — verified, not
+  changed.** Live-measured the design pack's own field label/hint/
+  description sizes (13px/12px/13px) against our rendered page: already an
+  exact match (ported in the original PRO-1391 pass). No further reduction
+  applied — going smaller would leave the design's own measured values,
+  not approach them. The perceived "still bigger" read traces to (1) and
+  (4), not to font-size. (4) **Font rendering ("hairier" than the design)
+  — root-caused and fixed.** Playwright-measured the live sandbox's
+  computed styles: Magento admin's actual body font is the "Open Sans"
+  webfont at default (non-antialiased) smoothing — genuinely different
+  from the design pack's system-font stack (`-apple-system, BlinkMacSystemFont,
+  "Segoe UI", Roboto, Helvetica, Arial, sans-serif`, i.e. this module's own
+  `--font` token, which other components in `smaily-admin.css` already
+  individually opt into). Fix: `.smaily-settings { font-family: var(--font);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }`
+  plus the same `font-family` on `input`/`select`/`button` (form controls
+  don't inherit it from the UA stylesheet). No new font asset — this is the
+  OS-installed system stack the design pack itself renders with, just
+  correctly wired to our own scope. Scoped to `.smaily-settings` only per
+  the task's explicit instruction, not `.smaily-wizard` — the wizard's own
+  visual-fidelity pass is separate, still-pending work (same PRO-1391 scope
+  note as before), so it keeps inheriting Magento's Open Sans for now;
+  follow-up noted below. **Verification:** all four PHP gates green
+  (unit/phpcs/phpstan; sandbox `setup:upgrade` + `setup:di:compile`);
+  Playwright re-rendered the real Connection tab in BOTH en_US and et_EE
+  plus the wizard's step 1 (confirming the intro survives there), zero
+  module JS console errors in any of the three renders; side-by-side
+  screenshots against the design reference under
+  `/home/erkki/.claude/jobs/64b0d00d/tmp/fidelity-shots/`
+  (`polish-side-by-side-en.png`, `polish-side-by-side-et.png`,
+  `polish-en-content.png`, `polish-et-content.png`,
+  `polish-wizard-step1-en.png`). `simplify` skill run over the diff (4
+  parallel review angles) — no fixes needed; the two borderline notes
+  (a second form-control selector group for `font-family` alongside the
+  existing width-focused one; the `.smaily-settings`-only smoothing scope
+  vs. also covering `.smaily-wizard`) are both deliberate and already
+  documented in-line, not oversights.
 
 - **PRO-1391 done — visual-fidelity pass on Settings > Connection (CSS only,
   no markup/save-logic change).** The PRO-1379 rebuild matched the design's

@@ -619,7 +619,7 @@ window.smailyPanelsInit = function ($) {
             var creds = credentials();
             if (!connected && (!creds.subdomain || !creds.username || !creds.password)) {
                 throw new Error(
-                    '<?= $escaper->escapeJs(__('Fill in the credentials and press Test Connection first.')) ?>'
+                    '<?= $escaper->escapeJs(__('Fill in the credentials and press Test connection first.')) ?>'
                 );
             }
             return {

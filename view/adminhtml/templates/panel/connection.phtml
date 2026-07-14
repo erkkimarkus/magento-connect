@@ -75,8 +75,14 @@ $modeCards = [
 
 <div id="smaily-w-default-account" <?= $isModeA ? 'style="display:none;"' : '' ?>>
     <div class="smaily-card">
+        <?php // Settings already has its own "Connection" heading + description above the
+        // card (settings/index.phtml) — the design's return-visit frame and both sibling
+        // plugins go straight to the fields there. The wizard has no such heading, so it
+        // keeps this in-card intro. ?>
+        <?php if (!$isSettings): ?>
         <h2><?= $escaper->escapeHtml(__('Connect your Smaily account')) ?></h2>
         <p><?= $escaper->escapeHtml(__('You can find or create API credentials in Smaily under Preferences > API. The password is stored encrypted and never leaves your server.')) ?></p>
+        <?php endif; ?>
         <div class="smaily-field">
             <label for="smaily-w-subdomain"><?= $escaper->escapeHtml(__('Subdomain')) ?></label>
             <?php // Settings adds a fixed .sendsmaily.net suffix chip (design §2.3.A); wizard shows the bare input. ?>
@@ -86,11 +92,11 @@ $modeCards = [
             <p class="note"><?= $escaper->escapeHtml(__('If your Smaily URL is https://demo.sendsmaily.net, the subdomain is "demo". Pasting the full URL also works.')) ?></p>
         </div>
         <div class="smaily-field">
-            <label for="smaily-w-username"><?= $escaper->escapeHtml(__('API Username')) ?></label>
+            <label for="smaily-w-username"><?= $escaper->escapeHtml(__('API username')) ?></label>
             <input type="text" id="smaily-w-username"/>
         </div>
         <div class="smaily-field">
-            <label for="smaily-w-password"><?= $escaper->escapeHtml(__('API Password')) ?></label>
+            <label for="smaily-w-password"><?= $escaper->escapeHtml(__('API password')) ?></label>
             <input type="password" id="smaily-w-password" autocomplete="new-password"/>
             <p class="note" id="smaily-w-password-note" style="display:none;"><?= $escaper->escapeHtml(__('A password is already saved — leave this empty to keep it.')) ?></p>
         </div>
@@ -106,7 +112,7 @@ $modeCards = [
         </div>
         <?php else: ?>
         <button type="button" class="action-secondary" id="smaily-w-test">
-            <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
+            <span><?= $escaper->escapeHtml(__('Test connection')) ?></span>
         </button>
         <span class="smaily-result" id="smaily-w-test-result"></span>
         <?php endif; ?>
@@ -131,13 +137,13 @@ $modeCards = [
                    value="<?= $escaper->escapeHtmlAttr($account['subdomain']) ?>"/>
         </div>
         <div class="smaily-field">
-            <label for="smaily-ml-username-<?= $escaper->escapeHtmlAttr($account['language']) ?>"><?= $escaper->escapeHtml(__('API Username')) ?></label>
+            <label for="smaily-ml-username-<?= $escaper->escapeHtmlAttr($account['language']) ?>"><?= $escaper->escapeHtml(__('API username')) ?></label>
             <input type="text" class="smaily-ml-username"
                    id="smaily-ml-username-<?= $escaper->escapeHtmlAttr($account['language']) ?>"
                    value="<?= $escaper->escapeHtmlAttr($account['username']) ?>"/>
         </div>
         <div class="smaily-field">
-            <label for="smaily-ml-password-<?= $escaper->escapeHtmlAttr($account['language']) ?>"><?= $escaper->escapeHtml(__('API Password')) ?></label>
+            <label for="smaily-ml-password-<?= $escaper->escapeHtmlAttr($account['language']) ?>"><?= $escaper->escapeHtml(__('API password')) ?></label>
             <input type="password" class="smaily-ml-password" autocomplete="new-password"
                    id="smaily-ml-password-<?= $escaper->escapeHtmlAttr($account['language']) ?>"/>
             <?php if ($account['hasPassword']): ?>
@@ -145,7 +151,7 @@ $modeCards = [
             <?php endif; ?>
         </div>
         <button type="button" class="action-secondary smaily-ml-test">
-            <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
+            <span><?= $escaper->escapeHtml(__('Test connection')) ?></span>
         </button>
         <span class="smaily-result"></span>
     </div>
