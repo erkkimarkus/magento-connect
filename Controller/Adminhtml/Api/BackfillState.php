@@ -17,6 +17,7 @@ use Magento\Framework\Stdlib\DateTime\TimezoneInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use Smaily\Connect\Model\Backfill\Job;
 use Smaily\Connect\Model\Backfill\JobManager;
+use Smaily\Connect\Model\Backfill\JobStatusAggregator;
 use Smaily\Connect\Model\ResourceModel\Backfill\Job\CollectionFactory;
 
 /**
@@ -38,7 +39,8 @@ class BackfillState extends AbstractJsonAction implements HttpPostActionInterfac
         private readonly JobManager $jobManager,
         private readonly CollectionFactory $collectionFactory,
         private readonly StoreManagerInterface $storeManager,
-        private readonly TimezoneInterface $timezone
+        private readonly TimezoneInterface $timezone,
+        private readonly JobStatusAggregator $statusAggregator
     ) {
         parent::__construct($context, $jsonFactory, $serializer);
     }
@@ -109,17 +111,7 @@ class BackfillState extends AbstractJsonAction implements HttpPostActionInterfac
             }
         }
 
-        if (!$statuses) {
-            $status = 'idle';
-        } elseif (in_array(Job::STATUS_RUNNING, $statuses, true) || in_array(Job::STATUS_PENDING, $statuses, true)) {
-            $status = 'running';
-        } elseif (in_array(Job::STATUS_FAILED, $statuses, true)) {
-            $status = 'failed';
-        } elseif (in_array(Job::STATUS_CANCELLED, $statuses, true)) {
-            $status = 'cancelled';
-        } else {
-            $status = 'completed';
-        }
+        $status = $this->statusAggregator->resolve($statuses);
 
         return [
             'status' => $status,

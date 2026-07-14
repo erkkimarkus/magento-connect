@@ -268,6 +268,12 @@ window.smailyPanelsInit = function ($) {
         return data.finished_at ? text + ' (' + data.finished_at + ')' : text;
     }
 
+    function scheduleNextPoll(jobType, ui) {
+        backfillTimers[jobType] = setTimeout(function () {
+            pollBackfill(jobType, ui, 'status');
+        }, 4000);
+    }
+
     // Drives the Stage A .smaily-progress component: width lives on __fill,
     // the state class picks the color (running = striped accent; done/failed/
     // stopped recolor and stop animating).
@@ -281,15 +287,24 @@ window.smailyPanelsInit = function ($) {
 
     function renderBackfill(jobType, data, ui) {
         var text;
+        if (data.status === 'pending') {
+            // Queued, but the cron tick hasn't picked it up yet — no page has
+            // been processed, so a "0 / ?" progress bar would just look stuck.
+            // Reassure instead of showing fake progress; Cancel stays available.
+            ui.bar.hide();
+            ui.cancel.show();
+            result(ui.result,
+                '<?= $escaper->escapeJs(__('Queued — the import starts on the next scheduled run…')) ?>', true);
+            scheduleNextPoll(jobType, ui);
+            return;
+        }
         if (data.status === 'running') {
             setProgress(ui, data.percent, 'running');
             ui.cancel.show();
             result(ui.result,
                 '<?= $escaper->escapeJs(__('Importing… %1 / %2')) ?>'
                     .replace('%1', data.processed).replace('%2', data.total || '?'), true);
-            backfillTimers[jobType] = setTimeout(function () {
-                pollBackfill(jobType, ui, 'status');
-            }, 4000);
+            scheduleNextPoll(jobType, ui);
             return;
         }
         ui.cancel.hide();
