@@ -5,13 +5,30 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1369 — the two Phase-A admin-UI analyses (design layout + functionality/text) consolidated into one authoritative target spec)_
+_Last updated: 2026-07-14 (PRO-1369/PRO-1357 — the admin-UI target spec's
+three config open decisions are now resolved by Erkki and folded in, plus a
+new config field inventory; see `docs/ADMIN_UI_TARGET_SPEC.md` §4)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **PRO-1369 tail done — admin UI target spec's config decisions resolved
+  (doc only, no code changed).** Erkki decided all three open §4 calls: (1)
+  one source of truth = our own pages, no duplication; (2) scope is handled
+  by us and never shown to the merchant (the PRO-1274 "Overridden for X"
+  banner is slated for removal in favour of auto-clear-on-save); (3) native
+  `Stores > Configuration` shrinks to advanced-only or disappears; (4) the
+  three per-entity Intelligence sync toggles (Catalog/Customers/Orders) are
+  removed, matching both siblings. A new §4.2 config field inventory
+  (`docs/ADMIN_UI_TARGET_SPEC.md`) walks every `system.xml` field against
+  `ModuleConfigPaths`/`WizardStepSaver`/`ConfigOverrides` to fix a target home
+  per field, folds the consequences into the per-screen sections (Intelligence,
+  RSS's now-removed "Advanced RSS options" deep link, Subscribers/Automations
+  native-only orphans), and flags four genuinely ambiguous fields for Erkki
+  rather than deciding them. None of this is implemented yet — it's the
+  target for a future Phase B pass.
 - **PRO-1369 done — admin UI target spec consolidated.** The design pack's
   layout/visual extract (`docs/audits/2026-07-14-ADMIN_DESIGN_LAYOUT_EXTRACT.md`)
   and the real-functionality + sibling text map
@@ -752,15 +769,18 @@ PRO-1267 (engine: Magento product-identity contract note).
 
 ## Questions / tasks for Erkki
 
-1. PRO-1369 — three admin-UI product-direction calls, laid out with options
-   and consequences in `docs/ADMIN_UI_TARGET_SPEC.md` §4: (i) keep, remove,
-   or demote-to-advanced-only the native `Stores > Configuration` surface
-   (Erkki's instinct was remove; the analysis recommends keep-both); (ii)
-   config-scope override UX refinements (legacy website-row cleanup,
-   mode-A special-casing) — analysis recommends keeping the current
-   PRO-1274 approach and treating these as follow-up tickets; (iii) keep
-   our per-entity Catalog/Customers/Orders Intelligence sync toggles or
-   follow both siblings in dropping them for "connect = sync everything."
+1. PRO-1369/PRO-1357 — the three config-architecture calls are now RESOLVED
+   (see the STATUS entry above); what remains is four genuinely ambiguous
+   fields the new §4.2 config field inventory (`docs/ADMIN_UI_TARGET_SPEC.md`)
+   flags rather than decides: (a) should `include_guests`,
+   `automation_force_opt_in` and `abandoned_fields` — currently native-only
+   with no UI anywhere on our own pages — get built onto our own pages, or
+   stay native-only on purpose? (b) is per-website differentiation of
+   `multilingual_mode` (native config only, unused by our own UI) worth
+   preserving? (c) `rss/enabled` has a confirmed live per-store-view read
+   (`Controller\Rss\Feed`) — keep it native-advanced, or build a store-view
+   switcher onto the RSS tab? (d) is `logging/verbosity` worth a home on
+   Settings, or fine left native/CLI-only for agencies?
 2. PRO-1198 — release coordination with Smaily (High; blocks any public
    release path). The proposal package is drafted
    (`docs/UPSTREAM_PROPOSAL.md`) and ready for your review; the decision

@@ -57,9 +57,13 @@ running admin against, instead of two documents that might disagree.
 6. Cross-check against **§3 (findings map)** — each of the ten PRO-1357
    findings has an explicit fix location; use it to confirm nothing was
    dropped.
-7. Do **not** decide anything in **§4 (open decisions)** unilaterally — those
-   are Erkki's calls. Where a decision is pending, the current shipped
-   behaviour stays as-is.
+7. **§4 is now RESOLVED** (Erkki, 2026-07-14) — implement its four decisions
+   and their per-screen consequences (folded into 2.1, 2.3.B/C/D/E above) as
+   part of Phase B, same as any other target-spec item. The exception is the
+   handful of fields §4.2 explicitly flags for Erkki (the three native-only
+   orphan fields, `multilingual_mode`'s website scope, `rss/enabled`'s
+   store-view scope) — leave those as currently shipped until Erkki rules on
+   them specifically.
 
 ---
 
@@ -97,7 +101,7 @@ form fields — source: A2 §F, `ViewModel\Adminhtml\DashboardData`):
 | Connection strip | live pills from `isSmailyConnected`, `isEngineConnected`/`isEngineDown`, `isBrowseTrackingEnabled` |
 | Metric tiles | Contact syncs delivered 30d, Catalog items delivered 30d (only if engine connected), Queued today, Failed 24h — real local queue queries |
 | Recent activity | last 10 queue rows: Source/Type/Entity/Status/Updated |
-| Quick links | Settings, Log, Setup Wizard, Stores > Configuration |
+| Quick links | Settings, Log, Setup Wizard, Stores > Configuration — **the last link is a consequence of §4's now-resolved decision 3 (native config shrinks to advanced-only or disappears) and should be revisited once that lands**, not removed by this doc pass alone |
 
 The design pack's specific dependency wording ("Intelligence/Browse tracking
 → Off with reason 'Requires Smaily connection'" when Smaily is disconnected)
@@ -225,6 +229,14 @@ for these.
   button(s) + one InlineStatus per tab. **No global save bar — every tab
   owns its own save + status**, already the shipped idiom (per-tab AJAX
   save, STATUS.md "UI/UX parity phase 2a").
+- **Target change (§4, decision 2, not yet implemented):** the PRO-1274
+  "Overridden for X" banner + manual "Use Default" button, currently shown
+  next to shadowed fields, is removed from this common shell. Save
+  auto-clears any shadowing website/store-view override instead of
+  surfacing it — scope becomes invisible on these pages by design ("what you
+  see is what runs"). The `OverrideDetector`/`OverrideClearer` machinery is
+  reused, just triggered automatically rather than manually. See §4.2 for
+  which fields (if any) keep a scope switcher elsewhere.
 
 #### 2.3.A Connection tab
 
@@ -295,8 +307,10 @@ emails). Footer: Save Subscribers | InlineStatus.
 | Let Smaily send opt-in emails (suppress Magento's own) | wizard/Settings + native config | `Plugin/SuppressNewsletterEmails.php` — suppresses success/unsubscribe mail only, never the double-opt-in confirmation request |
 | Import your existing subscribers (backfill) | wizard step 2 / Settings > Subscribers | see 2.7 |
 
-Native-config-only (not on this tab, by design — see §4.i): Include Guest
-Order Emails, Automations May Re-Subscribe (Advanced).
+Native-config-only today: Include Guest Order Emails, Automations May
+Re-Subscribe (Advanced). Per §4.2, neither has a demonstrated per-website
+scope need — both are **flagged for Erkki** as candidates to gain a control
+on this tab rather than staying native-only "by design"; not decided here.
 
 **(c) EST+ENG text** (source: our own i18n):
 
@@ -367,8 +381,10 @@ sub-systems on this tab):
 | Abandoned cart | enable toggle + workflow select + cutoff minutes (10–1440, default 30) |
 | Per-language workflow mapping table (modes A/B only) | language / workflow select / default-fallback radio, per trigger |
 
-Native-config-only, not on this tab (see §4.i): Abandoned Cart Product
-Fields (7 checkboxes).
+Native-config-only today, not on this tab: Abandoned Cart Product Fields (7
+checkboxes). Per §4.2, this is **flagged for Erkki** — same shape as the two
+Subscribers-tab orphans above (no demonstrated scope need, no UI on our
+pages yet).
 
 *Engine-run (Campaign Intelligence) automations* — dynamic list from the
 engine catalog, each row: Enabled + Test mode toggles, Smaily Workflow
@@ -430,8 +446,20 @@ pack. Phase B should design this tab's control layout from the common shell
 | Setup URL or token | wizard step 4 / Settings / native config | one-time exchange, never stored |
 | Connect button | same | AJAX exchange + tenant/version status |
 | Storefront browse tracking | wizard step 4 (post-connect) / Settings / native config | off by default, respects cookie restriction mode |
-| Sync catalog / Sync customers / Sync orders | **Settings tab only**, not in wizard | per-entity toggle for live sync observers — see §4.iii open decision |
 | Historical imports: catalog / customers / orders | **Settings tab only** | `smaily:backfill:start catalog\|customers\|orders`, live progress, Cancel |
+
+**REMOVED (§4, decision 4):** the per-entity Sync catalog / Sync customers /
+Sync orders toggles (Settings tab only, not in wizard) are gone — connecting
+the engine syncs everything, matching both siblings. This is a code change,
+not yet implemented: `Observer\Engine\ProductSaveAfter`/`ProductDeleteBefore`,
+`CustomerSaveAfter` and `OrderSaveAfter` currently gate on
+`Settings::isCatalogSyncEnabled()`/`isCustomerSyncEnabled()`/
+`isOrderSyncEnabled()`, and the three `smaily_connect/intelligence/sync_*`
+config paths default to `1` in `etc/config.xml`. Removing only the checkboxes
+is behaviourally safe (nobody could turn sync off without them anyway, and
+the default is already "on") but leaves dead toggle-config-paths and
+observer gates that the implementation pass should delete outright, not just
+hide.
 
 **(c) EST+ENG text** (source: our own i18n):
 
@@ -441,11 +469,13 @@ pack. Phase B should design this tab's control layout from the common shell
 | Setup URL or token from Smaily | Smailylt saadud seadistus-URL või -võti |
 | Connect | Ühenda |
 | Enable storefront browse tracking (product views, searches, cart activity) | Luba poe sirvimise jälgimine (tootevaatamised, otsingud, ostukorvitegevus) |
-| Sync catalog changes to the engine | Sünkrooni kataloogimuudatused mootorisse |
-| Sync customer changes to the engine | Sünkrooni kliendimuudatused mootorisse |
-| Sync order changes to the engine | Sünkrooni tellimusemuudatused mootorisse |
 | Historical imports to Campaign Intelligence | Ajaloolised impordid Campaign Intelligence'i |
 | Import catalog / Import customers / Import orders | Impordi kataloog / Impordi kliendid / Impordi tellimused |
+
+The three "Sync catalog/customer/order changes to the engine" phrases (both
+packs) become dead i18n once decision 4 is implemented — drop them from
+`i18n/en_US.csv`/`et_EE.csv` in that pass rather than leaving orphaned
+entries.
 
 **(d) REMOVE:** none — nothing design-pack-invented here since the pack
 never mocked this tab up.
@@ -468,7 +498,16 @@ copy. Footer: Save RSS | InlineStatus.
 | Sort by (created_at/updated_at/name/price) | `sort` param |
 | Sort order (asc/desc) | `order` param |
 | Copy button | clipboard API + `execCommand` fallback |
-| "Advanced RSS options in Stores > Configuration" deep link | opens the native RSS config group, auto-expanded (real, shipped, PRO-1281 carry-over) |
+
+**REMOVED (§4, decisions 1+3):** the "Advanced RSS options in Stores >
+Configuration" deep link (real, shipped, PRO-1281 carry-over) is removed —
+not yet implemented. §4.2's investigation found native's RSS group has no
+field beyond `enabled` and the URL-builder block, both already duplicated on
+this tab; the link was pointing at pure duplication, not a genuine advanced
+surface. Exception flagged for Erkki: `rss/enabled` has a confirmed live
+per-store-view read (`Controller\Rss\Feed::execute()`), so a store-view
+switcher may still need a home — either kept native-advanced for just that
+one field, or built onto this tab.
 
 The design pack's **4-field grid** ("Store view / Source / Max items /
 Sort") maps onto the real fields as: "Max items" → Number of products,
@@ -497,13 +536,12 @@ in all three products the feed is scoped by which page/domain the builder
 is rendered on, never an in-widget dropdown. **Do not build. Delete if any
 trace exists.**
 
-This is the direct fix for PRO-1357 finding #10's "unstyled" half; the
-"punts merchant to the second config surface" half of finding #10 is
-addressed by keeping the existing "Advanced RSS options" deep link
-(intentional, not a bug — see §4.i) while making sure the RSS tab itself is
-properly styled per this section's layout, so the deep link reads as an
-intentional "advanced" escape hatch rather than the page failing to render
-its own controls.
+This is the direct fix for PRO-1357 finding #10's "unstyled" half. The
+"punts merchant to the second config surface" half of finding #10 was
+previously treated as intentional (see the old §4.i open decision) — §4.2's
+investigation reverses that: the deep link pointed at pure duplication, not
+a genuine advanced surface, so it is now REMOVED per decision 1 (see (b)
+above), not kept and better-styled.
 
 ---
 
@@ -622,108 +660,180 @@ canonical per (c).
 | # | PRO-1357 finding | Screen/section | Target-spec item that fixes it |
 |---|---|---|---|
 | 1 | Stray glyph before Dashboard nav label | Admin menu (not a screen covered by A1/A2 — menu chrome is out of scope for both analyses) | Not covered by this spec — trivial standalone bug fix, listed in §5 Follow-ups. |
-| 2 | Two config surfaces, partial/duplicated | Settings (all tabs) vs native `Stores > Configuration` | §4(i) open decision — A2's recommendation (keep both, tighten the "advanced options in Stores > Configuration" pointer on every tab that has a native-only counterpart field) is not self-executing; Erkki decides remove-native vs keep-both vs keep-native-advanced-only. |
-| 3 | Opaque "overridden" scope banner | Settings (all tabs) | Already fixed by PRO-1274 (OverrideDetector + "Overridden for X" + Use Default). §4(ii) open decision on the remaining scope-UX policy (legacy website-row cleanup, mode-A special-casing) — A2 recommends keeping the PRO-1274 approach, treating legacy rows as cleanup debt. |
+| 2 | Two config surfaces, partial/duplicated | Settings (all tabs) vs native `Stores > Configuration` | **RESOLVED** (§4, decisions 1+3): one source of truth = our own pages; native shrinks to advanced-only or disappears. §4.2's field-by-field pass found no field with an unambiguous merchant-facing scope need except the RSS enable flag, plus four native-only orphan fields flagged for Erkki — net effect is a large reduction of the native surface, not a tightened cross-pointer. The RSS tab's own duplication (finding #10) is folded into the same fix. |
+| 3 | Opaque "overridden" scope banner | Settings (all tabs) | **RESOLVED** (§4, decision 2): scope is handled by us, never shown to the merchant. The PRO-1274 detection/clear machinery (`OverrideDetector`/`OverrideClearer`) is reused, but triggered automatically on save instead of surfaced as a visible banner + manual "Use Default" — that banner disappears from the merchant's normal view. Scope stays visible only on the advanced native page, for whatever fields survive there. Implementation (auto-clear-on-save) is a follow-up, not shipped by this doc pass. |
 | 4 | Settings page diverges from design layout + wrong wording | Settings (all 5 tabs) | §2.3 (a) layout target + (c) EST+ENG text tables, per tab. |
 | 5 | Setup Wizard choice-cards broken | Setup Wizard | §2.2 (a) Radio Choice-Card layout target (anatomy, states, reactive region) + §2.3.A (a)/(b) for the underlying 4-mode data it must render. |
 | 6 | Single/double opt-in is a design-pack leak | Settings > Subscribers | §2.3.B (d) REMOVE — confirmed leak, delete rather than build. |
 | 7 | Unstyled checkboxes, ugly spacing, progress bar stuck on import button | Settings > Subscribers (checkboxes) + Backfill (progress bar) | §2.3.B (a) layout (extra-fields checkbox set, Radio Choice-Card) + §2.5 (a)/(b) — idle state must show no progress affordance. |
 | 8 | Stuck "Importing… 0/?" with no import started | Backfill (embedded, Subscribers + Intelligence) | §2.5 (a) — explicit rule: idle = no Pill, no ProgressBar at all. |
 | 9 | Automations: cramped checkbox+dropdown vs design's per-automation controls + status pills | Settings > Automations | §2.3.C (a) card-list-with-Pill layout target + (b) real field set (do not adopt the pack's illustrative trigger names/defaults). |
-| 10 | RSS view unstyled + punts to second config surface | Settings > RSS | §2.3.E (a) layout target + (d) REMOVE (Store view dropdown) + note that the "Advanced RSS options" deep link is intentional, not the bug — the bug is the tab's own styling. |
+| 10 | RSS view unstyled + punts to second config surface | Settings > RSS | §2.3.E (a) layout target + (d) REMOVE (Store view dropdown). The "punts to a second config surface" half is now **also a bug, not intentional** — §4.2's investigation found native's RSS group has no field beyond the two already duplicated on this tab, so the "Advanced RSS options" deep link points at pure duplication and is removed too (decision 1). One exception is flagged for Erkki: `rss/enabled` has a confirmed live per-store-view read, so a store-view switcher may still need a home somewhere. |
 
 ---
 
-## 4. OPEN DECISIONS FOR ERKKI
+## 4. Config architecture — RESOLVED (Erkki, 2026-07-14)
 
-These are genuine product-direction calls the two analyses surfaced. **Not
-decided here** — Phase B implements against the current shipped behaviour
-for each until Erkki rules.
+The three product-direction calls this section used to carry as open
+questions are now decided, binding, and folded into the per-screen sections
+above (2.1, 2.3.B, 2.3.C, 2.3.D, 2.3.E) and the findings map (§3, rows #2/#3).
+This section also adds the **config field inventory** — the field-by-field
+investigation that determines what, if anything, must stay in native
+`Stores > Configuration`.
 
-### (i) Two config surfaces (finding #2)
+### 4.0 The four resolved decisions
 
-**Tension:** Erkki's instinct was to REMOVE the native Magento config
-surface (`Stores > Configuration > Smaily`) — one surface, like both
-siblings. A2's analysis recommends **keeping both**, because Magento's
-native scoped-config tree (per-website / per-store-view overrides,
-"Use Default") is real, useful functionality neither sibling's platform has
-an equivalent of, and several fields (guest-order-email inclusion,
-force-resubscribe, abandoned-cart product-field selection, log verbosity)
-currently exist **only** on the native page.
+1. **One source of truth = the module's own admin pages. No duplication.**
+   A given setting lives in exactly one place. The merchant configures
+   Smaily only via the module's own Settings/Wizard pages.
+2. **Scope is handled by us, never shown to the merchant.** Our pages save
+   at the scope that actually takes effect; if a leftover per-site override
+   exists (e.g. seeded by the 2.8.x→v3 upgrade) that would shadow the saved
+   value, we clear it on save so "what you see is what runs." The PRO-1274
+   "Overridden for X" banner + manual "Use Default" affordance disappears
+   from the merchant's normal view — clearing becomes automatic, not
+   surfaced. Scope stays visible ONLY on the advanced native page, for
+   whatever fields survive there under decision 3.
+3. **Native `Stores > Configuration` shrinks to advanced-only, or
+   disappears.** Keep in native config ONLY fields that genuinely need
+   Magento's per-website / per-store-view scoping — marked clearly as
+   "advanced," never duplicated on the module's own pages. Erkki's lean:
+   move as much as possible under our own Settings.
+4. **Intelligence sync toggles removed.** The per-entity Catalog / Customers
+   / Orders sync on/off switches (Settings > Intelligence) are removed —
+   connecting the engine syncs everything, matching Woo (removed in its
+   v3.9) and Shopify (never had them). `Storefront browse tracking` is a
+   different control (consent-gated, not a sync-domain toggle) and is
+   **not** part of this removal.
 
-**Options laid out by A2:**
+### 4.1 Resulting config architecture
 
-- **Remove native entirely** — matches sibling architecture (Woo actively
-  deleted its second surface; Shopify never had one). Consequence: loses
-  real per-website/per-store-view scope override capability that Magento
-  admins/agencies already expect under `Stores > Configuration`, and the
-  handful of native-only fields would need a new home on the module's own
-  pages (net new UI work, not zero-cost).
-- **Keep both, tighten division of labour (A2's recommendation)** — module
-  pages stay the primary/recommended surface (day-to-day fields, default
-  scope, live JS affordances); native config becomes the explicit
-  advanced/scope-override surface (rare fields + per-website/per-store-view
-  overrides). Requires closing a documentation/UX gap: every module page
-  with a native-config-only counterpart field should carry an "…advanced
-  options in Stores > Configuration" pointer — Automations and Log tabs
-  currently don't have one (RSS already does, PRO-1281 carry-over).
-- **Keep native as advanced-only, formalize it** — same as above but more
-  explicit: native config page's field set is trimmed/reordered to visibly
-  read as "advanced," with a banner pointing back to the module's own pages
-  for the common path.
+Applying decision 3's rule field-by-field (§4.2 below) turns up a
+surprising result worth stating plainly: **almost nothing in the current
+field set has a demonstrated, exercised need for merchant-facing native
+scope.** The one genuine per-website/per-store-view mechanism already in
+use — multilingual mode A's per-language credentials — is scoped
+*programmatically* by our own Connection tab (`WizardStepSaver::saveConnect`
+writes store-view-scoped rows directly); the merchant never touches
+Magento's native scope switcher to get it. Everywhere else, the
+`showInWebsite`/`showInStore` flags in `system.xml` are either unused by any
+deliberate multi-site workflow, or are the very "leftover override" pattern
+PRO-1274 was built to paper over. The one confirmed exception is the RSS
+`enabled` flag, whose read path (`Controller\Rss\Feed::execute()` →
+`Config::isRssEnabled()`) resolves against the current storefront's store
+scope on every request — a real, live per-store-view behaviour. See §4.2 for
+the rest of the field-by-field detail and the fields flagged for Erkki
+rather than decided here.
 
-**Consequences to weigh:** removing native = simpler mental model, matches
-sibling precedent, but loses Magento-native scope-override capability and
-requires rehoming ~5 fields. Keeping both = richer capability for
-multi-site installs, but is the literal "two config surfaces, partial/
-duplicated" thing PRO-1357 flagged as confusing — mitigated, not eliminated,
-by better cross-pointers.
+Net effect: native `Stores > Configuration > Smaily` is not a rich
+"advanced" surface under this analysis — it is at most a handful of
+currently-orphaned fields (four, all flagged below) plus possibly the RSS
+enable flag, with everything else moving to be exclusively on the module's
+own pages. Whether that residue is worth keeping as a formal
+"advanced" native page, or whether it's small enough that Erkki would rather
+build the missing UI on our own pages and let native config disappear
+entirely (full sibling parity) is one of the flags below, not decided here.
 
-### (ii) Scope-override UX (finding #3)
+### 4.2 Config field inventory
 
-**Tension:** how should our own pages treat Magento's config-scope
-mechanics? A2 recommends **keeping the PRO-1274 approach as-is**: the
-module's own pages always save at default scope; `OverrideDetector` +
-"Overridden for X" + Use Default already solves *visibility* of existing
-overrides. Two refinements A2 flags as **candidate follow-up tickets, not
-decided here**:
+Source: `etc/adminhtml/system.xml` (native fields, backend models, scope
+flags), `etc/config.xml` (defaults), `Model/Config.php` +
+`Model/Engine/Settings.php` (typed path constants + scoped getters),
+`Model/Config/ModuleConfigPaths.php` (the PRO-1274 allowlist — which paths
+the module already treats as "its own"), `Model/Adminhtml/WizardStepSaver.php`
+(what our own Settings/Wizard AJAX save actually writes, and at what scope),
+`ViewModel/Adminhtml/ConfigOverrides.php` (which fields the Settings page
+currently renders a control for — its `FIELD_ANCHORS` map is the ground
+truth for "is this field really on our own page today").
 
-1. Legacy per-website rows seeded by the 2.8.x→v3 migration are **cleanup
-   debt, not configuration** — a one-click "clean up carried-over
-   per-website settings from your old install" action (distinct from the
-   existing manual "Use default") would let merchants who never intended a
-   website override get rid of it without having to understand what one is.
-2. Multilingual mode-A's own store-view credential rows are **app-managed,
-   not merchant-managed** — the current generic "Overridden for X" banner
-   technically applies to them too, which is pedagogically noisy for a
-   value the app itself put there on purpose; special-casing them out of
-   the generic banner is a candidate refinement.
+Legend: **native** = declared in `system.xml`; **ours** = has a live control
+on a wizard/Settings panel today; **both** = duplicated right now.
 
-Erkki's call: accept A2's "keep current approach + these as follow-up
-tickets" framing, or want something different done now.
+| Field (path) | Purpose | Current home | Target home |
+|---|---|---|---|
+| `connection/subdomain` | Smaily account subdomain | both (native: default+website+store scope; ours: Connection tab default scope, mode-A writes store-view scope programmatically) | **ours.** Native's scope switcher is redundant — mode A already manages store-view scope without exposing it to the merchant (decision 2). |
+| `connection/username` | Smaily API username | both, same shape as subdomain | **ours**, same reasoning. |
+| `connection/password` | Smaily API password (encrypted) | both, same shape as subdomain | **ours**, same reasoning. |
+| `connection/test_connection` | Test-Connection button (no stored value) | both (native `frontend_model` button; ours: AJAX Test Connection) | **ours.** Pure UI duplication, not a config value. |
+| `connection/multilingual_mode` | Routing mode (single/a/b/c) | both (native: default+website scope; ours: Connection tab mode cards, default scope only) | **ours**, most likely — see flag below (native's per-website differentiation has no first-class trigger from our UI and no evidenced deliberate use). |
+| `subscribers/sync_enabled` | Master subscriber-sync toggle | both (native: website scope; ours: default scope) | **ours.** |
+| `subscribers/sync_mode` | Lawful-basis preset | both, same shape | **ours.** |
+| `subscribers/sync_fields` | Extra contact fields synced | both, same shape | **ours.** |
+| `subscribers/include_guests` | Include guest-order emails | **native only** — no control in `subscribers.phtml`/`ConfigOverrides::FIELD_ANCHORS`, though `WizardStepSaver::saveSubscribers()` already has a dead `saveFlag()` call ready to accept it | flagged — see below. |
+| `subscribers/automation_force_opt_in` | "Automations May Re-Subscribe (Advanced)" | **native only**, same shape as `include_guests` (dead `saveFlag()` call, no template control) | flagged — see below. |
+| `subscribers/checkout_optin_enabled` | Checkout newsletter checkbox | both | **ours.** |
+| `subscribers/suppress_optin_emails` | Suppress Magento's own opt-in emails | both | **ours.** |
+| `automations/welcome_enabled` / `welcome_workflow` | Welcome automation | both | **ours.** |
+| `automations/first_order_enabled` / `first_order_workflow` | First-order automation | both | **ours.** |
+| `automations/abandoned_enabled` / `abandoned_workflow` / `abandoned_cutoff` | Abandoned-cart automation | both | **ours.** |
+| `automations/abandoned_fields` | Abandoned-cart product fields (7 checkboxes) | **native only**, same dead-`saveFlag()` shape as `include_guests` | flagged — see below. |
+| `automations/engine_automations` | Embedded engine-automations block (no stored value of its own) | both (native `frontend_model`; ours: Automations tab) | **ours.** Pure UI duplication. |
+| `rss/enabled` | RSS feed on/off | both (native: default+website+store scope; ours: RSS tab, default scope only) | **flagged — the one field with a confirmed, exercised per-store-view read** (`Controller\Rss\Feed::execute()` calls `isRssEnabled()` with no explicit store id, resolving against the live storefront's scope). See below. |
+| `rss/url_builder` | Feed URL builder (no stored value) | both (native `frontend_model`; ours: RSS tab) | **ours.** Pure UI duplication — and, per the investigation below, native's RSS group has *no* field beyond this and `enabled`, so there is nothing genuinely "advanced" left there to point at. |
+| `intelligence/status` | Connection status display (no stored value) | both | **ours.** |
+| `intelligence/setup_token` | One-time engine setup exchange (write-only, never stored) | both | **ours.** No scope need — default-scope-only tenancy. |
+| `intelligence/sync_catalog` | Catalog sync toggle | both, real wired gate — `Observer\Engine\ProductSaveAfter`/`ProductDeleteBefore` call `Settings::isCatalogSyncEnabled()` | **REMOVED** (decision 4). Default is already `1` in `etc/config.xml`, so removing the UI alone doesn't break anything live — but the toggle, its config path, and the observer gate become dead surface that should be deleted in the implementation pass, not just hidden. |
+| `intelligence/sync_customers` | Customer sync toggle | both, same shape (`CustomerSaveAfter`) | **REMOVED** (decision 4), same note. |
+| `intelligence/sync_orders` | Order sync toggle | both, same shape (`OrderSaveAfter`) | **REMOVED** (decision 4), same note. |
+| `intelligence/browse_tracking` | Storefront browse tracking (consent-gated) | both | **ours.** Not part of decision 4 — real, distinct capability. No scope need (default-scope-only tenancy). |
+| `logging/verbosity` | Log verbosity (error/info/debug) | **native only**, default-scope-only (no `showInWebsite`/`showInStore` at all) | flagged — see below. |
 
-### (iii) Intelligence sync toggles
+**Fields flagged for Erkki (genuinely ambiguous, not decided here):**
 
-**Tension:** keep our per-entity **Catalog / Customers / Orders** sync
-toggles (Settings > Intelligence) vs. both siblings' simplification —
-**Woo explicitly removed** per-domain sync toggles in v3.9 ("connecting the
-rec-engine syncs all domains unconditionally... only the browse-tracking
-preference is persisted"); **Shopify never had them** ("all three sync
-automatically," no toggle). Both siblings independently converged on
-"connect = sync everything, no per-entity opt-out." Our module still
-exposes three separate real, wired toggles.
+- **`include_guests`, `automation_force_opt_in`, `automations/abandoned_fields`**
+  — the three orphan fields that exist ONLY on native config today, with no
+  UI anywhere on our own pages (though `WizardStepSaver` already has
+  unreachable `saveFlag()`/array-handling code ready for the first two, as
+  if a control was planned and never built). None shows a genuine
+  per-website scope need under decision 3's rule — they're `showInWebsite=1`
+  but nothing reads or writes them at non-default scope deliberately. Is
+  building the missing controls on our own pages (small new UI, each) the
+  right call, or is there a reason (agency-only fields, deliberately rare)
+  to keep them native-advanced?
+- **`connection/multilingual_mode`'s website scope** — native config lets an
+  admin set a *different* multilingual mode per website; nothing in our own
+  UI offers or exercises that. Is per-website multilingual-mode
+  differentiation a capability worth preserving (native-advanced), or is it
+  a legacy affordance nobody uses that can quietly collapse to
+  "one mode per Magento instance"?
+- **`rss/enabled`'s store-view scope** — the one field with a confirmed live
+  per-store-view read (see above). Keeping it native-advanced satisfies the
+  technical need with the least work; alternatively, the RSS tab could grow
+  a store-view switcher of its own so this, too, moves fully under decision
+  1's single-source-of-truth rule. Which approach?
+- **`logging/verbosity`** — no scope need at all (default-scope-only), so by
+  the letter of decision 3 it belongs on our own pages. But it's a
+  low-traffic debug knob most merchants never touch; is it worth a home on
+  Settings (e.g. an "Advanced" section), or fine left for agencies to set
+  via native config / CLI without cluttering the merchant-facing pages?
 
-**Consequences to weigh:** keeping toggles = more granular control (a
-merchant who wants catalog-only sync can have it) but is a product-shape
-divergence from both sibling platforms and is more UI surface to maintain
-and explain. Removing toggles = simpler mental model, matches sibling
-precedent, but removes a real capability merchants may already be using
-(no data on whether anyone relies on partial sync).
+**Migration constraint (record only, not solved here):** old 2.8.x installs
+have their Smaily credentials in native `core_config_data` — the 2.8.x→v3
+migration (`Setup\Patch\Data\MigrateLegacyConfig` +
+`Model\Migration\LegacyConfigMapper`) writes into the SAME `smaily_connect/…`
+paths this inventory covers, including seeding website-scope rows 1:1 from
+the legacy per-website config (the rows PRO-1274's `OverrideDetector` exists
+to find). Moving a field's *editing surface* (which admin page renders the
+control) does not touch stored `core_config_data` rows or the migration
+patch — `ScopeConfig` resolves by path regardless of which `system.xml`
+declares it, and `OverrideDetector`/`OverrideClearer` already key off the
+typed `Model\Config\ModuleConfigPaths` allowlist, not `system.xml` presence.
+The constraint that DOES apply: no implementation of this inventory may
+rename or restructure a config *path* without an explicit value-migration
+step — an upgrading merchant's stored credentials must resolve at the same
+path before and after any admin-surface reshuffle.
 
 ---
 
 ## 5. Follow-ups / minor bugs (list, don't fix)
 
+- **§4.2 config-field flags for Erkki** — four items not decided by this
+  pass: whether `include_guests`/`automation_force_opt_in`/`abandoned_fields`
+  get built onto our own pages or stay native-only; whether
+  `multilingual_mode`'s native per-website scope is a capability worth
+  preserving; how `rss/enabled`'s confirmed per-store-view read gets served
+  once native config shrinks; whether `logging/verbosity` is worth a home on
+  Settings at all. See §4.2 for full reasoning on each.
 - **`__('Done')` wizard step-5 label — i18n gap.** `wizard/index.phtml:32`
   has no entry in either `i18n/en_US.csv` or `i18n/et_EE.csv`; falls back to
   English "Done" under et_EE. Trivial one-line fix (A2 §I).
