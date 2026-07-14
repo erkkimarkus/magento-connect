@@ -5,13 +5,26 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1353 — catalog ingest now uses one explicit canonical store scope for price/URL/language, on both the backfill and live paths)_
+_Last updated: 2026-07-14 (PRO-1369 — the two Phase-A admin-UI analyses (design layout + functionality/text) consolidated into one authoritative target spec)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **PRO-1369 done — admin UI target spec consolidated.** The design pack's
+  layout/visual extract (`docs/audits/2026-07-14-ADMIN_DESIGN_LAYOUT_EXTRACT.md`)
+  and the real-functionality + sibling text map
+  (`docs/audits/2026-07-14-ADMIN_FUNCTIONALITY_TEXT_MAP.md`) are merged into
+  `docs/ADMIN_UI_TARGET_SPEC.md` — the single source Phase B verifies the
+  running admin against, per screen: target layout, exposed options mapped
+  to real functionality, canonical EST+ENG text (sibling wording wins),
+  and an explicit REMOVE list for design-pack leaks (opt-in-mode selector,
+  RSS "Store view" dropdown). All ten PRO-1357 findings are mapped to a
+  fix location. Three product-direction calls are queued for Erkki, not
+  auto-decided: (i) keep vs. remove the native `Stores > Configuration`
+  surface, (ii) config-scope override UX refinements, (iii) keep vs. drop
+  the per-entity Intelligence sync toggles (both siblings dropped theirs).
 - **PRO-1353 done — explicit, consistent store scope for catalog ingest
   (price/URL/language).** Investigation (PRO-1352/1353, 2026-07-14) found
   the backfill collection (`EngineCatalogProcessor::loadPage()`) never set a
@@ -739,11 +752,20 @@ PRO-1267 (engine: Magento product-identity contract note).
 
 ## Questions / tasks for Erkki
 
-1. PRO-1198 — release coordination with Smaily (High; blocks any public
+1. PRO-1369 — three admin-UI product-direction calls, laid out with options
+   and consequences in `docs/ADMIN_UI_TARGET_SPEC.md` §4: (i) keep, remove,
+   or demote-to-advanced-only the native `Stores > Configuration` surface
+   (Erkki's instinct was remove; the analysis recommends keep-both); (ii)
+   config-scope override UX refinements (legacy website-row cleanup,
+   mode-A special-casing) — analysis recommends keeping the current
+   PRO-1274 approach and treating these as follow-up tickets; (iii) keep
+   our per-entity Catalog/Customers/Orders Intelligence sync toggles or
+   follow both siblings in dropping them for "connect = sync everything."
+2. PRO-1198 — release coordination with Smaily (High; blocks any public
    release path). The proposal package is drafted
    (`docs/UPSTREAM_PROPOSAL.md`) and ready for your review; the decision
    checklist at its end lists the one-way doors in recommended order.
-2. PRO-1201 — Hyvä boundary decisions (see "Open release decisions" in
+3. PRO-1201 — Hyvä boundary decisions (see "Open release decisions" in
    `docs/HYVA_SUPPORT.md`; the verification matrix itself is now fully
    executed and green): (a) confirm Hyvä Checkout (commercial, Magewire)
    stays out of scope for the first Hyvä release — free Hyvä's
