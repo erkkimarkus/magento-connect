@@ -33,9 +33,10 @@ added, and a real cron-registration bug found + fixed along the way)_
   between checkbox rows, so the heading didn't read as a heading. New
   explicit rhythm in `smaily-admin.css`: `sp-5` (20px) above the first
   checkbox row, `sp-3` (12px) between rows (unchanged, already tight),
-  `sp-6` (24px) before the standalone-toggles group (`.smaily-field +
-  .smaily-inline-toggle`) so it reads as a separate cluster, `sp-3`
-  between toggles (tightened from `sp-4`). (3) **Import-area breathing
+  `sp-6` (24px) below the extra-fields block (its own `margin-bottom`,
+  overriding the base 1.6rem) so the standalone-toggles group reads as a
+  separate cluster, `sp-3` between toggles (tightened from `sp-4`).
+  (3) **Import-area breathing
   room:** the backfill card's description, button row and progress bar had
   zero margin between them; `subscribers.phtml`'s card now carries a
   `.smaily-backfill-card` hook (unscoped — the card is shared by the
@@ -92,10 +93,10 @@ added, and a real cron-registration bug found + fixed along the way)_
   button to end in an honest terminal state), zero module JS console errors
   in any run. Screenshots under
   `/home/erkki/.claude/jobs/64b0d00d/tmp/subscribers-shots/` (`polish2-*`).
-  Sandbox restored: admin locale back to en_US; the test backfill jobs
-  (9 completed-with-failures, 10 cancelled) left in their real terminal
-  states — same no-undo-for-a-terminal-state precedent as the previous
-  session, nothing reverted by direct DB write.
+  Sandbox restored: admin locale back to en_US; every test backfill job
+  created during this pass is left in its real terminal state (completed-
+  with-failures or cancelled) — same no-undo-for-a-terminal-state precedent
+  as the previous session, nothing reverted by direct DB write.
 
 - **PRO-1397 done — Settings > Subscribers tab rebuilt to target spec
   (§2.3.B), at the Connection tab's finished visual bar.** Rolled the exact
