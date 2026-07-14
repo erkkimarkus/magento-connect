@@ -307,10 +307,12 @@ emails). Footer: Save Subscribers | InlineStatus.
 | Let Smaily send opt-in emails (suppress Magento's own) | wizard/Settings + native config | `Plugin/SuppressNewsletterEmails.php` — suppresses success/unsubscribe mail only, never the double-opt-in confirmation request |
 | Import your existing subscribers (backfill) | wizard step 2 / Settings > Subscribers | see 2.7 |
 
-Native-config-only today: Include Guest Order Emails, Automations May
-Re-Subscribe (Advanced). Per §4.2, neither has a demonstrated per-website
-scope need — both are **flagged for Erkki** as candidates to gain a control
-on this tab rather than staying native-only "by design"; not decided here.
+**Resolved (Erkki, 2026-07-14, §4.2):** Include Guest Order Emails
+(`include_guests`) and Automations May Re-Subscribe (Advanced)
+(`automation_force_opt_in`) — currently native-config-only, with
+`WizardStepSaver::saveSubscribers()` already carrying dead `saveFlag()` code
+ready to accept them — are real features and get real controls added to
+this tab. Native config for both is removed once built.
 
 **(c) EST+ENG text** (source: our own i18n):
 
@@ -381,10 +383,11 @@ sub-systems on this tab):
 | Abandoned cart | enable toggle + workflow select + cutoff minutes (10–1440, default 30) |
 | Per-language workflow mapping table (modes A/B only) | language / workflow select / default-fallback radio, per trigger |
 
-Native-config-only today, not on this tab: Abandoned Cart Product Fields (7
-checkboxes). Per §4.2, this is **flagged for Erkki** — same shape as the two
-Subscribers-tab orphans above (no demonstrated scope need, no UI on our
-pages yet).
+**Resolved (Erkki, 2026-07-14, §4.2):** Abandoned Cart Product Fields (7
+checkboxes, `automations/abandoned_fields`) — currently native-config-only,
+same dead-`saveFlag()` shape as the two Subscribers-tab orphans above — is a
+real feature and gets a real control added to this tab (part of the
+abandoned-cart automation card). Native config is removed once built.
 
 *Engine-run (Campaign Intelligence) automations* — dynamic list from the
 engine catalog, each row: Enabled + Test mode toggles, Smaily Workflow
@@ -492,7 +495,7 @@ copy. Footer: Save RSS | InlineStatus.
 
 | Control | Real functionality |
 |---|---|
-| Enable the product RSS feed | per store view |
+| Enable the product RSS feed | store-wide (single toggle — per-store-view granularity dropped, resolved Erkki 2026-07-14) |
 | Category ID (optional, numeric) | filters feed to one category |
 | Number of products (1–250, default 50) | `limit` param |
 | Sort by (created_at/updated_at/name/price) | `sort` param |
@@ -504,10 +507,12 @@ Configuration" deep link (real, shipped, PRO-1281 carry-over) is removed —
 not yet implemented. §4.2's investigation found native's RSS group has no
 field beyond `enabled` and the URL-builder block, both already duplicated on
 this tab; the link was pointing at pure duplication, not a genuine advanced
-surface. Exception flagged for Erkki: `rss/enabled` has a confirmed live
-per-store-view read (`Controller\Rss\Feed::execute()`), so a store-view
-switcher may still need a home — either kept native-advanced for just that
-one field, or built onto this tab.
+surface. **Resolved (Erkki, 2026-07-14):** `rss/enabled` had a confirmed live
+per-store-view read (`Controller\Rss\Feed::execute()`), but the field drops
+that granularity by product decision — one store-wide enable toggle lives on
+this tab (the (a) layout's "Enable the product RSS feed" field), replacing
+the native default+website+store scope entirely. No store-view switcher is
+built; native config for this field is removed.
 
 The design pack's **4-field grid** ("Store view / Source / Max items /
 Sort") maps onto the real fields as: "Max items" → Number of products,
@@ -548,7 +553,7 @@ above), not kept and better-styled.
 ### 2.4 Log
 
 **(a) Target layout** (source: A1 §2.5): native Magento `ui_component` grid
-stays untouched. Two additions only:
+stays untouched. Three additions:
 
 1. A warning **Banner** above the grid ("N events failed in the last 24
    hours" + reassurance message + "Show failed (24h)" action that applies
@@ -563,6 +568,12 @@ stays untouched. Two additions only:
    (event id + type + status Pill + close), scrollable body (summary
    grid, attempt-history timeline, redacted request payload, redacted
    response), footer (Retry now, Copy payload, InlineStatus).
+3. A **Log verbosity** control (error/info/debug, `logging/verbosity`) —
+   resolved (Erkki, 2026-07-14, §4.2): this field is native-only today and
+   gets a home on this page instead, replacing native config entirely. No
+   design-pack guidance exists for its placement (the pack never mocked this
+   control); Phase B places it (e.g. a small settings strip above the grid)
+   from the common shell idioms, not new visual language.
 
 **(b) Exposed options/controls** (source: A2 §G, confirmed —
 `smaily_log_grid.xml`, `log/details.phtml`):
@@ -574,6 +585,7 @@ stays untouched. Two additions only:
 | Failed-24h banner | zero-state hidden; links to grid pre-filtered on status |
 | Details slide-out | status pill, attempts (N of MAX), honest retry line (5 states: sent/sending/failed-terminal/scheduled-retry/waiting-for-flush), last error (redacted), payload as-sent/queued (redacted), last response (redacted) |
 | PII redaction | `Model\Log\PayloadRedactor` — secrets never shown, emails masked |
+| Log verbosity (error/info/debug) | New — resolved (Erkki, 2026-07-14, §4.2); `logging/verbosity`, native config removed once built |
 
 The pack's "Copy payload" and "Retry now" footer buttons, and the specific
 "Attempt N of 5 · next attempt ~14:26" ETA copy, are **design-implied, not
@@ -660,7 +672,7 @@ canonical per (c).
 | # | PRO-1357 finding | Screen/section | Target-spec item that fixes it |
 |---|---|---|---|
 | 1 | Stray glyph before Dashboard nav label | Admin menu (not a screen covered by A1/A2 — menu chrome is out of scope for both analyses) | Not covered by this spec — trivial standalone bug fix, listed in §5 Follow-ups. |
-| 2 | Two config surfaces, partial/duplicated | Settings (all tabs) vs native `Stores > Configuration` | **RESOLVED** (§4, decisions 1+3): one source of truth = our own pages; native shrinks to advanced-only or disappears. §4.2's field-by-field pass found no field with an unambiguous merchant-facing scope need except the RSS enable flag, plus four native-only orphan fields flagged for Erkki — net effect is a large reduction of the native surface, not a tightened cross-pointer. The RSS tab's own duplication (finding #10) is folded into the same fix. |
+| 2 | Two config surfaces, partial/duplicated | Settings (all tabs) vs native `Stores > Configuration` | **RESOLVED** (§4, decisions 1+3, plus the four field-level resolutions in §4.2, Erkki 2026-07-14): one source of truth = our own pages; **native `Stores > Configuration > Smaily` disappears entirely** — every field, including the four that were native-only orphans, now has a target home on the module's own pages. The RSS tab's own duplication (finding #10) is folded into the same fix. |
 | 3 | Opaque "overridden" scope banner | Settings (all tabs) | **RESOLVED** (§4, decision 2): scope is handled by us, never shown to the merchant. The PRO-1274 detection/clear machinery (`OverrideDetector`/`OverrideClearer`) is reused, but triggered automatically on save instead of surfaced as a visible banner + manual "Use Default" — that banner disappears from the merchant's normal view. Scope stays visible only on the advanced native page, for whatever fields survive there. Implementation (auto-clear-on-save) is a follow-up, not shipped by this doc pass. |
 | 4 | Settings page diverges from design layout + wrong wording | Settings (all 5 tabs) | §2.3 (a) layout target + (c) EST+ENG text tables, per tab. |
 | 5 | Setup Wizard choice-cards broken | Setup Wizard | §2.2 (a) Radio Choice-Card layout target (anatomy, states, reactive region) + §2.3.A (a)/(b) for the underlying 4-mode data it must render. |
@@ -668,7 +680,7 @@ canonical per (c).
 | 7 | Unstyled checkboxes, ugly spacing, progress bar stuck on import button | Settings > Subscribers (checkboxes) + Backfill (progress bar) | §2.3.B (a) layout (extra-fields checkbox set, Radio Choice-Card) + §2.5 (a)/(b) — idle state must show no progress affordance. |
 | 8 | Stuck "Importing… 0/?" with no import started | Backfill (embedded, Subscribers + Intelligence) | §2.5 (a) — explicit rule: idle = no Pill, no ProgressBar at all. |
 | 9 | Automations: cramped checkbox+dropdown vs design's per-automation controls + status pills | Settings > Automations | §2.3.C (a) card-list-with-Pill layout target + (b) real field set (do not adopt the pack's illustrative trigger names/defaults). |
-| 10 | RSS view unstyled + punts to second config surface | Settings > RSS | §2.3.E (a) layout target + (d) REMOVE (Store view dropdown). The "punts to a second config surface" half is now **also a bug, not intentional** — §4.2's investigation found native's RSS group has no field beyond the two already duplicated on this tab, so the "Advanced RSS options" deep link points at pure duplication and is removed too (decision 1). One exception is flagged for Erkki: `rss/enabled` has a confirmed live per-store-view read, so a store-view switcher may still need a home somewhere. |
+| 10 | RSS view unstyled + punts to second config surface | Settings > RSS | §2.3.E (a) layout target + (d) REMOVE (Store view dropdown). The "punts to a second config surface" half is now **also a bug, not intentional** — §4.2's investigation found native's RSS group has no field beyond the two already duplicated on this tab, so the "Advanced RSS options" deep link points at pure duplication and is removed too (decision 1). **Resolved (Erkki, 2026-07-14):** `rss/enabled` drops its per-store-view granularity by product decision — one store-wide RSS enable toggle on this tab, no store-view switcher, no native residue. |
 
 ---
 
@@ -718,21 +730,22 @@ writes store-view-scoped rows directly); the merchant never touches
 Magento's native scope switcher to get it. Everywhere else, the
 `showInWebsite`/`showInStore` flags in `system.xml` are either unused by any
 deliberate multi-site workflow, or are the very "leftover override" pattern
-PRO-1274 was built to paper over. The one confirmed exception is the RSS
-`enabled` flag, whose read path (`Controller\Rss\Feed::execute()` →
+PRO-1274 was built to paper over. The one technically-exercised exception was
+the RSS `enabled` flag, whose read path (`Controller\Rss\Feed::execute()` →
 `Config::isRssEnabled()`) resolves against the current storefront's store
-scope on every request — a real, live per-store-view behaviour. See §4.2 for
-the rest of the field-by-field detail and the fields flagged for Erkki
-rather than decided here.
+scope on every request — a real, live per-store-view behaviour, resolved
+below by a product decision to drop that granularity rather than preserve
+it. See §4.2 for the full field-by-field detail and the resolution of each
+of the four fields that were left open at the time of the first pass.
 
-Net effect: native `Stores > Configuration > Smaily` is not a rich
-"advanced" surface under this analysis — it is at most a handful of
-currently-orphaned fields (four, all flagged below) plus possibly the RSS
-enable flag, with everything else moving to be exclusively on the module's
-own pages. Whether that residue is worth keeping as a formal
-"advanced" native page, or whether it's small enough that Erkki would rather
-build the missing UI on our own pages and let native config disappear
-entirely (full sibling parity) is one of the flags below, not decided here.
+**Net effect — resolved (Erkki, 2026-07-14): native `Stores > Configuration >
+Smaily` disappears entirely.** The four fields that were the only candidates
+for a residual native/advanced surface — the three native-only orphans
+(`include_guests`, `automation_force_opt_in`, `abandoned_fields`) and the
+RSS `enabled` per-store-view scope — are all resolved to move fully onto the
+module's own pages (§4.2). No field keeps a native-only or native-advanced
+home; full sibling parity (Woo/Shopify both have no native config surface)
+is the outcome, not a "shrinks to advanced" compromise.
 
 ### 4.2 Config field inventory
 
@@ -755,20 +768,20 @@ on a wizard/Settings panel today; **both** = duplicated right now.
 | `connection/username` | Smaily API username | both, same shape as subdomain | **ours**, same reasoning. |
 | `connection/password` | Smaily API password (encrypted) | both, same shape as subdomain | **ours**, same reasoning. |
 | `connection/test_connection` | Test-Connection button (no stored value) | both (native `frontend_model` button; ours: AJAX Test Connection) | **ours.** Pure UI duplication, not a config value. |
-| `connection/multilingual_mode` | Routing mode (single/a/b/c) | both (native: default+website scope; ours: Connection tab mode cards, default scope only) | **ours**, most likely — see flag below (native's per-website differentiation has no first-class trigger from our UI and no evidenced deliberate use). |
+| `connection/multilingual_mode` | Routing mode (single/a/b/c) | both (native: default+website scope; ours: Connection tab mode cards, default scope only) | **ours** — resolved (Erkki, 2026-07-14): native's per-website differentiation is dropped, one mode per Magento instance, owned entirely by the Connection tab. |
 | `subscribers/sync_enabled` | Master subscriber-sync toggle | both (native: website scope; ours: default scope) | **ours.** |
 | `subscribers/sync_mode` | Lawful-basis preset | both, same shape | **ours.** |
 | `subscribers/sync_fields` | Extra contact fields synced | both, same shape | **ours.** |
-| `subscribers/include_guests` | Include guest-order emails | **native only** — no control in `subscribers.phtml`/`ConfigOverrides::FIELD_ANCHORS`, though `WizardStepSaver::saveSubscribers()` already has a dead `saveFlag()` call ready to accept it | flagged — see below. |
-| `subscribers/automation_force_opt_in` | "Automations May Re-Subscribe (Advanced)" | **native only**, same shape as `include_guests` (dead `saveFlag()` call, no template control) | flagged — see below. |
+| `subscribers/include_guests` | Include guest-order emails | **native only** — no control in `subscribers.phtml`/`ConfigOverrides::FIELD_ANCHORS`, though `WizardStepSaver::saveSubscribers()` already has a dead `saveFlag()` call ready to accept it | **ours** — resolved (Erkki, 2026-07-14): real control built on the Subscribers tab; see §2.3.B. |
+| `subscribers/automation_force_opt_in` | "Automations May Re-Subscribe (Advanced)" | **native only**, same shape as `include_guests` (dead `saveFlag()` call, no template control) | **ours** — resolved (Erkki, 2026-07-14): real control built on the Subscribers tab; see §2.3.B. |
 | `subscribers/checkout_optin_enabled` | Checkout newsletter checkbox | both | **ours.** |
 | `subscribers/suppress_optin_emails` | Suppress Magento's own opt-in emails | both | **ours.** |
 | `automations/welcome_enabled` / `welcome_workflow` | Welcome automation | both | **ours.** |
 | `automations/first_order_enabled` / `first_order_workflow` | First-order automation | both | **ours.** |
 | `automations/abandoned_enabled` / `abandoned_workflow` / `abandoned_cutoff` | Abandoned-cart automation | both | **ours.** |
-| `automations/abandoned_fields` | Abandoned-cart product fields (7 checkboxes) | **native only**, same dead-`saveFlag()` shape as `include_guests` | flagged — see below. |
+| `automations/abandoned_fields` | Abandoned-cart product fields (7 checkboxes) | **native only**, same dead-`saveFlag()` shape as `include_guests` | **ours** — resolved (Erkki, 2026-07-14): real control built on the Automations tab; see §2.3.C. |
 | `automations/engine_automations` | Embedded engine-automations block (no stored value of its own) | both (native `frontend_model`; ours: Automations tab) | **ours.** Pure UI duplication. |
-| `rss/enabled` | RSS feed on/off | both (native: default+website+store scope; ours: RSS tab, default scope only) | **flagged — the one field with a confirmed, exercised per-store-view read** (`Controller\Rss\Feed::execute()` calls `isRssEnabled()` with no explicit store id, resolving against the live storefront's scope). See below. |
+| `rss/enabled` | RSS feed on/off | both (native: default+website+store scope; ours: RSS tab, default scope only) | **ours** — resolved (Erkki, 2026-07-14): per-store-view granularity is dropped by product decision (the field had a confirmed, exercised per-store-view read via `Controller\Rss\Feed::execute()` → `isRssEnabled()`, but the resolution trades that granularity for a single store-wide toggle); see §2.3.E. |
 | `rss/url_builder` | Feed URL builder (no stored value) | both (native `frontend_model`; ours: RSS tab) | **ours.** Pure UI duplication — and, per the investigation below, native's RSS group has *no* field beyond this and `enabled`, so there is nothing genuinely "advanced" left there to point at. |
 | `intelligence/status` | Connection status display (no stored value) | both | **ours.** |
 | `intelligence/setup_token` | One-time engine setup exchange (write-only, never stored) | both | **ours.** No scope need — default-scope-only tenancy. |
@@ -776,36 +789,33 @@ on a wizard/Settings panel today; **both** = duplicated right now.
 | `intelligence/sync_customers` | Customer sync toggle | both, same shape (`CustomerSaveAfter`) | **REMOVED** (decision 4), same note. |
 | `intelligence/sync_orders` | Order sync toggle | both, same shape (`OrderSaveAfter`) | **REMOVED** (decision 4), same note. |
 | `intelligence/browse_tracking` | Storefront browse tracking (consent-gated) | both | **ours.** Not part of decision 4 — real, distinct capability. No scope need (default-scope-only tenancy). |
-| `logging/verbosity` | Log verbosity (error/info/debug) | **native only**, default-scope-only (no `showInWebsite`/`showInStore` at all) | flagged — see below. |
+| `logging/verbosity` | Log verbosity (error/info/debug) | **native only**, default-scope-only (no `showInWebsite`/`showInStore` at all) | **ours** — resolved (Erkki, 2026-07-14): gets a home on the Log page; no native config needed. See §2.4. |
 
-**Fields flagged for Erkki (genuinely ambiguous, not decided here):**
+**Fields resolved by Erkki (2026-07-14) — binding, not yet implemented:**
 
 - **`include_guests`, `automation_force_opt_in`, `automations/abandoned_fields`**
   — the three orphan fields that exist ONLY on native config today, with no
   UI anywhere on our own pages (though `WizardStepSaver` already has
   unreachable `saveFlag()`/array-handling code ready for the first two, as
-  if a control was planned and never built). None shows a genuine
-  per-website scope need under decision 3's rule — they're `showInWebsite=1`
-  but nothing reads or writes them at non-default scope deliberately. Is
-  building the missing controls on our own pages (small new UI, each) the
-  right call, or is there a reason (agency-only fields, deliberately rare)
-  to keep them native-advanced?
+  if a control was planned and never built). **Decision: they are real
+  features, currently hidden — build proper UI for all three on the
+  module's own pages** (`include_guests` and `automation_force_opt_in` on
+  Subscribers, §2.3.B; `abandoned_fields` on Automations, §2.3.C). Native
+  config for all three is removed once built.
 - **`connection/multilingual_mode`'s website scope** — native config lets an
   admin set a *different* multilingual mode per website; nothing in our own
-  UI offers or exercises that. Is per-website multilingual-mode
-  differentiation a capability worth preserving (native-advanced), or is it
-  a legacy affordance nobody uses that can quietly collapse to
-  "one mode per Magento instance"?
+  UI offers or exercises that. **Decision: dropped.** One multilingual mode
+  per Magento instance, owned entirely by the Connection tab (§2.3.A); the
+  native per-website differentiation was a legacy affordance nobody
+  exercises deliberately.
 - **`rss/enabled`'s store-view scope** — the one field with a confirmed live
-  per-store-view read (see above). Keeping it native-advanced satisfies the
-  technical need with the least work; alternatively, the RSS tab could grow
-  a store-view switcher of its own so this, too, moves fully under decision
-  1's single-source-of-truth rule. Which approach?
-- **`logging/verbosity`** — no scope need at all (default-scope-only), so by
-  the letter of decision 3 it belongs on our own pages. But it's a
-  low-traffic debug knob most merchants never touch; is it worth a home on
-  Settings (e.g. an "Advanced" section), or fine left for agencies to set
-  via native config / CLI without cluttering the merchant-facing pages?
+  per-store-view read (see above). **Decision: dropped in favour of
+  simplicity.** One store-wide RSS enable toggle on the RSS tab (§2.3.E),
+  replacing the native default+website+store scope entirely — no store-view
+  switcher is built.
+- **`logging/verbosity`** — no scope need at all (default-scope-only).
+  **Decision: gets a home on the module's own pages** (the Log page, §2.4)
+  rather than staying native/CLI-only; no native config needed.
 
 **Migration constraint (record only, not solved here):** old 2.8.x installs
 have their Smaily credentials in native `core_config_data` — the 2.8.x→v3
@@ -827,13 +837,17 @@ path before and after any admin-surface reshuffle.
 
 ## 5. Follow-ups / minor bugs (list, don't fix)
 
-- **§4.2 config-field flags for Erkki** — four items not decided by this
-  pass: whether `include_guests`/`automation_force_opt_in`/`abandoned_fields`
-  get built onto our own pages or stay native-only; whether
-  `multilingual_mode`'s native per-website scope is a capability worth
-  preserving; how `rss/enabled`'s confirmed per-store-view read gets served
-  once native config shrinks; whether `logging/verbosity` is worth a home on
-  Settings at all. See §4.2 for full reasoning on each.
+- **§4.2 config-field decisions — resolved (Erkki, 2026-07-14), not yet
+  implemented.** All four: `include_guests`/`automation_force_opt_in` get
+  built onto the Subscribers tab and `abandoned_fields` onto the Automations
+  tab; `multilingual_mode`'s native per-website scope is dropped (one mode
+  per Magento instance); `rss/enabled` drops its per-store-view granularity
+  for one store-wide toggle on the RSS tab; `logging/verbosity` gets a home
+  on the Log page. Net effect: native `Stores > Configuration > Smaily`
+  disappears entirely — no field keeps a native-only or native-advanced
+  home. This is a Phase B implementation item (including deleting the
+  Intelligence-sync observer gates per decision 4, and the migration
+  constraint on config paths, §4.2) — see §4.2 for full reasoning on each.
 - **`__('Done')` wizard step-5 label — i18n gap.** `wizard/index.phtml:32`
   has no entry in either `i18n/en_US.csv` or `i18n/et_EE.csv`; falls back to
   English "Done" under et_EE. Trivial one-line fix (A2 §I).

@@ -6,8 +6,9 @@
 > and fix it.
 
 _Last updated: 2026-07-14 (PRO-1369/PRO-1357 — the admin-UI target spec's
-three config open decisions are now resolved by Erkki and folded in, plus a
-new config field inventory; see `docs/ADMIN_UI_TARGET_SPEC.md` §4)_
+three config open decisions AND the four flagged config-field questions are
+now all resolved by Erkki and folded in; native `Stores > Configuration`
+disappears entirely; see `docs/ADMIN_UI_TARGET_SPEC.md` §4)_
 
 ## Where we are
 
@@ -26,9 +27,24 @@ new config field inventory; see `docs/ADMIN_UI_TARGET_SPEC.md` §4)_
   `ModuleConfigPaths`/`WizardStepSaver`/`ConfigOverrides` to fix a target home
   per field, folds the consequences into the per-screen sections (Intelligence,
   RSS's now-removed "Advanced RSS options" deep link, Subscribers/Automations
-  native-only orphans), and flags four genuinely ambiguous fields for Erkki
-  rather than deciding them. None of this is implemented yet — it's the
-  target for a future Phase B pass.
+  native-only orphans). **The four fields that pass initially flagged as
+  genuinely ambiguous are now also decided (Erkki, 2026-07-14):**
+  `include_guests`/`automation_force_opt_in` get real controls on the
+  Subscribers tab and `abandoned_fields` on the Automations tab (all three
+  are real features, currently hidden with half-dead persistence code);
+  `multilingual_mode`'s native per-website scope is dropped in favour of one
+  mode per instance, owned by the Connection tab; `rss/enabled` drops its
+  native per-store-view granularity for a single store-wide toggle on the
+  RSS tab; `logging/verbosity` gets a home on the Log page. **Net outcome:
+  native `Stores > Configuration > Smaily` disappears entirely** — no field
+  keeps a native-only or native-advanced home; single source of truth is the
+  module's own pages. None of this is implemented yet — it's the target for
+  a future Phase B pass, which also needs to delete the live
+  `ProductSaveAfter`/`CustomerSaveAfter`/`OrderSaveAfter` observer sync-gates
+  behind the removed Intelligence toggles (not just hide the checkboxes),
+  and must not rename/restructure any config path without an explicit
+  value-migration step (2.8.x upgrades carry credentials at the existing
+  `smaily_connect/…` paths).
 - **PRO-1369 done — admin UI target spec consolidated.** The design pack's
   layout/visual extract (`docs/audits/2026-07-14-ADMIN_DESIGN_LAYOUT_EXTRACT.md`)
   and the real-functionality + sibling text map
@@ -769,23 +785,11 @@ PRO-1267 (engine: Magento product-identity contract note).
 
 ## Questions / tasks for Erkki
 
-1. PRO-1369/PRO-1357 — the three config-architecture calls are now RESOLVED
-   (see the STATUS entry above); what remains is four genuinely ambiguous
-   fields the new §4.2 config field inventory (`docs/ADMIN_UI_TARGET_SPEC.md`)
-   flags rather than decides: (a) should `include_guests`,
-   `automation_force_opt_in` and `abandoned_fields` — currently native-only
-   with no UI anywhere on our own pages — get built onto our own pages, or
-   stay native-only on purpose? (b) is per-website differentiation of
-   `multilingual_mode` (native config only, unused by our own UI) worth
-   preserving? (c) `rss/enabled` has a confirmed live per-store-view read
-   (`Controller\Rss\Feed`) — keep it native-advanced, or build a store-view
-   switcher onto the RSS tab? (d) is `logging/verbosity` worth a home on
-   Settings, or fine left native/CLI-only for agencies?
-2. PRO-1198 — release coordination with Smaily (High; blocks any public
+1. PRO-1198 — release coordination with Smaily (High; blocks any public
    release path). The proposal package is drafted
    (`docs/UPSTREAM_PROPOSAL.md`) and ready for your review; the decision
    checklist at its end lists the one-way doors in recommended order.
-3. PRO-1201 — Hyvä boundary decisions (see "Open release decisions" in
+2. PRO-1201 — Hyvä boundary decisions (see "Open release decisions" in
    `docs/HYVA_SUPPORT.md`; the verification matrix itself is now fully
    executed and green): (a) confirm Hyvä Checkout (commercial, Magewire)
    stays out of scope for the first Hyvä release — free Hyvä's
