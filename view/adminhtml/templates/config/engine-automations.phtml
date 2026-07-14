@@ -118,7 +118,7 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
             </div>
         <?php endforeach; ?>
     </div>
-    <div class="smaily-engine-automations__footer">
+    <div class="smaily-tab-footer">
         <button type="button" id="smaily-engine-automations-save" class="action-primary">
             <span><?= $escaper->escapeHtml(__('Save Intelligence Automations')) ?></span>
         </button>
@@ -144,8 +144,9 @@ $saveUrl = $block->getUrl('smaily_connect/automations/save');
             clearValidation();
             var invalid = 0;
             $('#smaily-engine-automations-table .smaily-engine-trigger').each(function () {
-                var enabled = $(this).find('[data-field="enabled"]').is(':checked');
-                var $workflow = $(this).find('[data-field="workflow_id"]');
+                var $row = $(this);
+                var enabled = $row.find('[data-field="enabled"]').is(':checked');
+                var $workflow = $row.find('[data-field="workflow_id"]');
                 if (enabled && !$workflow.val()) {
                     invalid += 1;
                     $workflow.closest('.smaily-engine-trigger__ctrl').addClass('is-invalid')

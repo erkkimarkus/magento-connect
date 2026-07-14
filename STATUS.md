@@ -5,11 +5,51 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1397 polish pass done — Erkki's live-review
-defects on the Subscribers tab fixed, a defensive "queued" import state
-added, and a real cron-registration bug found + fixed along the way)_
+_Last updated: 2026-07-14 (PRO-1401 done — Settings > Automations tab rebuilt
+to the card-list + run-mode-pill spec §2.3.C, finding #9 fixed; the orphan
+abandoned-cart product-field control wired end to end)_
 
 ## Where we are
+
+- **PRO-1401 done — Settings > Automations tab rebuilt to target spec
+  (§2.3.C), the finding-#9 fix.** The store-event triggers (Welcome / First
+  order / Abandoned cart) move off the cramped checkbox+dropdown table onto
+  the same `.smaily-engine-trigger` card-list vocabulary the
+  engine-automations block already used: each trigger is a card with a
+  run-mode pill (Active/Off) that follows its enable toggle live
+  (`reactAutomationRow` in `panel/panels-js.phtml`), a muted description and a
+  right-aligned control row (Workflow select disabled while off; the
+  abandoned card adds the cutoff-minutes input). The tab gained the
+  Connection/Subscribers shell — an H3 title + description above the blocks
+  and a tab-scoped "Save automations" footer (reusing the existing
+  `saveTab('automations')` path), which hides the generic global footer on
+  this tab. **Orphan control wired (Erkki 2026-07-14 §4.2):** the
+  abandoned-cart product fields (`automations/abandoned_fields` — native-config
+  only until now, dead-`saveFlag()` shape) get a real 7-checkbox control
+  inside the abandoned-cart card (Settings only). Persistence already existed
+  in `WizardStepSaver::saveAutomations()`; this completes it end to end —
+  `WizardData::getSelectedAbandonedFields()` exposes the saved selection for
+  the server-rendered checked state, `panels-js` collects it into the
+  automations save payload, and 4 new `WizardStepSaverTest` cases cover
+  store/filter-to-supported/clear/absent. Config path unchanged (2.8.x
+  migration constraint). **Engine-automations validation-error state:** a
+  client-side rule (a workflow is required once a trigger is enabled) renders
+  field-level danger on the offending row's Workflow select plus a top error
+  banner with a count; valid rows untouched, clears on every attempt / a
+  successful save. No save endpoint changed. The not-connected empty state
+  and catalog-load-failed dimmed+banner fallbacks were already present.
+  **Verification:** 162 unit tests green (4 new), phpcs 0 errors, phpstan
+  clean, sandbox `setup:upgrade` + `setup:di:compile` green. Playwright drove
+  Settings > Automations in both **en_US and et_EE** (card-list with pills,
+  the abandoned-cart product-field checkboxes, the "Save automations" footer
+  and the engine not-connected empty state, all fully translated), zero
+  module JS console errors in either run. Screenshots under
+  `/home/erkki/.claude/jobs/64b0d00d/tmp/automations-shots/`
+  (`automations-en-*`, `automations-et-*`). Sandbox restored: admin locale
+  back to en_US. **Known/out-of-scope:** the PRO-1274 "Overridden for main
+  website" banner renders inside the abandoned-cart card (a store-view
+  override exists on the abandoned workflow in the sandbox) — that override
+  chrome is the separate PRO-1398 sweep, untouched here.
 
 - **PRO-1397 polish pass done — the four defects Erkki flagged after
   reviewing the rebuilt Subscribers tab live, plus a new defensive state

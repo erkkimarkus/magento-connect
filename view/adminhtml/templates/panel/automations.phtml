@@ -48,6 +48,15 @@ $abandonedFieldLabels = [
     'base_price' => __('Product Base Price'),
 ];
 $selectedAbandonedFields = $viewModel->getSelectedAbandonedFields();
+
+// Store-event trigger cards. The id slug differs from the trigger key
+// (first_order -> firstorder, abandoned_cart -> abandoned) to match the
+// element ids panel/panels-js.phtml already binds; names reuse $triggers.
+$storeTriggers = [
+    ['id' => 'welcome', 'name' => $triggers['welcome'], 'desc' => __('Fires when someone becomes a subscriber.')],
+    ['id' => 'firstorder', 'name' => $triggers['first_order'], 'desc' => __('Fires on a customer\'s first purchase.')],
+    ['id' => 'abandoned', 'name' => $triggers['abandoned_cart'], 'desc' => __('Fires when a cart is left behind.'), 'abandoned' => true],
+];
 ?>
 <div class="smaily-card">
     <h2><?= $escaper->escapeHtml(__('Map store events to Smaily automations')) ?></h2>
@@ -56,72 +65,34 @@ $selectedAbandonedFields = $viewModel->getSelectedAbandonedFields();
     </p>
 
     <div class="smaily-engine-triggers smaily-store-triggers">
+        <?php foreach ($storeTriggers as $trigger): ?>
+        <?php $id = $escaper->escapeHtmlAttr($trigger['id']); ?>
         <div class="smaily-engine-trigger smaily-store-trigger is-off">
             <div class="smaily-engine-trigger__top">
                 <div class="smaily-engine-trigger__head">
                     <div class="smaily-engine-trigger__name-row">
-                        <span class="smaily-engine-trigger__name"><?= $escaper->escapeHtml(__('Welcome')) ?></span>
+                        <span class="smaily-engine-trigger__name"><?= $escaper->escapeHtml($trigger['name']) ?></span>
                         <span class="smaily-pill smaily-pill--off smaily-store-pill"><span class="smaily-pill__dot"></span><span class="smaily-store-pill__text"><?= $escaper->escapeHtml(__('Off')) ?></span></span>
                     </div>
-                    <div class="smaily-engine-trigger__desc"><?= $escaper->escapeHtml(__('Fires when someone becomes a subscriber.')) ?></div>
-                    <div class="smaily-engine-trigger__controls" style="margin-top:8px;">
-                        <span class="smaily-engine-trigger__ctrl"><label><input type="checkbox" id="smaily-w-welcome-enabled"/> <?= $escaper->escapeHtml(__('Enabled')) ?></label></span>
+                    <div class="smaily-engine-trigger__desc"><?= $escaper->escapeHtml($trigger['desc']) ?></div>
+                    <div class="smaily-engine-trigger__controls smaily-store-trigger__enable">
+                        <span class="smaily-engine-trigger__ctrl"><label><input type="checkbox" id="smaily-w-<?= /* @noEscape */ $id ?>-enabled"/> <?= $escaper->escapeHtml(__('Enabled')) ?></label></span>
                     </div>
                 </div>
                 <div class="smaily-engine-trigger__controls">
                     <label class="smaily-engine-trigger__ctrl">
                         <span><?= $escaper->escapeHtml(__('Smaily Workflow')) ?></span>
-                        <select id="smaily-w-welcome-workflow" class="smaily-w-workflow" style="min-width:16rem;"></select>
+                        <select id="smaily-w-<?= /* @noEscape */ $id ?>-workflow" class="smaily-w-workflow"></select>
                     </label>
-                </div>
-            </div>
-        </div>
-
-        <div class="smaily-engine-trigger smaily-store-trigger is-off">
-            <div class="smaily-engine-trigger__top">
-                <div class="smaily-engine-trigger__head">
-                    <div class="smaily-engine-trigger__name-row">
-                        <span class="smaily-engine-trigger__name"><?= $escaper->escapeHtml(__('First order')) ?></span>
-                        <span class="smaily-pill smaily-pill--off smaily-store-pill"><span class="smaily-pill__dot"></span><span class="smaily-store-pill__text"><?= $escaper->escapeHtml(__('Off')) ?></span></span>
-                    </div>
-                    <div class="smaily-engine-trigger__desc"><?= $escaper->escapeHtml(__('Fires on a customer\'s first purchase.')) ?></div>
-                    <div class="smaily-engine-trigger__controls" style="margin-top:8px;">
-                        <span class="smaily-engine-trigger__ctrl"><label><input type="checkbox" id="smaily-w-firstorder-enabled"/> <?= $escaper->escapeHtml(__('Enabled')) ?></label></span>
-                    </div>
-                </div>
-                <div class="smaily-engine-trigger__controls">
-                    <label class="smaily-engine-trigger__ctrl">
-                        <span><?= $escaper->escapeHtml(__('Smaily Workflow')) ?></span>
-                        <select id="smaily-w-firstorder-workflow" class="smaily-w-workflow" style="min-width:16rem;"></select>
-                    </label>
-                </div>
-            </div>
-        </div>
-
-        <div class="smaily-engine-trigger smaily-store-trigger is-off">
-            <div class="smaily-engine-trigger__top">
-                <div class="smaily-engine-trigger__head">
-                    <div class="smaily-engine-trigger__name-row">
-                        <span class="smaily-engine-trigger__name"><?= $escaper->escapeHtml(__('Abandoned cart')) ?></span>
-                        <span class="smaily-pill smaily-pill--off smaily-store-pill"><span class="smaily-pill__dot"></span><span class="smaily-store-pill__text"><?= $escaper->escapeHtml(__('Off')) ?></span></span>
-                    </div>
-                    <div class="smaily-engine-trigger__desc"><?= $escaper->escapeHtml(__('Fires when a cart is left behind.')) ?></div>
-                    <div class="smaily-engine-trigger__controls" style="margin-top:8px;">
-                        <span class="smaily-engine-trigger__ctrl"><label><input type="checkbox" id="smaily-w-abandoned-enabled"/> <?= $escaper->escapeHtml(__('Enabled')) ?></label></span>
-                    </div>
-                </div>
-                <div class="smaily-engine-trigger__controls">
-                    <label class="smaily-engine-trigger__ctrl">
-                        <span><?= $escaper->escapeHtml(__('Smaily Workflow')) ?></span>
-                        <select id="smaily-w-abandoned-workflow" class="smaily-w-workflow" style="min-width:16rem;"></select>
-                    </label>
+                    <?php if (!empty($trigger['abandoned'])): ?>
                     <label class="smaily-engine-trigger__ctrl">
                         <span><?= $escaper->escapeHtml(__('Wait (minutes)')) ?></span>
-                        <input type="number" id="smaily-w-cutoff" min="10" max="1440" value="30" style="width:6rem;"/>
+                        <input type="number" id="smaily-w-cutoff" min="10" max="1440" value="30"/>
                     </label>
+                    <?php endif; ?>
                 </div>
             </div>
-            <?php if ($isSettings): ?>
+            <?php if (!empty($trigger['abandoned']) && $isSettings): ?>
             <div class="smaily-store-trigger__fields" id="smaily-w-abandoned-fields">
                 <div class="smaily-store-trigger__fields-label"><?= $escaper->escapeHtml(__('Abandoned Cart Product Fields')) ?></div>
                 <?php foreach ($abandonedFieldLabels as $fieldValue => $fieldLabel): ?>
@@ -135,6 +106,7 @@ $selectedAbandonedFields = $viewModel->getSelectedAbandonedFields();
             </div>
             <?php endif; ?>
         </div>
+        <?php endforeach; ?>
     </div>
 
     <p class="note"><?= $escaper->escapeHtml(__('How long a cart must be inactive before it counts as abandoned. Minimum 10 minutes. Carts older than 24 hours are never mailed.')) ?></p>

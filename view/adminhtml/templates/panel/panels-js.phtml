@@ -366,14 +366,15 @@ window.smailyPanelsInit = function ($) {
     // --- Live reactivity within panels --------------------------------------
     function reactAutomationRow(checkboxSelector, selectSelector) {
         var apply = function () {
-            var on = $(checkboxSelector).is(':checked');
+            var $cb = $(checkboxSelector);
+            var on = $cb.is(':checked');
             $(selectSelector).prop('disabled', !on);
             // Card + run-mode pill follow the enable toggle (store-event cards).
-            var $card = $(checkboxSelector).closest('.smaily-store-trigger');
+            var $card = $cb.closest('.smaily-store-trigger');
             if ($card.length) {
                 $card.toggleClass('is-active', on).toggleClass('is-off', !on);
                 $card.find('.smaily-store-pill')
-                    .attr('class', 'smaily-pill smaily-store-pill smaily-pill--' + (on ? 'active' : 'off'))
+                    .toggleClass('smaily-pill--active', on).toggleClass('smaily-pill--off', !on)
                     .find('.smaily-store-pill__text')
                     .text(on ? '<?= $escaper->escapeJs(__('Active')) ?>' : '<?= $escaper->escapeJs(__('Off')) ?>');
             }
