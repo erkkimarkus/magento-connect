@@ -18,6 +18,7 @@ use Magento\Framework\App\Area;
 use Magento\Framework\Pricing\Amount\AmountInterface;
 use Magento\Framework\Pricing\Price\PriceInterface;
 use Magento\Framework\Pricing\PriceInfoInterface;
+use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\App\Emulation;
 use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -90,6 +91,103 @@ class CatalogPayloadBuilderTest extends TestCase
         self::assertSame('https://shop.example/shirt', $item['product_url']);
     }
 
+    /**
+     * PRO-1352/1353: price must always come from the ONE canonical store
+     * scope (the default store view), never whatever scope the caller
+     * happened to load the product in (e.g. an admin edit under a
+     * non-default store view) — otherwise the same product can ingest a
+     * different price depending on who saved it last.
+     */
+    public function testPriceIsResolvedUnderTheCanonicalStoreScopeNotWhateverScopeTheProductWasLoadedIn(): void
+    {
+        $canonicalStore = $this->createMock(StoreInterface::class);
+        $canonicalStore->method('getId')->willReturn(1);
+
+        $storeManager = $this->createMock(StoreManagerInterface::class);
+        $storeManager->method('getStores')->willReturn([]);
+        $storeManager->method('getDefaultStoreView')->willReturn($canonicalStore);
+
+        $loadedProduct = $this->product(42, 'SHIRT', 19.99);
+        $loadedProduct->method('getStoreId')->willReturn(5); // admin edited store view 5, not canonical
+
+        $scopedProduct = $this->product(42, 'SHIRT', 29.99); // canonical scope has a different price
+        $scopedProduct->method('getStoreId')->willReturn(1);
+
+        $productRepository = $this->createMock(ProductRepositoryInterface::class);
+        $productRepository->expects(self::once())
+            ->method('getById')
+            ->with(42, false, 1)
+            ->willReturn($scopedProduct);
+
+        $parentResolver = $this->createMock(ParentProductResolver::class);
+        $parentResolver->method('productIdOf')->willReturn('42');
+
+        $stockItem = $this->createMock(StockItemInterface::class);
+        $stockItem->method('getIsInStock')->willReturn(true);
+        $stockRegistry = $this->createMock(StockRegistryInterface::class);
+        $stockRegistry->method('getStockItem')->willReturn($stockItem);
+
+        $builder = new CatalogPayloadBuilder(
+            $storeManager,
+            $productRepository,
+            $this->createMock(CategoryRepositoryInterface::class),
+            $stockRegistry,
+            new ImageHelperFactory(),
+            $this->createMock(LanguageResolver::class),
+            $parentResolver,
+            $this->createMock(Emulation::class)
+        );
+
+        $item = $builder->build($loadedProduct);
+
+        self::assertSame(29.99, $item['price']);
+        self::assertSame(1, $builder->canonicalStoreId());
+    }
+
+    /**
+     * PRO-1352/1353: when the product is already loaded at the canonical
+     * scope (the backfill collection sets this explicitly), price reads
+     * straight off it — no extra repository reload.
+     */
+    public function testPriceSkipsTheReloadWhenTheProductIsAlreadyAtTheCanonicalScope(): void
+    {
+        $canonicalStore = $this->createMock(StoreInterface::class);
+        $canonicalStore->method('getId')->willReturn(1);
+
+        $storeManager = $this->createMock(StoreManagerInterface::class);
+        $storeManager->method('getStores')->willReturn([]);
+        $storeManager->method('getDefaultStoreView')->willReturn($canonicalStore);
+
+        $product = $this->product(42, 'SHIRT', 19.99);
+        $product->method('getStoreId')->willReturn(1);
+
+        $productRepository = $this->createMock(ProductRepositoryInterface::class);
+        $productRepository->expects(self::never())->method('getById');
+
+        $parentResolver = $this->createMock(ParentProductResolver::class);
+        $parentResolver->method('productIdOf')->willReturn('42');
+
+        $stockItem = $this->createMock(StockItemInterface::class);
+        $stockItem->method('getIsInStock')->willReturn(true);
+        $stockRegistry = $this->createMock(StockRegistryInterface::class);
+        $stockRegistry->method('getStockItem')->willReturn($stockItem);
+
+        $builder = new CatalogPayloadBuilder(
+            $storeManager,
+            $productRepository,
+            $this->createMock(CategoryRepositoryInterface::class),
+            $stockRegistry,
+            new ImageHelperFactory(),
+            $this->createMock(LanguageResolver::class),
+            $parentResolver,
+            $this->createMock(Emulation::class)
+        );
+
+        $item = $builder->build($product);
+
+        self::assertSame(19.99, $item['price']);
+    }
+
     private function createBuilder(string $resolvedProductId, ?Emulation $emulation = null): CatalogPayloadBuilder
     {
         $parentResolver = $this->createMock(ParentProductResolver::class);
@@ -115,10 +213,10 @@ class CatalogPayloadBuilderTest extends TestCase
         );
     }
 
-    private function product(int $id, string $sku): Product&MockObject
+    private function product(int $id, string $sku, float $price = 19.99): Product&MockObject
     {
         $amount = $this->createMock(AmountInterface::class);
-        $amount->method('getValue')->willReturn(19.99);
+        $amount->method('getValue')->willReturn($price);
         $price = $this->createMock(PriceInterface::class);
         $price->method('getAmount')->willReturn($amount);
         $priceInfo = $this->createMock(PriceInfoInterface::class);
