@@ -65,25 +65,39 @@ added, and a real cron-registration bug found + fixed along the way)_
   genuinely stalls mid-page (cron dies, a stuck HTTP call, etc.) is NOT
   detected by this change — it still shows "Importing… X / Y" indefinitely.
   Distinguishing that case would need a last-progress timestamp delta, not
-  present in scope for this pass. **Incidental but significant finding,
+  present in scope for this pass. **Incidental but significant bug, found +
   fixed in its own commit:** while verifying "the real cron-driven path
-  still shows live progress" live in the sandbox, discovered that
-  `etc/crontab.xml`'s `smaily_connect` group had **no matching
-  `etc/cron_groups.xml`** — without a `schedule_ahead_for` value, Magento's
-  `ProcessCronQueueObserver::saveSchedule()` computes a zero-length
-  look-ahead window and **silently generates zero `cron_schedule` rows for
-  the group, forever** (confirmed by direct reflection into the core
-  observer). This is not a sandbox-only limitation (STATUS.md's "no cron
-  daemon" note from the previous session) — it means **none of the
+  still shows live progress" live in the sandbox, discovered the
+  `smaily_connect` cron group was **never actually configured** — its group
+  knobs (`schedule_generate_every`/`schedule_ahead_for`/…) had been declared
+  in the WRONG file: `etc/config.xml`'s `<default><system><cron>` block.
+  Magento reads cron-group cadence **only** from a `cron_groups.xml`, never
+  from a module's `config.xml` `<system><cron>` subtree — **empirically
+  confirmed:** with only the `config.xml` block present,
+  `scopeConfig->getValue('system/cron/smaily_connect/schedule_ahead_for')`
+  returns `NULL` (while a sibling non-cron default,
+  `smaily_connect/subscribers/sync_enabled`, loads fine), so
+  `ProcessCronQueueObserver` reads `schedule_ahead_for = 0`, computes a
+  zero-length look-ahead window, and **silently generates zero
+  `cron_schedule` rows for the group, forever.** That means **none of the
   module's 7 cron jobs** (`FlushEventQueue`, `QueueJanitor`,
   `ContactReconcile`, `AbandonedCart`, `BackfillTick`, `FlushIngestQueue`,
-  `HealthCheck`) would ever run on a real install either, no matter how
-  often `bin/magento cron:run` fires. Added `etc/cron_groups.xml` mirroring
-  Magento's own `default` group values (`schedule_generate_every: 15`,
-  `schedule_ahead_for: 20`, `schedule_lifetime: 15`, etc.) — verified live:
-  after the fix, `cron:run` generates `smaily_backfill_tick` schedule rows
-  and a queued job flows `pending` → `running` → `completed` exactly as
-  designed. **Verification:** 158 unit tests green (8 new, all in
+  `HealthCheck`) has ever run on ANY install — sandbox or production — no
+  matter how often `bin/magento cron:run` fires (this supersedes the
+  previous session's "sandbox has no cron daemon" note, which masked the
+  real cause). Fix: added `etc/cron_groups.xml` (the canonical mechanism)
+  mirroring Magento's own `default` group values (`schedule_generate_every:
+  15`, `schedule_ahead_for: 20`, `schedule_lifetime: 15`, `use_separate_
+  process: 0`, …). Verified live and unconfounded: with `cron_groups.xml`
+  present the four scope-config values resolve to non-null, `cron:run`
+  generates `smaily_backfill_tick` schedule rows, and a queued job flows
+  `pending` → `running` → terminal exactly as designed. The old, inert
+  `<system><cron>` block in `config.xml` (`generate_every: 1 / ahead_for:
+  4 / separate_process: 1` — never in effect, since Magento never read it)
+  is left in place, superseded by `cron_groups.xml`; **removing that dead
+  block is a queued follow-up** (§ Questions/tasks for Erkki) rather than
+  part of this pass, to keep the fix additive and the diff surgical.
+  **Verification:** 158 unit tests green (8 new, all in
   `JobStatusAggregatorTest`), phpcs 0 errors, phpstan clean, sandbox
   `setup:upgrade` + `setup:di:compile` green. Playwright drove Settings >
   Subscribers in both **en_US and et_EE**: consent-card alignment,
@@ -1133,3 +1147,10 @@ PRO-1267 (engine: Magento product-identity contract note).
    The compat package vendor/name is decided: `smaily/module-connect-hyva`
    (module PHP name stays `Hyva_SmailyConnect` per the Hyvä convention);
    actual publication remains part of the release train.
+3. PRO-1397 follow-up (Low; cleanup) — `etc/config.xml` still carries a dead
+   `<default><system><cron><smaily_connect>` block that Magento never reads
+   (cron-group cadence comes only from `etc/cron_groups.xml`, added this
+   pass; confirmed inert — scopeConfig returns NULL for those paths without
+   the groups file). It is harmless but is a second, disagreeing source of
+   truth for the same knobs. Deleting it wasn't done here (kept the diff
+   surgical / the block is pre-existing) — OK to remove in a later cleanup.
