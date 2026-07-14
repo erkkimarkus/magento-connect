@@ -16,6 +16,7 @@ use PHPUnit\Framework\TestCase;
 use Smaily\Connect\Model\Adminhtml\WizardStepSaver;
 use Smaily\Connect\Model\Automation\ConfigRowNormalizer;
 use Smaily\Connect\Model\Automation\MappingSaver;
+use Smaily\Connect\Model\Config\Source\AbandonedFields;
 use Smaily\Connect\Model\Client\Exception\SmailyClientException;
 use Smaily\Connect\Model\Client\SmailyClient;
 use Smaily\Connect\Model\Client\SmailyClientProvider;
@@ -175,5 +176,50 @@ class WizardStepSaverTest extends TestCase
 
         self::assertFalse($this->wasSaved(Config::XML_PATH_INCLUDE_GUESTS));
         self::assertFalse($this->wasSaved(Config::XML_PATH_AUTOMATION_FORCE_OPT_IN));
+    }
+
+    /**
+     * PRO-1401: the Automations tab's abandoned-cart product-field control
+     * (automations/abandoned_fields, orphaned until now) posts a selection
+     * that is stored as a CSV, filtered to the supported fields and kept in
+     * their canonical order.
+     */
+    public function testAbandonedFieldsAreStoredFilteredToSupported(): void
+    {
+        $this->saver->save('automations', [
+            'abandoned_fields' => ['sku', 'name', 'bogus', 'price'],
+        ]);
+
+        self::assertSame('name,sku,price', $this->savedValue(Config::XML_PATH_ABANDONED_FIELDS));
+    }
+
+    public function testAbandonedFieldsEmptySelectionClearsTheValue(): void
+    {
+        $this->saver->save('automations', ['abandoned_fields' => []]);
+
+        self::assertSame('', $this->savedValue(Config::XML_PATH_ABANDONED_FIELDS));
+    }
+
+    /**
+     * The wizard doesn't render this control (Settings-only) — an absent key
+     * must leave the stored selection untouched.
+     */
+    public function testAbandonedFieldsUntouchedWhenKeyAbsent(): void
+    {
+        $this->saver->save('automations', ['welcome_enabled' => true]);
+
+        self::assertFalse($this->wasSaved(Config::XML_PATH_ABANDONED_FIELDS));
+    }
+
+    public function testEveryAbandonedFieldPersistsInCanonicalOrder(): void
+    {
+        $this->saver->save('automations', [
+            'abandoned_fields' => array_reverse(AbandonedFields::SUPPORTED_FIELDS),
+        ]);
+
+        self::assertSame(
+            implode(',', AbandonedFields::SUPPORTED_FIELDS),
+            $this->savedValue(Config::XML_PATH_ABANDONED_FIELDS)
+        );
     }
 }
