@@ -150,4 +150,30 @@ class WizardStepSaverTest extends TestCase
 
         self::assertSame('456', $this->savedValue(Config::XML_PATH_WELCOME_WORKFLOW));
     }
+
+    /**
+     * PRO-1397: the Subscribers tab's orphan-field controls (include_guests,
+     * automation_force_opt_in) reuse this pre-existing saveFlag() wiring —
+     * confirm it actually persists both when the template starts sending them.
+     */
+    public function testSubscriberOrphanFlagsAreSaved(): void
+    {
+        $this->saver->save('subscribers', ['include_guests' => true, 'automation_force_opt_in' => false]);
+
+        self::assertSame('1', $this->savedValue(Config::XML_PATH_INCLUDE_GUESTS));
+        self::assertSame('0', $this->savedValue(Config::XML_PATH_AUTOMATION_FORCE_OPT_IN));
+    }
+
+    /**
+     * The wizard doesn't render these controls (Settings-only, per target
+     * spec §2.3.B) — collect.subscribers() omits the keys there rather than
+     * posting false, so an absent key must leave the stored value untouched.
+     */
+    public function testSubscriberOrphanFlagsAreUntouchedWhenKeyAbsent(): void
+    {
+        $this->saver->save('subscribers', ['sync_enabled' => true]);
+
+        self::assertFalse($this->wasSaved(Config::XML_PATH_INCLUDE_GUESTS));
+        self::assertFalse($this->wasSaved(Config::XML_PATH_AUTOMATION_FORCE_OPT_IN));
+    }
 }
