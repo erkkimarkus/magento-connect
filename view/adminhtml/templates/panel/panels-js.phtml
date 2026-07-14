@@ -370,6 +370,21 @@ window.smailyPanelsInit = function ($) {
         apply();
     }
 
+    // Native `depends`: automation_force_opt_in only applies in legitimate-
+    // interest mode (Model\ContactSync\Mode::automationForceOptIn()) — the row
+    // is hidden outside it, same as the native config field's dependency.
+    function reactSyncMode() {
+        var $row = $('#smaily-w-force-opt-in-row');
+        if (!$row.length) {
+            return;
+        }
+        var apply = function () {
+            $row.toggle($('input[name=smaily-w-mode]:checked').val() === 'legitimate_interest');
+        };
+        $(document).on('change', 'input[name=smaily-w-mode]', apply);
+        apply();
+    }
+
     function reactRssEnabled() {
         if (!$('#smaily-w-rss-enabled').length) {
             return;
@@ -408,6 +423,8 @@ window.smailyPanelsInit = function ($) {
         $('input[name=smaily-w-mode][value=' + boot.subscribers.syncMode + ']').prop('checked', true);
         $('#smaily-w-checkout-optin').prop('checked', boot.subscribers.checkoutOptin);
         $('#smaily-w-suppress').prop('checked', boot.subscribers.suppressOptinEmails);
+        $('#smaily-w-include-guests').prop('checked', boot.subscribers.includeGuests);
+        $('#smaily-w-force-opt-in').prop('checked', boot.subscribers.forceOptIn);
 
         // Automations.
         $('#smaily-w-welcome-enabled').prop('checked', boot.automations.welcomeEnabled);
@@ -443,6 +460,7 @@ window.smailyPanelsInit = function ($) {
         reactAutomationRow('#smaily-w-firstorder-enabled', '#smaily-w-firstorder-workflow');
         reactAutomationRow('#smaily-w-abandoned-enabled', '#smaily-w-abandoned-workflow, #smaily-w-cutoff');
         reactSubscribersEnabled();
+        reactSyncMode();
         reactRssEnabled();
 
         // Multilingual mode cards: live re-render of the dependent sections,
@@ -630,7 +648,7 @@ window.smailyPanelsInit = function ($) {
             };
         },
         subscribers: function () {
-            return {
+            var data = {
                 sync_enabled: $('#smaily-w-sync-enabled').length
                     ? $('#smaily-w-sync-enabled').is(':checked')
                     : true,
@@ -639,6 +657,17 @@ window.smailyPanelsInit = function ($) {
                 checkout_optin_enabled: $('#smaily-w-checkout-optin').is(':checked'),
                 suppress_optin_emails: $('#smaily-w-suppress').is(':checked')
             };
+            // Settings-only controls (not rendered in the wizard) — omit the
+            // keys entirely there so the wizard's save never touches them.
+            var $includeGuests = $('#smaily-w-include-guests');
+            if ($includeGuests.length) {
+                data.include_guests = $includeGuests.is(':checked');
+            }
+            var $forceOptIn = $('#smaily-w-force-opt-in');
+            if ($forceOptIn.length) {
+                data.automation_force_opt_in = $forceOptIn.is(':checked');
+            }
+            return data;
         },
         automations: function () {
             var data = {

@@ -5,11 +5,108 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1391 final-polish pass — Settings > Connection
-tab: in-card intro gated to the wizard only, field/button wording aligned to
-sibling wording, font rendering corrected)_
+_Last updated: 2026-07-14 (PRO-1397 done — Settings > Subscribers tab rebuilt
+to spec, rolling the Connection tab's finished visual pattern onto it)_
 
 ## Where we are
+
+- **PRO-1397 done — Settings > Subscribers tab rebuilt to target spec
+  (§2.3.B), at the Connection tab's finished visual bar.** Rolled the exact
+  PRO-1379/1391 pattern onto Subscribers: an H3 "Subscribers" + one-line
+  description now sit above the panel (`settings/index.phtml`, matching
+  Connection's shell — the CSS selector that used to be
+  `.smaily-settings [data-tab="connection"] h3` is now the general
+  `.smaily-settings .smaily-tab-panel > h3`, since a second tab now uses it);
+  the panel's own in-card `<h2>Who should be synced to Smaily?</h2>` is gated
+  to the wizard only (`panel/subscribers.phtml`, same `$isSettings` gate
+  Connection's intro uses) since the outer heading now covers it in Settings;
+  a tab-scoped footer ("Save Subscribers" + InlineStatus) replaces the
+  generic global Save for this tab, reusing the exact `saveTab()` helper
+  Connection's own Save button already established — no new save logic.
+  **Finding #6 (design-pack "Opt-in mode: Double/Single opt-in" leak):**
+  confirmed absent from our code before this task started (grepped the whole
+  repo — the only "opt-in" hits are the real `checkout_optin` mode and
+  `SuppressNewsletterEmails`'s already-correct comment about the double-opt-in
+  *confirmation* email, a different, real, untouched Magento-core concept);
+  nothing to delete. **Finding #7 (unstyled checkboxes, ugly spacing):**
+  every checkbox on the Settings pages now gets `accent-color: var(--s-accent)`
+  (`.smaily-settings input[type=checkbox]`, so this also fixes Automations'/
+  Intelligence's/RSS's checkboxes for free); the Subscribers tab's card,
+  field labels, notes, the 8-checkbox "extra fields" set (was a crude
+  `display:inline-block;width:16rem` grid) and the toggle rows are all
+  reworked onto the 4px spacing tokens and the Connection tab's measured
+  type scale (13px labels, 12px muted notes). Card width is 680px (not
+  Connection's 620px — measured from the design pack's own multilingual
+  choice-card frame, `Setup Wizard.dc.html` "FRAME 4", the closest verified
+  choice-card-group precedent, since the Subscribers frame in the pack IS
+  the leak and carries no real width guidance). **Orphan-field UI
+  (`include_guests`, `automation_force_opt_in`, Erkki's 2026-07-14 §4.2
+  decision):** both already had working persistence
+  (`WizardStepSaver::saveSubscribers()`'s `saveFlag()` calls and
+  `WizardData::getBootJson()`'s `includeGuests`/`forceOptIn` keys were already
+  wired and untested — genuinely half-dead, exactly as flagged) — this task
+  only needed the template checkbox, prefill, collect and reactivity. Placed
+  at native `system.xml`'s own sort position (between "extra fields" and
+  "checkout newsletter checkbox"), Settings-only (`$isSettings`-gated, not
+  shown in the wizard — the wizard's collect.subscribers() omits both keys
+  entirely when the controls aren't in the DOM, rather than posting `false`,
+  so a wizard save can never silently clear a value only the Settings tab
+  edits). `include_guests` has no mode dependency in the UI — its "always on
+  in checkout opt-in mode" behavior is a read-time override
+  (`Model\ContactSync\Mode::includeGuests()`), not a save-time constraint, and
+  native `system.xml` has no `depends` on it either, so forcing/disabling the
+  checkbox in the UI would have invented a coupling the real field doesn't
+  have. `automation_force_opt_in` **is** hidden outside legitimate-interest
+  mode (a new `reactSyncMode()` in `panel/panels-js.phtml`, same family as
+  the existing `reactAutomationRow`/`reactSubscribersEnabled`/
+  `reactRssEnabled`), mirroring native's own `<depends><field id="sync_mode">
+  legitimate_interest</field></depends>`. Both fields added to
+  `ConfigOverrides::FIELD_ANCHORS` for consistency with their sibling fields
+  on the same tab (the override-awareness banner still applies to every
+  other Subscribers field; Connection-style removal of that banner is a
+  later, tab-by-tab follow-up per §3 finding #3, not done here). Native
+  `system.xml` fields are UNTOUCHED (matching the Connection tab precedent —
+  full native-config removal is tracked separately, §4.2/§5, not yet done for
+  ANY tab). **Import bug #8 investigated live, no code change needed:** the
+  backfill card is confirmed embedded on this tab (§2.5); live-tested on the
+  sandbox and initially reproduced the exact symptom ("Importing… 0 / ?"
+  showing on a fresh page load with nothing started this session) — traced
+  to a genuinely stale `pending` job row (id 8) left over from a 2026-07-12
+  verification session, never advanced because this sandbox container runs
+  no cron daemon at all (confirmed: no crontab, no cron process) — a sandbox
+  characteristic, not an application defect. Recovered via the backfill
+  card's own existing "Cancel import" affordance (the legitimate, already-
+  built recovery path for exactly this state — no direct DB write used);
+  after cancelling, the tab correctly shows the honest terminal state
+  ("Cancelled — 0 of ? synced…") instead of a runaway spinner. Re-read
+  `Controller\Adminhtml\Api\BackfillState::aggregate()` and
+  `panels-js.phtml#renderBackfill()`: a true idle state (zero job rows ever)
+  already renders no Pill and no ProgressBar — confirmed by both static
+  reading and a clean live reload — so target-spec §2.5(a)'s explicit rule
+  is already satisfied; no code fix was needed for this pass. i18n: only one
+  new phrase needed — "Save Subscribers" ("Salvesta tellijad") — everything
+  else the rebuild needed (`Subscribers`, `Who should be synced to Smaily?`,
+  `Include Guest Order Emails`, its comment, `Automations May Re-Subscribe
+  (Advanced)`, its comment) already existed in both packs from `system.xml`'s
+  own translated strings (en↔et parity preserved, 409 lines each,
+  canonical-sorted insertion). New unit tests in `WizardStepSaverTest`
+  (2: both orphan flags persist when posted; both stay untouched when the
+  key is absent, i.e. a wizard save never clobbers them). **Verification:**
+  145→150 unit tests green (2 new), phpcs 0 errors, phpstan clean; sandbox
+  `setup:upgrade` + `setup:di:compile` green. Playwright drove the real
+  admin Settings > Subscribers tab in **en_US AND et_EE**: default (consent)
+  state, legitimate-interest state (force-opt-in row appears, correct ET
+  wording), checkout-optin state (include-guests stays a real, unforced
+  toggle), a full save round-trip (`include_guests` verified written to
+  `core_config_data` and back out again correctly on reload), and the live
+  backfill-cancel recovery — zero module JS console errors in any run; the
+  Connection tab was re-screenshotted to confirm the shared-selector
+  generalization caused no regression there. Screenshots under
+  `/home/erkki/.claude/jobs/64b0d00d/tmp/subscribers-shots/`. Sandbox
+  restored: admin locale back to en_US, the test `include_guests` toggle
+  reset to its prior `0`, the stale job cancelled (a legitimate terminal
+  state, not reverted — there is no undo for a cancel, matching real
+  merchant recovery).
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:

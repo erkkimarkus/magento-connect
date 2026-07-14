@@ -543,7 +543,7 @@
  * tab-scoped footer (Test/Save Connection + InlineStatus). Scoped to
  * .smaily-settings so the shared wizard step-1 partial keeps its own,
  * wider layout untouched. */
-.smaily-settings [data-tab="connection"] h3 { margin: 0 0 var(--sp-1); font-size: var(--fs-18); font-weight: 700; }
+.smaily-settings .smaily-tab-panel > h3 { margin: 0 0 var(--sp-1); font-size: var(--fs-18); font-weight: 700; }
 .smaily-settings .smaily-tab-desc { margin: 0 0 var(--sp-5); font-size: var(--fs-13); color: var(--s-text-2); }
 .smaily-settings #smaily-w-default-account .smaily-card { max-width: 620px; padding: 20px 22px; border-radius: 6px; color: var(--s-text); }
 .smaily-settings #smaily-w-default-account .smaily-field { max-width: 440px; }
@@ -569,8 +569,17 @@
 .smaily-settings .smaily-tab-panel { background: var(--s-bg); padding: var(--sp-6) 28px; }
 .smaily-settings #smaily-w-default-account .smaily-card > h2 { font-size: var(--fs-16); font-weight: 700; color: var(--s-text); }
 .smaily-settings #smaily-w-default-account .smaily-card > p { font-size: var(--fs-13); color: var(--s-text-2); }
-.smaily-settings #smaily-w-default-account .smaily-field label { font-size: var(--fs-13); font-weight: 600; color: var(--s-text); margin-bottom: 5px; }
-.smaily-settings #smaily-w-default-account .smaily-field .note { color: var(--s-text-3); font-size: var(--fs-12); }
+/* Field label/note typography — shared by every rebuilt tab (Connection,
+ * Subscribers); extend this selector list as later tabs get the same pass
+ * rather than re-declaring the same values under a new tab scope. */
+.smaily-settings #smaily-w-default-account .smaily-field label,
+.smaily-settings [data-tab="subscribers"] .smaily-field label {
+    font-size: var(--fs-13); font-weight: 600; color: var(--s-text); margin-bottom: 5px;
+}
+.smaily-settings #smaily-w-default-account .smaily-field .note,
+.smaily-settings [data-tab="subscribers"] .smaily-field .note {
+    color: var(--s-text-3); font-size: var(--fs-12);
+}
 .smaily-settings #smaily-w-default-account input[type=text],
 .smaily-settings #smaily-w-default-account input[type=password] {
     padding: 8px 11px; border: 1px solid var(--s-border-strong); border-radius: var(--r-1);
@@ -582,4 +591,32 @@
 .smaily-settings .smaily-tab-footer .action-secondary {
     padding: 9px 16px; background: var(--s-surface); border: 1px solid var(--s-border-strong);
     border-radius: var(--r-2); color: var(--s-text); font-weight: 700; font-size: var(--fs-13);
+}
+
+/* --- Settings > Subscribers tab (PRO-1397) --------------------------------- *
+ * Same shell as Connection: H3 title + description above a white card. The
+ * card itself reuses the shared .smaily-choice component (lawful-basis radio
+ * cards, already token-driven) unchanged; this scopes card typography, the
+ * extra-fields checkbox grid and the toggle rows to the Connection tab's
+ * measured sizes (fs-13 labels, fs-12 muted notes) and fixes findings #6/#7
+ * (no opt-in-mode leak was ever built; checkboxes were unstyled with no
+ * spacing scale — every checkbox on this page now picks up an accent color
+ * and the toggle rows/checkbox grid use the 4px spacing tokens). */
+.smaily-settings input[type=checkbox] { accent-color: var(--s-accent); width: 15px; height: 15px; cursor: pointer; }
+.smaily-settings [data-tab="subscribers"] .smaily-card { max-width: 680px; padding: 20px 22px; border-radius: 6px; color: var(--s-text); }
+.smaily-settings [data-tab="subscribers"] .smaily-card .smaily-card { max-width: none; }
+.smaily-settings [data-tab="subscribers"] #smaily-w-subscribers-body > p { margin: 0 0 var(--sp-4); font-size: var(--fs-13); color: var(--s-text-2); }
+.smaily-settings [data-tab="subscribers"] #smaily-w-fields {
+    display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-6); margin-top: var(--sp-2);
+}
+.smaily-settings [data-tab="subscribers"] #smaily-w-fields label {
+    display: flex; align-items: center; gap: var(--sp-2); width: auto; min-width: 170px;
+    font-size: var(--fs-13); font-weight: 400; color: var(--s-text);
+}
+.smaily-settings [data-tab="subscribers"] .smaily-inline-toggle { margin: 0 0 var(--sp-4); }
+.smaily-settings [data-tab="subscribers"] .smaily-inline-toggle label {
+    display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-13); font-weight: 600; color: var(--s-text);
+}
+.smaily-settings [data-tab="subscribers"] .smaily-inline-toggle .note {
+    margin: 3px 0 0 23px; font-size: var(--fs-12); color: var(--s-text-3);
 }

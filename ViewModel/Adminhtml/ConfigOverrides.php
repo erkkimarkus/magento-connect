@@ -40,6 +40,8 @@ class ConfigOverrides implements ArgumentInterface
         '#smaily-w-sync-enabled' => Config::XML_PATH_SYNC_ENABLED,
         '#smaily-w-mode-group' => Config::XML_PATH_SYNC_MODE,
         '#smaily-w-fields' => Config::XML_PATH_SYNC_FIELDS,
+        '#smaily-w-include-guests' => Config::XML_PATH_INCLUDE_GUESTS,
+        '#smaily-w-force-opt-in' => Config::XML_PATH_AUTOMATION_FORCE_OPT_IN,
         '#smaily-w-checkout-optin' => Config::XML_PATH_CHECKOUT_OPTIN_ENABLED,
         '#smaily-w-suppress' => Config::XML_PATH_SUPPRESS_OPTIN_EMAILS,
         '#smaily-w-welcome-enabled' => Config::XML_PATH_WELCOME_ENABLED,
