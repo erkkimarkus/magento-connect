@@ -392,6 +392,16 @@ window.smailyPanelsInit = function ($) {
         if (connected) {
             result('#smaily-w-test-result', '<?= $escaper->escapeJs(__('Connected with the saved credentials.')) ?>', true);
         }
+        if ($('#smaily-w-connection-status').length) {
+            $('#smaily-w-connection-pill').toggleClass('smaily-pill--active', connected)
+                .toggleClass('smaily-pill--off', !connected);
+            $('#smaily-w-connection-pill-text').text(connected
+                ? '<?= $escaper->escapeJs(__('Connected')) ?>'
+                : '<?= $escaper->escapeJs(__('Not connected')) ?>');
+            $('#smaily-w-connection-account').text(connected
+                ? '<?= $escaper->escapeJs(__('as "%1"')) ?>'.replace('%1', boot.connection.subdomain)
+                : '');
+        }
 
         // Subscribers (sync-field checkboxes are server-rendered).
         $('#smaily-w-sync-enabled').prop('checked', boot.subscribers.syncEnabled);

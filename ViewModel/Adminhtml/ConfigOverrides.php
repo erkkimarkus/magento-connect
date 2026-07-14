@@ -28,13 +28,15 @@ class ConfigOverrides implements ArgumentInterface
      * Settings surface are listed; the Campaign Intelligence tab is default
      * scope only, so it carries no overrides.
      *
+     * The Connection tab's own fields (subdomain/username/password/
+     * multilingual mode) are intentionally NOT listed here (PRO-1379): that
+     * tab is the sole source of truth for them and no longer surfaces scope
+     * at all, matching target-spec §4 decision 2. The other tabs keep this
+     * awareness layer until they get the same treatment.
+     *
      * @var array<string, string>
      */
     private const FIELD_ANCHORS = [
-        '#smaily-w-subdomain' => Config::XML_PATH_SUBDOMAIN,
-        '#smaily-w-username' => Config::XML_PATH_USERNAME,
-        '#smaily-w-password' => Config::XML_PATH_PASSWORD,
-        '#smaily-ml-modes' => Config::XML_PATH_MULTILINGUAL_MODE,
         '#smaily-w-sync-enabled' => Config::XML_PATH_SYNC_ENABLED,
         '#smaily-w-mode-group' => Config::XML_PATH_SYNC_MODE,
         '#smaily-w-fields' => Config::XML_PATH_SYNC_FIELDS,
@@ -60,7 +62,7 @@ class ConfigOverrides implements ArgumentInterface
      * JSON keyed by field anchor for every Settings field whose default value
      * is shadowed, each with the config path and the shadowing scope(s):
      *
-     *   {"#smaily-w-subdomain": {"path": "...", "overrides": [
+     *   {"#smaily-w-sync-enabled": {"path": "...", "overrides": [
      *       {"scope": "websites", "scopeId": 1, "label": "Main Website"}]}}
      *
      * Empty object when nothing is overridden.

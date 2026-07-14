@@ -18,6 +18,11 @@
 
 /** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
 $viewModel = $block->getData('view_model');
+// Settings > Connection tab renders its own status line + tab-scoped footer
+// (Test Connection moves there too); the wizard step keeps the in-card
+// button and has no Save Connection button of its own (it saves via its
+// step nav instead) — see settings/index.phtml and panel/panels-js.phtml.
+$isSettings = $block->getData('context') === 'settings';
 $isMultilingual = $viewModel->isMultilingual();
 $languages = $viewModel->getDetectedLanguages();
 $mode = $viewModel->getMultilingualMode();
@@ -86,10 +91,22 @@ $modeCards = [
             <input type="password" id="smaily-w-password" autocomplete="new-password"/>
             <p class="note" id="smaily-w-password-note" style="display:none;"><?= $escaper->escapeHtml(__('A password is already saved — leave this empty to keep it.')) ?></p>
         </div>
+        <?php if (!$isSettings): ?>
         <button type="button" class="action-secondary" id="smaily-w-test">
             <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
         </button>
         <span class="smaily-result" id="smaily-w-test-result"></span>
+        <?php endif; ?>
+        <?php if ($isSettings): ?>
+        <div class="smaily-connection-status" id="smaily-w-connection-status">
+            <span class="smaily-connection-status__label"><?= $escaper->escapeHtml(__('Status')) ?>:</span>
+            <span class="smaily-pill smaily-pill--off" id="smaily-w-connection-pill">
+                <span class="smaily-pill__dot"></span>
+                <span id="smaily-w-connection-pill-text"><?= $escaper->escapeHtml(__('Not connected')) ?></span>
+            </span>
+            <span class="smaily-connection-status__account" id="smaily-w-connection-account"></span>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -145,5 +162,17 @@ $modeCards = [
         </div>
         <?php endforeach; ?>
     </div>
+</div>
+<?php endif; ?>
+
+<?php if ($isSettings): ?>
+<div class="smaily-tab-footer" id="smaily-w-connection-footer">
+    <button type="button" class="action-secondary" id="smaily-w-test">
+        <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
+    </button>
+    <button type="button" class="action-primary" id="smaily-w-connection-save">
+        <span><?= $escaper->escapeHtml(__('Save Connection')) ?></span>
+    </button>
+    <span class="smaily-result" id="smaily-w-test-result"></span>
 </div>
 <?php endif; ?>

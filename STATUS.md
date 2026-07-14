@@ -5,16 +5,61 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1369/PRO-1357 — the admin-UI target spec's
-three config open decisions AND the four flagged config-field questions are
-now all resolved by Erkki and folded in; native `Stores > Configuration`
-disappears entirely; see `docs/ADMIN_UI_TARGET_SPEC.md` §4)_
+_Last updated: 2026-07-14 (PRO-1379 — Phase B pilot: Settings > Connection tab
+rebuilt to `docs/ADMIN_UI_TARGET_SPEC.md` §2.3.A, the pattern-setter for the
+rest of the admin-UI reconciliation)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
 
+- **PRO-1379 done — Phase B pilot: Settings > Connection tab rebuilt to the
+  target spec.** First screen of the admin-UI reconciliation (§2.3.A),
+  scoped deliberately tight to the Connection tab + the shared Settings
+  chrome it needs — the other four tabs and the full native-config removal
+  (§4.2) are untouched, still tracked as later Phase B work. **Layout**
+  (from the design pack, structure/sizing only): an H3 "Connection" title +
+  one-line description now sit above the panel (new, Settings-only —
+  `settings/index.phtml`); the credential card and its fields are scoped to
+  the design's 620px/440px widths (`.smaily-settings #smaily-w-default-account`,
+  CSS-only, so the wizard's own step-1 rendering of the same shared
+  `panel/connection.phtml` partial is untouched); a "Status:" line
+  (`.smaily-pill` + "as "&lt;subdomain&gt;"") now renders under the fields,
+  live-updated in `panel/panels-js.phtml#initAll`; a tab-scoped footer (Test
+  Connection | Save Connection | one shared InlineStatus) replaces the
+  in-card Test Connection button for this tab — all gated behind a new
+  `context=settings` block argument so the wizard is unaffected. Save
+  Connection reuses the exact `collect.connect()`/`saveStep('connect', …)`
+  path the wizard and the old global Save button already used (refactored
+  into one `saveTab()` helper in `settings/index.phtml`, shared by both
+  buttons) — no new save logic, just a second, tab-scoped entry point into
+  it. **Config direction (§4 decision 2, Connection-scoped):** the raw
+  PRO-1274 "Overridden for X" banner is removed from the Connection tab —
+  `ViewModel\Adminhtml\ConfigOverrides::FIELD_ANCHORS` no longer lists the
+  four Connection fields (subdomain/username/password/multilingual mode), so
+  the awareness JS in `settings/index.phtml` simply never finds them to
+  decorate; the "Need advanced fields? Stores > Configuration…" cross-link
+  is now hidden while the Connection tab is active (shown for the other four
+  tabs, which still have native-only orphan fields per §4.2, not yet built
+  onto our own pages). **Not done, and deliberately not attempted here:**
+  automatic "clear a shadowing override on save" for Connection's fields —
+  investigation found the website/store-view `core_config_data` rows
+  `OverrideDetector` would flag as "overrides" are, for subdomain/username/
+  password, indistinguishable in storage from the per-language rows
+  multilingual mode A *intentionally* writes (`WizardStepSaver::saveConnect`);
+  a blind auto-clear-on-save would delete mode A's own working per-language
+  credentials. Making that distinction safely is bigger than this pilot —
+  presentation only ships now (no banner, single source), the save-through
+  behavior is a tracked follow-up (see below). i18n: 3 new phrases in BOTH
+  packs ("Save Connection", the tab description, `as "%1"` account
+  attribution — en↔et parity, canonical sort, 408 each). **Verification:**
+  unit/phpcs/phpstan gates green; sandbox `setup:upgrade` +
+  `setup:di:compile` green; Playwright drove the real admin Settings >
+  Connection tab in en_US AND et_EE, screenshots under
+  `/home/erkki/.claude/jobs/64b0d00d/tmp/pilot-shots/`, zero module JS
+  console errors in either locale, rendered layout matches the design pack's
+  `Settings.dc.html` Connection frame.
 - **PRO-1369 tail done — admin UI target spec's config decisions resolved
   (doc only, no code changed).** Erkki decided all three open §4 calls: (1)
   one source of truth = our own pages, no duplication; (2) scope is handled

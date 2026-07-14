@@ -34,7 +34,11 @@ $clearOverrideUrl = $block->getUrl('smaily_connect/config/clearoverride');
         <?php endforeach; ?>
     </ul>
 
-    <div class="smaily-tab-panel" data-tab="connection"><?= $block->getChildHtml('panel.connection') ?></div>
+    <div class="smaily-tab-panel" data-tab="connection">
+        <h3><?= $escaper->escapeHtml(__('Connection')) ?></h3>
+        <p class="smaily-tab-desc"><?= $escaper->escapeHtml(__('Your Smaily API credentials for this store.')) ?></p>
+        <?= $block->getChildHtml('panel.connection') ?>
+    </div>
     <div class="smaily-tab-panel" data-tab="subscribers"><?= $block->getChildHtml('panel.subscribers') ?></div>
     <div class="smaily-tab-panel" data-tab="automations">
         <?= $block->getChildHtml('panel.automations') ?>
@@ -45,7 +49,7 @@ $clearOverrideUrl = $block->getUrl('smaily_connect/config/clearoverride');
     <div class="smaily-tab-panel" data-tab="intelligence"><?= $block->getChildHtml('panel.intelligence') ?></div>
     <div class="smaily-tab-panel" data-tab="rss"><?= $block->getChildHtml('panel.rss') ?></div>
 
-    <div class="smaily-footer">
+    <div class="smaily-footer" id="smaily-settings-global-footer">
         <p class="note">
             <?= $escaper->escapeHtml(__('Need per-website or per-store-view overrides, or the advanced fields? They live in')) ?>
             <a href="<?= $escaper->escapeUrl($configUrl) ?>"><?= $escaper->escapeHtml(__('Stores > Configuration > Smaily > Smaily Connect')) ?></a>.
@@ -87,6 +91,10 @@ require(['jquery'], function ($) {
         $('.smaily-tab-panel').removeClass('active')
             .filter('[data-tab=' + tab + ']').addClass('active');
         $('#smaily-s-save-result').text('');
+        // The Connection tab owns its own footer (Test/Save Connection); the
+        // page-wide footer (generic Save + native-config pointer) is for the
+        // other tabs, which still have fields only reachable there.
+        $('#smaily-settings-global-footer').toggle(tab !== 'connection');
         if (tab === 'automations' && !workflowsLoaded) {
             workflowsLoaded = true;
             panels.loadWorkflows('#smaily-s-save-result');
@@ -183,20 +191,30 @@ require(['jquery'], function ($) {
         activate($(this).data('tab'), true);
     });
 
-    $('#smaily-s-save').on('click', function () {
-        var $button = $(this).prop('disabled', true);
-        panels.result('#smaily-s-save-result', '<?= $escaper->escapeJs(__('Saving…')) ?>', true);
-        new Promise(function (resolve) { resolve(panels.collect[steps[active]]()); })
-            .then(function (data) { return panels.saveStep(steps[active], data); })
+    // Shared by the generic Save button (other tabs) and Connection's own
+    // Save Connection button — same per-tab AJAX save, different button/status.
+    function saveTab($button, step, resultSelector) {
+        $button.prop('disabled', true);
+        panels.result(resultSelector, '<?= $escaper->escapeJs(__('Saving…')) ?>', true);
+        new Promise(function (resolve) { resolve(panels.collect[step]()); })
+            .then(function (data) { return panels.saveStep(step, data); })
             .then(function () {
-                panels.result('#smaily-s-save-result', '<?= $escaper->escapeJs(__('Saved.')) ?>', true);
+                panels.result(resultSelector, '<?= $escaper->escapeJs(__('Saved.')) ?>', true);
             })
             .catch(function (error) {
-                panels.result('#smaily-s-save-result', error.message, false);
+                panels.result(resultSelector, error.message, false);
             })
             .finally(function () {
                 $button.prop('disabled', false);
             });
+    }
+
+    $('#smaily-s-save').on('click', function () {
+        saveTab($(this), steps[active], '#smaily-s-save-result');
+    });
+
+    $('#smaily-w-connection-save').on('click', function () {
+        saveTab($(this), 'connect', '#smaily-w-test-result');
     });
 
     // Live reactivity across tabs: edited credentials re-render the

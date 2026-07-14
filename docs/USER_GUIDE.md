@@ -77,6 +77,9 @@ overrides it, with a **Use default** button next to it. Clicking it (after a
 confirmation) removes just that one scope's override so the value saved here
 takes effect again — the same as pressing "Use Default" in Stores >
 Configuration. You can always set the override again at its own scope later.
+The **Connection** tab is the exception: it is the sole source of truth for
+its own fields (Subdomain, API Username/Password, Multilingual Mode) and does
+not show this marker — scope stays invisible there by design.
 
 After a major version upgrade the module posts a one-time admin
 notification suggesting a settings review — nothing is changed or blocked.
@@ -92,8 +95,9 @@ live workflow lists built in. Completed steps stay unlocked in the step
 bar, so you can move back and forward between them freely — also when
 revisiting the wizard after finishing it. Everything the wizard writes
 lands in the regular configuration, so you can fine-tune it later on the
-**Settings** page or at
-**Stores > Configuration > Smaily > Smaily Connect > API Connection**
+**Settings > Connection** tab — its own Test Connection / Save Connection
+footer and connection-status line (Connected / Not connected, with the
+account name once connected).
 
 | Field | Notes |
 |---|---|

@@ -527,3 +527,21 @@
 .smaily-override { margin: var(--sp-2) 0 var(--sp-3); }
 .smaily-override__row { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-top: var(--sp-1); }
 .smaily-override__clear { margin: 0; }
+
+/* --- Settings > Connection tab (PRO-1379 pilot) ---------------------------- *
+ * Target-spec §2.3.A: H3 title + one-line description above the card, a
+ * 620px card with 440px-wide fields, a status line (Pill + account) and a
+ * tab-scoped footer (Test/Save Connection + InlineStatus). Scoped to
+ * .smaily-settings so the shared wizard step-1 partial keeps its own,
+ * wider layout untouched. */
+.smaily-settings [data-tab="connection"] h3 { margin: 0 0 var(--sp-1); font-size: var(--fs-18); font-weight: 700; }
+.smaily-settings .smaily-tab-desc { margin: 0 0 var(--sp-5); font-size: var(--fs-13); color: var(--s-text-2); }
+.smaily-settings #smaily-w-default-account .smaily-card { max-width: 620px; }
+.smaily-settings #smaily-w-default-account .smaily-field { max-width: 440px; }
+.smaily-settings .smaily-connection-status { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-4); font-size: var(--fs-13); }
+.smaily-settings .smaily-connection-status__label { color: var(--s-text-2); }
+.smaily-settings .smaily-connection-status__account { color: var(--s-text-3); }
+.smaily-settings .smaily-tab-footer {
+    display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap;
+    margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--s-border); max-width: 620px;
+}
