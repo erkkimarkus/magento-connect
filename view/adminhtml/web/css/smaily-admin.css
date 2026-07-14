@@ -536,19 +536,41 @@
  * wider layout untouched. */
 .smaily-settings [data-tab="connection"] h3 { margin: 0 0 var(--sp-1); font-size: var(--fs-18); font-weight: 700; }
 .smaily-settings .smaily-tab-desc { margin: 0 0 var(--sp-5); font-size: var(--fs-13); color: var(--s-text-2); }
-.smaily-settings #smaily-w-default-account .smaily-card { max-width: 620px; }
+.smaily-settings #smaily-w-default-account .smaily-card { max-width: 620px; padding: 20px 22px; border-radius: 6px; color: var(--s-text); }
 .smaily-settings #smaily-w-default-account .smaily-field { max-width: 440px; }
 .smaily-settings .smaily-subdomain-row { display: flex; max-width: 440px; }
-.smaily-settings .smaily-subdomain-row input { flex: 1; min-width: 0; border-radius: var(--r-1) 0 0 var(--r-1); }
+.smaily-settings #smaily-w-default-account .smaily-subdomain-row input[type=text] { flex: 1; min-width: 0; border-radius: var(--r-1) 0 0 var(--r-1); }
 .smaily-settings .smaily-subdomain-suffix {
     display: flex; align-items: center; padding: 0 11px; white-space: nowrap;
     background: var(--s-surface-3); border: 1px solid var(--s-border-strong); border-left: none;
     border-radius: 0 var(--r-1) var(--r-1) 0; font-size: var(--fs-13); color: var(--s-text-3);
 }
-.smaily-settings .smaily-connection-status { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-4); font-size: var(--fs-13); }
+.smaily-settings .smaily-connection-status { display: flex; align-items: center; gap: 10px; margin-top: var(--sp-4); font-size: var(--fs-13); }
 .smaily-settings .smaily-connection-status__label { color: var(--s-text-2); }
 .smaily-settings .smaily-connection-status__account { color: var(--s-text-3); }
 .smaily-settings .smaily-tab-footer {
-    display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--s-border); max-width: 620px;
+}
+
+/* --- PRO-1391: visual-fidelity pass — gray canvas + card polish, measured
+ * from the design pack (Settings.dc.html "FRAME 1: CONNECTION TAB"). Card
+ * max-width/padding/radius/color are consolidated into the .smaily-card rule
+ * above. ------------------------------------------------------------------ */
+.smaily-settings .smaily-tab-panel { background: var(--s-bg); padding: var(--sp-6) 28px; }
+.smaily-settings #smaily-w-default-account .smaily-card > h2 { font-size: var(--fs-16); font-weight: 700; color: var(--s-text); }
+.smaily-settings #smaily-w-default-account .smaily-card > p { font-size: var(--fs-13); color: var(--s-text-2); }
+.smaily-settings #smaily-w-default-account .smaily-field label { font-size: var(--fs-13); font-weight: 600; color: var(--s-text); margin-bottom: 5px; }
+.smaily-settings #smaily-w-default-account .smaily-field .note { color: var(--s-text-3); font-size: var(--fs-12); }
+.smaily-settings #smaily-w-default-account input[type=text],
+.smaily-settings #smaily-w-default-account input[type=password] {
+    padding: 8px 11px; border: 1px solid var(--s-border-strong); border-radius: var(--r-1);
+    font-size: var(--fs-14); color: var(--s-text); background: var(--s-surface); box-sizing: border-box;
+}
+.smaily-settings .smaily-tab-footer .action-primary {
+    padding: 9px 18px; border-radius: var(--r-2); border-color: #d44f00; font-weight: 700; font-size: var(--fs-13);
+}
+.smaily-settings .smaily-tab-footer .action-secondary {
+    padding: 9px 16px; background: var(--s-surface); border: 1px solid var(--s-border-strong);
+    border-radius: var(--r-2); color: var(--s-text); font-weight: 700; font-size: var(--fs-13);
 }

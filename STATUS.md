@@ -5,14 +5,46 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1379 — Phase B pilot: Settings > Connection tab
-rebuilt to `docs/ADMIN_UI_TARGET_SPEC.md` §2.3.A, the pattern-setter for the
-rest of the admin-UI reconciliation)_
+_Last updated: 2026-07-14 (PRO-1391 — visual-fidelity pass on the Settings >
+Connection tab: design-pack tokens/components ported for near-pixel parity,
+CSS-only, on top of the PRO-1379 rebuild)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
+
+- **PRO-1391 done — visual-fidelity pass on Settings > Connection (CSS only,
+  no markup/save-logic change).** The PRO-1379 rebuild matched the design's
+  structure but rendered flatter than the pack; this closes the polish gap by
+  porting the design's *measured* CSS (from the pack's `Settings.dc.html`
+  "FRAME 1: CONNECTION TAB", rendered in Playwright as the reference) into the
+  scoped admin sheet `view/adminhtml/web/css/smaily-admin.css`, all under
+  `.smaily-settings` so nothing leaks into Magento admin or the shared wizard
+  step-1 partial. Applied: **gray canvas** behind the tab (`.smaily-tab-panel`
+  → `var(--s-bg)` + `24px 28px` padding) with the credential **card** now a
+  white 6px-radius panel (`20px 22px` padding); **helper text** demoted to the
+  muted `--s-text-3`/`--s-text-2` roles at `--fs-12`/`--fs-13` (was the
+  admin-default prominent brown/olive); **field labels** to `--fs-13`/600;
+  **inputs** to the design's `8px 11px` padding + `--s-border-strong` 1px
+  border; **subdomain suffix chip**, **status pill** and the **Test / Save
+  Connection** buttons matched to the pack's padding/radius/weight. One real
+  fix surfaced en route: the new generic input-radius rule was overriding the
+  subdomain input's left-only radius (chip join not flush) — resolved with a
+  specificity bump (`input[type=text]`) so the chip stays flush. **Verified
+  side-by-side** against the design reference in BOTH en_US and et_EE on the
+  live sandbox (Estonian's longer strings wrap without breaking layout), zero
+  module JS console errors; screenshots + references under
+  `/home/erkki/.claude/jobs/64b0d00d/tmp/fidelity-shots/`
+  (`design-connection-content.png`, `ours-final-en.png`, `ours-final-et.png`,
+  `side-by-side-final-en.png`, `side-by-side-final-et.png`). Gates green
+  (unit/phpcs/phpstan; sandbox `setup:upgrade` + `setup:di:compile`). **Scope
+  note:** the design pack only mocks the single-account frame; the
+  multilingual mode-A per-language credential cards (`#smaily-w-accounts`)
+  are not restyled here — tracked as a follow-up. The card's intro
+  `h2`+description (shared with the wizard partial) is kept and styled to the
+  system; the design's return-visit frame omits it, but removing it would
+  touch the shared markup, out of scope for a CSS-only fidelity pass.
 
 - **PRO-1379 done — Phase B pilot: Settings > Connection tab rebuilt to the
   target spec.** First screen of the admin-UI reconciliation (§2.3.A),
