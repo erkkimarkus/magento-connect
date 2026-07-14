@@ -92,6 +92,11 @@ class ProductDeleteBefore implements ObserverInterface
             return;
         }
 
-        $this->ingestQueue->enqueue(Client::DOMAIN_CATALOG, $item, (string)$product->getId());
+        $this->ingestQueue->enqueue(
+            Client::DOMAIN_CATALOG,
+            $item,
+            (string)$product->getId(),
+            $this->payloadBuilder->canonicalStoreId()
+        );
     }
 }

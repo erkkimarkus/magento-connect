@@ -69,7 +69,8 @@ class EngineCatalogProcessor implements ProcessorInterface
                         $this->ingestQueue->enqueue(
                             Client::DOMAIN_CATALOG,
                             $this->payloadBuilder->build($product),
-                            (string)$product->getId()
+                            (string)$product->getId(),
+                            $this->payloadBuilder->canonicalStoreId()
                         );
                     }
                     $processed++;
@@ -102,6 +103,13 @@ class EngineCatalogProcessor implements ProcessorInterface
         if (!$collection instanceof \Magento\Catalog\Model\ResourceModel\Product\Collection) {
             return [];
         }
+        // Explicit canonical scope (PRO-1352/1353) — without it the
+        // collection falls back to Magento's implicit current-store
+        // resolver, an undocumented scope that depends on the invoking
+        // CLI/cron context and can disagree with the live save path. Must
+        // be set before addUrlRewrite()/addPriceData(), which both read the
+        // collection's store id at call time.
+        $collection->setStoreId($this->payloadBuilder->canonicalStoreId());
         $collection->addAttributeToSelect([
             'name', 'status', 'visibility', 'price', 'special_price',
             'short_description', 'description', 'url_key', 'image',

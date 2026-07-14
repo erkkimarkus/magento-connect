@@ -107,6 +107,26 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   tombstone, never §3b.
 - Browse events are the exception: loss-tolerant by design, they are relayed
   synchronously (`Controller/Relay/Index`) and never queued.
+- **Catalog price/URL/language scope (PRO-1352/1353):** the wire contract
+  carries no currency field, so one Magento installation is one engine
+  tenant with one base currency — the plugin, not the engine, is
+  responsible for always sending one consistent scope's price. Both catalog
+  ingest paths resolve through the SAME single canonical store
+  (`CatalogPayloadBuilder::canonicalStoreId()` — the default store view of
+  the default website, the same "default scope" concept as `Engine\Client`'s
+  base-URL fallback and `Multilingual\AccountResolver`'s default account),
+  never Magento's implicit current-store resolver: the backfill collection
+  (`EngineCatalogProcessor::loadPage()`) calls `setStoreId()` with it
+  explicitly before `addUrlRewrite()`/`addPriceData()`, and the live path
+  (`ProductSaveAfter`/`ProductDeleteBefore`) re-scopes the product to it via
+  `ProductRepository::getById($id, false, $canonicalStoreId)` before reading
+  price whenever the admin save/delete didn't already resolve that same
+  scope. This is a deliberate single-pinned-scope simplification, not a
+  per-website fan-out: a multi-website installation with divergent base
+  currencies or divergent per-website prices still ingests only the
+  canonical website's price. Each `smaily_ingest_queue` catalog row's
+  `store_id` column records the scope the payload was built under, for
+  audit.
 
 ### Queue semantics (both queues)
 

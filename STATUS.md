@@ -5,12 +5,46 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-12 (PRO-1274 — Settings page now surfaces + clears the config-scope overrides that shadow what it saves)_
+_Last updated: 2026-07-14 (PRO-1353 — catalog ingest now uses one explicit canonical store scope for price/URL/language, on both the backfill and live paths)_
 
 ## Where we are
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
 **3.0.0-alpha1 — unreleased**. Current truth:
+
+- **PRO-1353 done — explicit, consistent store scope for catalog ingest
+  (price/URL/language).** Investigation (PRO-1352/1353, 2026-07-14) found
+  the backfill collection (`EngineCatalogProcessor::loadPage()`) never set a
+  store scope at all (falling back to Magento's implicit current-store
+  resolver, undocumented and CLI/cron-context-dependent), while the live
+  save/delete path read price off whatever scope the admin's Save controller
+  happened to resolve (store 0 unless the merchant picked a store view) —
+  the two paths could disagree, and neither was website-aware. Per Erkki's
+  binding PRO-1352 decision (no currency field is coming to the wire
+  contract; one tenant = one base currency), both paths now resolve through
+  ONE canonical store: `CatalogPayloadBuilder::canonicalStoreId()` (the
+  default store view of the default website — matching the "default scope"
+  concept `Engine\Client` and `Multilingual\AccountResolver` already use).
+  The backfill collection calls `setStoreId()` with it explicitly before
+  `addUrlRewrite()`/`addPriceData()` (both read the collection's store id at
+  call time); the live path (`ProductSaveAfter`/`ProductDeleteBefore` via
+  `CatalogPayloadBuilder::build()`) re-scopes the product to it via
+  `ProductRepository::getById($id, false, $canonicalStoreId)` before reading
+  price whenever the product wasn't already loaded at that scope — a
+  deliberate single-pinned-scope simplification, not a per-website fan-out
+  (a multi-website install with divergent prices/currencies still ingests
+  only the canonical website's price). Every catalog `smaily_ingest_queue`
+  row now also carries the resolved `store_id` for audit (the queue's
+  existing but previously-unused column). Documented in
+  `docs/ARCHITECTURE.md` under "Engine ingest". **Verification:** 2 new unit
+  tests pin the price-scope behavior on both paths (`EngineCatalogProcessorTest`
+  asserts the collection's `setStoreId()` call; `CatalogPayloadBuilderTest`
+  asserts price comes from the canonical-scoped product, and that no reload
+  happens when already at that scope) — 148 unit tests green, phpcs 0
+  errors, phpstan clean; sandbox `setup:upgrade` + `setup:di:compile` green,
+  and a live bootstrap check against the real sandbox product confirmed
+  `canonicalStoreId()` resolves to the real default store and the backfill
+  collection loads products at that exact scope.
 
 - **PRO-1281 Stage B done — the visual system applied to the screens (PRO-1281
   complete).** Consumed the Stage A tokens + six component classes across the

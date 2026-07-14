@@ -64,12 +64,16 @@ class CatalogPayloadBuilder
     public function build(Product $product): array
     {
         $languageValues = $this->languageValues($product);
+        $priceProduct = $this->scopedForPrice($product);
 
         $item = [
             'sku' => $this->sku($product),
             'name' => $languageValues['name'],
             'category_path' => $this->categoryPath($product),
-            'price' => round((float)$product->getPriceInfo()->getPrice('final_price')->getAmount()->getValue(), 4),
+            'price' => round(
+                (float)$priceProduct->getPriceInfo()->getPrice('final_price')->getAmount()->getValue(),
+                4
+            ),
             'in_stock' => $this->isInStock($product),
             'product_url' => $languageValues['product_url'],
             'external_id' => (string)$product->getId(),
@@ -80,7 +84,7 @@ class CatalogPayloadBuilder
             'is_downloadable' => $product->getTypeId() === 'downloadable',
         ];
 
-        $regular = (float)$product->getPriceInfo()->getPrice('regular_price')->getAmount()->getValue();
+        $regular = (float)$priceProduct->getPriceInfo()->getPrice('regular_price')->getAmount()->getValue();
         if ($regular > (float)$item['price']) {
             $item['compare_price'] = round($regular, 4);
             $saleUntil = (string)$product->getData('special_to_date');
@@ -148,7 +152,7 @@ class CatalogPayloadBuilder
         $storesByLanguage = $this->storesByLanguage($product);
 
         if (count($storesByLanguage) <= 1) {
-            $storeId = $storesByLanguage ? (int)reset($storesByLanguage) : $this->fallbackStoreId($product);
+            $storeId = $storesByLanguage ? (int)reset($storesByLanguage) : $this->canonicalStoreId();
 
             return [
                 'name' => (string)$product->getName(),
@@ -180,7 +184,7 @@ class CatalogPayloadBuilder
         return [
             'name' => $names ?: (string)$product->getName(),
             'description' => $descriptions ?: $this->description($product),
-            'product_url' => $urls ?: $this->productUrl($product, $this->fallbackStoreId($product)),
+            'product_url' => $urls ?: $this->productUrl($product, $this->canonicalStoreId()),
         ];
     }
 
@@ -226,25 +230,47 @@ class CatalogPayloadBuilder
     }
 
     /**
-     * A storefront scope to emulate when the product carries none of its own.
-     *
-     * Under cron/CLI a product is typically loaded in the admin scope
-     * (`store_id` 0), which is NOT a storefront and would still yield an
-     * entry-script URL — so fall back to the default store view (the class's
-     * canonical single-language fallback).
+     * The single canonical store scope for catalog ingest (PRO-1352/1353):
+     * there is no currency field in the wire contract, so one Magento
+     * installation is one engine tenant with one base currency, and this
+     * plugin — not the engine — is responsible for always sending one
+     * consistent scope's price/URL/language, never whatever scope a CLI/
+     * cron context or an admin's store-view switcher happened to resolve.
+     * The default store view of the default website is the same "default
+     * scope" concept already used elsewhere in the module (`Engine\Client`'s
+     * base-URL fallback, `Multilingual\AccountResolver`'s default account).
+     * `EngineCatalogProcessor` calls this same method to scope the backfill
+     * collection, so both ingest paths can never disagree.
      */
-    private function fallbackStoreId(Product $product): int
+    public function canonicalStoreId(): int
     {
-        $productStoreId = (int)$product->getStoreId();
-        if ($productStoreId > 0) {
-            return $productStoreId;
-        }
-
         try {
             return (int)$this->storeManager->getDefaultStoreView()?->getId();
         } catch (NoSuchEntityException) {
             return 0;
         }
+    }
+
+    /**
+     * The product re-scoped to the canonical store, so price is always read
+     * consistently regardless of which scope the caller loaded the product
+     * in (backfill's collection already loads at the canonical scope, so
+     * this is then a no-op).
+     */
+    private function scopedForPrice(Product $product): Product
+    {
+        $canonicalStoreId = $this->canonicalStoreId();
+        if ((int)$product->getStoreId() === $canonicalStoreId) {
+            return $product;
+        }
+
+        try {
+            $scoped = $this->productRepository->getById((int)$product->getId(), false, $canonicalStoreId);
+        } catch (NoSuchEntityException) {
+            return $product;
+        }
+
+        return $scoped instanceof Product ? $scoped : $product;
     }
 
     private function description(Product $product): ?string
