@@ -125,7 +125,7 @@ $selectedSyncFields = $viewModel->getSelectedSyncFields();
         </div>
     </div>
 
-    <div class="smaily-card" style="background:#f8f8f8;">
+    <div class="smaily-card smaily-backfill-card" style="background:#f8f8f8;">
         <strong><?= $escaper->escapeHtml(__('Import your existing subscribers')) ?></strong>
         <p class="note"><?= $escaper->escapeHtml(__('Your store has %1 customers, %2 orders and %3 products. The import runs in the background, a chunk per minute, and never slows the storefront down.', $totals['customers'], $totals['orders'], $totals['products'])) ?></p>
         <button type="button" class="action-secondary" id="smaily-w-backfill">

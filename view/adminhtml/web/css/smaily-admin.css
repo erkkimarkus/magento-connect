@@ -70,9 +70,6 @@
 .smaily-ui .smaily-field label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
 .smaily-ui .smaily-field .note { margin-top: 0.4rem; }
 .smaily-ui input[type=text], .smaily-ui input[type=password], .smaily-ui input[type=number], .smaily-ui select { width: 100%; max-width: 40rem; }
-.smaily-ui .smaily-choice { display: block; padding: 1.2rem; border: 1px solid #e3e3e3; border-radius: 4px; margin-bottom: 1rem; cursor: pointer; }
-.smaily-ui .smaily-choice input { margin-right: 0.8rem; }
-.smaily-ui .smaily-choice.selected { border-color: #eb5202; background: #fff8f3; }
 .smaily-ui .smaily-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; gap: 2rem; }
 .smaily-ui .smaily-footer > div { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; max-width: 40rem; }
 .smaily-ui .smaily-result { margin-left: 1rem; }
@@ -169,8 +166,14 @@
 /* --- Choice card: <label class="smaily-choice is-selected"> --------------- *
  * Radio + title-row (+ optional Recommended badge) + description. Whole label
  * is the hit target; selected = accent border + 1px ring + accent tint.
- * NB: distinct from the legacy `.smaily-ui .smaily-choice` (orange `.selected`)
- * above — this is the Phase-3 variant keyed on `.is-selected`. */
+ * PRO-1397 polish: a dead legacy `.smaily-ui .smaily-choice` rule (orange
+ * `.selected`, `display:block`) used to live above this block. Every page
+ * using this component (`.smaily-settings`, `.smaily-wizard`) also carries
+ * the `.smaily-ui` class, so that rule's higher specificity (0,2,0 vs this
+ * block's 0,1,0) was winning and collapsing the flex layout below back to
+ * `display:block` — the actual cause of the radio/label misalignment Erkki
+ * flagged on the Subscribers tab. No template has used `.selected` (vs.
+ * `.is-selected`) since the Phase-3 rebuild, so it was safe to delete. */
 .smaily-choice {
     display: flex;
     gap: var(--sp-3);
@@ -424,6 +427,14 @@
 .smaily-progress.is-stopped .smaily-progress__fill { background: var(--s-neutral); }
 @keyframes smaily-stripe { from { background-position: 0 0; } to { background-position: 28px 0; } }
 
+/* --- Backfill card: <div class="smaily-card smaily-backfill-card"> -------- *
+ * PRO-1397 polish #3 (finding #7's tail): the description, the import
+ * button and the progress bar had no vertical gap between them at all.
+ * Unscoped (not tab-scoped) because the card is one shared partial rendered
+ * on both the wizard step-2 and the Settings > Subscribers panel. */
+.smaily-backfill-card > .note { margin: var(--sp-2) 0 var(--sp-4); }
+.smaily-backfill-card .smaily-progress { margin-top: var(--sp-4); }
+
 /* ========================================================================= *
  * PRO-1281 Stage B — the visual system applied to the screens.
  *
@@ -606,14 +617,23 @@
 .smaily-settings [data-tab="subscribers"] .smaily-card { max-width: 680px; padding: 20px 22px; border-radius: 6px; color: var(--s-text); }
 .smaily-settings [data-tab="subscribers"] .smaily-card .smaily-card { max-width: none; }
 .smaily-settings [data-tab="subscribers"] #smaily-w-subscribers-body > p { margin: 0 0 var(--sp-4); font-size: var(--fs-13); color: var(--s-text-2); }
+/* Spacing rhythm (PRO-1397 polish #2): the heading-to-first-row gap used to
+ * collapse to ~8px — smaller than the 12px gap between checkbox rows — so
+ * "Extra fields to sync..." didn't read as a heading at all. Rhythm is now
+ * deliberate: sp-5 above the first row (bigger than any within-group gap),
+ * sp-3 between rows/toggles (tight, unchanged for the grid), and the
+ * standalone toggles get their own sp-6 gap before the group starts (via
+ * this block's own margin-bottom, overriding the base 1.6rem), so they read
+ * as a separate cluster from the checkbox grid. */
+.smaily-settings [data-tab="subscribers"] .smaily-field { margin-bottom: var(--sp-6); }
 .smaily-settings [data-tab="subscribers"] #smaily-w-fields {
-    display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-6); margin-top: var(--sp-2);
+    display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-6); margin-top: var(--sp-5);
 }
 .smaily-settings [data-tab="subscribers"] #smaily-w-fields label {
     display: flex; align-items: center; gap: var(--sp-2); width: auto; min-width: 170px;
     font-size: var(--fs-13); font-weight: 400; color: var(--s-text);
 }
-.smaily-settings [data-tab="subscribers"] .smaily-inline-toggle { margin: 0 0 var(--sp-4); }
+.smaily-settings [data-tab="subscribers"] .smaily-inline-toggle { margin: 0 0 var(--sp-3); }
 .smaily-settings [data-tab="subscribers"] .smaily-inline-toggle label {
     display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-13); font-weight: 600; color: var(--s-text);
 }

@@ -5,10 +5,97 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1397 done — Settings > Subscribers tab rebuilt
-to spec, rolling the Connection tab's finished visual pattern onto it)_
+_Last updated: 2026-07-14 (PRO-1397 polish pass done — Erkki's live-review
+defects on the Subscribers tab fixed, a defensive "queued" import state
+added, and a real cron-registration bug found + fixed along the way)_
 
 ## Where we are
+
+- **PRO-1397 polish pass done — the four defects Erkki flagged after
+  reviewing the rebuilt Subscribers tab live, plus a new defensive state
+  for a stalled/queued import (#8, Erkki's "option 3").** (1) **Radio/label
+  misalignment on the consent choice-cards, root-caused and fixed:** a dead
+  legacy rule, `.smaily-ui .smaily-choice { display: block; ... }` (a relic
+  of the pre-Phase-3 markup, keyed on a `.selected` class no template has
+  used since the BEM `.is-selected` rebuild), was still in
+  `smaily-admin.css` and — because every page using the component also
+  carries the `.smaily-ui` class — its higher specificity (0,2,0 vs the
+  real component's 0,1,0) was winning and collapsing the shared
+  `.smaily-choice` component's `display:flex` back to `display:block`. This
+  silently broke the radio/label alignment on **every** `.smaily-choice`
+  usage, not just Subscribers — Connection's multilingual mode-cards had
+  the same latent bug, just never exercised because the sandbox is
+  single-language. Deleted the three dead rules; both usages now render
+  per the design's `ChoiceCard.dc.html` spec (18px radio, `flex` layout,
+  `gap: 12px`). (2) **"Extra fields" spacing rhythm fixed:** the heading-
+  to-first-row gap used to collapse (via margin-collapsing with the legacy
+  `.smaily-field` bottom margin) to ~8px, *smaller* than the 12px gap
+  between checkbox rows, so the heading didn't read as a heading. New
+  explicit rhythm in `smaily-admin.css`: `sp-5` (20px) above the first
+  checkbox row, `sp-3` (12px) between rows (unchanged, already tight),
+  `sp-6` (24px) before the standalone-toggles group (`.smaily-field +
+  .smaily-inline-toggle`) so it reads as a separate cluster, `sp-3`
+  between toggles (tightened from `sp-4`). (3) **Import-area breathing
+  room:** the backfill card's description, button row and progress bar had
+  zero margin between them; `subscribers.phtml`'s card now carries a
+  `.smaily-backfill-card` hook (unscoped — the card is shared by the
+  wizard step-2 and Settings > Subscribers) and two new CSS rules give the
+  note and the progress bar `sp-2`–`sp-4` breathing room, matching
+  `Backfill.dc.html`'s framing. **(4) New defensive "queued" state (#8):**
+  `Model\Backfill\Job::STATUS_PENDING` (set the moment
+  `smaily:backfill:start`/the Import button fires) used to be collapsed
+  into the same `'running'` API status as `STATUS_RUNNING`, so a job that
+  the cron tick (`Cron\BackfillTick`) hadn't picked up yet rendered the
+  same bare "Importing… 0 / ?" as a job with real progress — indistinguishable
+  from stuck. New `Model\Backfill\JobStatusAggregator::resolve()` (unit
+  tested, `Test/Unit/Model/Backfill/JobStatusAggregatorTest.php`) keeps
+  `running` only when a job has actually started; an all-`pending` set now
+  resolves to a new `'pending'` status, used by `BackfillState::aggregate()`
+  in place of the old inline if/elseif chain. `panels-js.phtml`'s
+  `renderBackfill()` renders `pending` with a reassuring, honest line
+  ("Queued — the import starts on the next scheduled run…", i18n'd both
+  locales) instead of a progress bar (hidden, not shown at 0% — never claim
+  progress that isn't happening), Cancel stays available. **Detection
+  approach (assumption, stated per the task):** `STATUS_PENDING` cleanly
+  and immediately distinguishes "queued, cron hasn't started it" from
+  "running" — no time-based "stalled for N minutes" heuristic was needed,
+  since the signal is already binary and honest from the moment the job is
+  created. **Known limit:** a job that flips to `running` and then
+  genuinely stalls mid-page (cron dies, a stuck HTTP call, etc.) is NOT
+  detected by this change — it still shows "Importing… X / Y" indefinitely.
+  Distinguishing that case would need a last-progress timestamp delta, not
+  present in scope for this pass. **Incidental but significant finding,
+  fixed in its own commit:** while verifying "the real cron-driven path
+  still shows live progress" live in the sandbox, discovered that
+  `etc/crontab.xml`'s `smaily_connect` group had **no matching
+  `etc/cron_groups.xml`** — without a `schedule_ahead_for` value, Magento's
+  `ProcessCronQueueObserver::saveSchedule()` computes a zero-length
+  look-ahead window and **silently generates zero `cron_schedule` rows for
+  the group, forever** (confirmed by direct reflection into the core
+  observer). This is not a sandbox-only limitation (STATUS.md's "no cron
+  daemon" note from the previous session) — it means **none of the
+  module's 7 cron jobs** (`FlushEventQueue`, `QueueJanitor`,
+  `ContactReconcile`, `AbandonedCart`, `BackfillTick`, `FlushIngestQueue`,
+  `HealthCheck`) would ever run on a real install either, no matter how
+  often `bin/magento cron:run` fires. Added `etc/cron_groups.xml` mirroring
+  Magento's own `default` group values (`schedule_generate_every: 15`,
+  `schedule_ahead_for: 20`, `schedule_lifetime: 15`, etc.) — verified live:
+  after the fix, `cron:run` generates `smaily_backfill_tick` schedule rows
+  and a queued job flows `pending` → `running` → `completed` exactly as
+  designed. **Verification:** 158 unit tests green (8 new, all in
+  `JobStatusAggregatorTest`), phpcs 0 errors, phpstan clean, sandbox
+  `setup:upgrade` + `setup:di:compile` green. Playwright drove Settings >
+  Subscribers in both **en_US and et_EE**: consent-card alignment,
+  extra-fields spacing, the import area at rest and mid-defensive-state
+  (a real job created via `smaily:backfill:start`, left genuinely pending —
+  no cron invoked — screenshotted, then cancelled via the UI's real Cancel
+  button to end in an honest terminal state), zero module JS console errors
+  in any run. Screenshots under
+  `/home/erkki/.claude/jobs/64b0d00d/tmp/subscribers-shots/` (`polish2-*`).
+  Sandbox restored: admin locale back to en_US; the test backfill jobs
+  (9 completed-with-failures, 10 cancelled) left in their real terminal
+  states — same no-undo-for-a-terminal-state precedent as the previous
+  session, nothing reverted by direct DB write.
 
 - **PRO-1397 done — Settings > Subscribers tab rebuilt to target spec
   (§2.3.B), at the Connection tab's finished visual bar.** Rolled the exact
