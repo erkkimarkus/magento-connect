@@ -538,6 +538,13 @@
 .smaily-settings .smaily-tab-desc { margin: 0 0 var(--sp-5); font-size: var(--fs-13); color: var(--s-text-2); }
 .smaily-settings #smaily-w-default-account .smaily-card { max-width: 620px; }
 .smaily-settings #smaily-w-default-account .smaily-field { max-width: 440px; }
+.smaily-settings .smaily-subdomain-row { display: flex; max-width: 440px; }
+.smaily-settings .smaily-subdomain-row input { flex: 1; min-width: 0; border-radius: var(--r-1) 0 0 var(--r-1); }
+.smaily-settings .smaily-subdomain-suffix {
+    display: flex; align-items: center; padding: 0 11px; white-space: nowrap;
+    background: var(--s-surface-3); border: 1px solid var(--s-border-strong); border-left: none;
+    border-radius: 0 var(--r-1) var(--r-1) 0; font-size: var(--fs-13); color: var(--s-text-3);
+}
 .smaily-settings .smaily-connection-status { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-4); font-size: var(--fs-13); }
 .smaily-settings .smaily-connection-status__label { color: var(--s-text-2); }
 .smaily-settings .smaily-connection-status__account { color: var(--s-text-3); }

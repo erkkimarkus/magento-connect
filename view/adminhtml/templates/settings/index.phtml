@@ -38,6 +38,15 @@ $clearOverrideUrl = $block->getUrl('smaily_connect/config/clearoverride');
         <h3><?= $escaper->escapeHtml(__('Connection')) ?></h3>
         <p class="smaily-tab-desc"><?= $escaper->escapeHtml(__('Your Smaily API credentials for this store.')) ?></p>
         <?= $block->getChildHtml('panel.connection') ?>
+        <div class="smaily-tab-footer">
+            <button type="button" class="action-secondary" id="smaily-w-test">
+                <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
+            </button>
+            <button type="button" class="action-primary" id="smaily-w-connection-save">
+                <span><?= $escaper->escapeHtml(__('Save Connection')) ?></span>
+            </button>
+            <span class="smaily-result" id="smaily-w-test-result"></span>
+        </div>
     </div>
     <div class="smaily-tab-panel" data-tab="subscribers"><?= $block->getChildHtml('panel.subscribers') ?></div>
     <div class="smaily-tab-panel" data-tab="automations">
@@ -91,10 +100,11 @@ require(['jquery'], function ($) {
         $('.smaily-tab-panel').removeClass('active')
             .filter('[data-tab=' + tab + ']').addClass('active');
         $('#smaily-s-save-result').text('');
-        // The Connection tab owns its own footer (Test/Save Connection); the
-        // page-wide footer (generic Save + native-config pointer) is for the
-        // other tabs, which still have fields only reachable there.
-        $('#smaily-settings-global-footer').toggle(tab !== 'connection');
+        // Hide the page-wide footer (generic Save + native-config pointer)
+        // whenever the active tab renders its own footer — so tabs that grow
+        // a tab-scoped footer later opt out automatically, no tab-name list.
+        var hasOwnFooter = $('.smaily-tab-panel.active .smaily-tab-footer').length > 0;
+        $('#smaily-settings-global-footer').toggle(!hasOwnFooter);
         if (tab === 'automations' && !workflowsLoaded) {
             workflowsLoaded = true;
             panels.loadWorkflows('#smaily-s-save-result');

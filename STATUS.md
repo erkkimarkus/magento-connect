@@ -25,11 +25,16 @@ rest of the admin-UI reconciliation)_
   the design's 620px/440px widths (`.smaily-settings #smaily-w-default-account`,
   CSS-only, so the wizard's own step-1 rendering of the same shared
   `panel/connection.phtml` partial is untouched); a "Status:" line
-  (`.smaily-pill` + "as "&lt;subdomain&gt;"") now renders under the fields,
-  live-updated in `panel/panels-js.phtml#initAll`; a tab-scoped footer (Test
-  Connection | Save Connection | one shared InlineStatus) replaces the
-  in-card Test Connection button for this tab — all gated behind a new
-  `context=settings` block argument so the wizard is unaffected. Save
+  (`.smaily-pill` + "as "&lt;subdomain&gt;"") now renders in-card under the
+  fields (gated behind a new `context=settings` block argument so the wizard
+  is unaffected), live-updated in `panel/panels-js.phtml#initAll`; a
+  tab-scoped footer (Test Connection | Save Connection | one shared
+  InlineStatus) is rendered by the owner template `settings/index.phtml`
+  (chrome lives with the template that owns the tab seam, not the shared
+  partial) and replaces the in-card Test Connection button for this tab. The
+  page-wide footer (generic Save + native-config pointer) auto-hides on any
+  tab that renders its own `.smaily-tab-footer` (presence-based, no tab-name
+  list) — so migrating another tab later opts it out for free. Save
   Connection reuses the exact `collect.connect()`/`saveStep('connect', …)`
   path the wizard and the old global Save button already used (refactored
   into one `saveTab()` helper in `settings/index.phtml`, shared by both

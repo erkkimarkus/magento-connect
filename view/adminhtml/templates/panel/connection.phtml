@@ -18,10 +18,10 @@
 
 /** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
 $viewModel = $block->getData('view_model');
-// Settings > Connection tab renders its own status line + tab-scoped footer
-// (Test Connection moves there too); the wizard step keeps the in-card
-// button and has no Save Connection button of its own (it saves via its
-// step nav instead) — see settings/index.phtml and panel/panels-js.phtml.
+// In the Settings context this partial renders the in-card saved-connection
+// status line + the subdomain suffix chip; the tab-scoped footer (Test /
+// Save Connection) is chrome owned by settings/index.phtml. The wizard step
+// keeps the in-card Test button and saves via its own step nav.
 $isSettings = $block->getData('context') === 'settings';
 $isMultilingual = $viewModel->isMultilingual();
 $languages = $viewModel->getDetectedLanguages();
@@ -79,7 +79,10 @@ $modeCards = [
         <p><?= $escaper->escapeHtml(__('You can find or create API credentials in Smaily under Preferences > API. The password is stored encrypted and never leaves your server.')) ?></p>
         <div class="smaily-field">
             <label for="smaily-w-subdomain"><?= $escaper->escapeHtml(__('Subdomain')) ?></label>
+            <?php // Settings adds a fixed .sendsmaily.net suffix chip (design §2.3.A); wizard shows the bare input. ?>
+            <?php if ($isSettings): ?><div class="smaily-subdomain-row"><?php endif; ?>
             <input type="text" id="smaily-w-subdomain" placeholder="demo"/>
+            <?php if ($isSettings): ?><span class="smaily-subdomain-suffix">.sendsmaily.net</span></div><?php endif; ?>
             <p class="note"><?= $escaper->escapeHtml(__('If your Smaily URL is https://demo.sendsmaily.net, the subdomain is "demo". Pasting the full URL also works.')) ?></p>
         </div>
         <div class="smaily-field">
@@ -91,13 +94,8 @@ $modeCards = [
             <input type="password" id="smaily-w-password" autocomplete="new-password"/>
             <p class="note" id="smaily-w-password-note" style="display:none;"><?= $escaper->escapeHtml(__('A password is already saved — leave this empty to keep it.')) ?></p>
         </div>
-        <?php if (!$isSettings): ?>
-        <button type="button" class="action-secondary" id="smaily-w-test">
-            <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
-        </button>
-        <span class="smaily-result" id="smaily-w-test-result"></span>
-        <?php endif; ?>
         <?php if ($isSettings): ?>
+        <?php // Settings shows a saved-connection status line in-card; the Test button lives in the tab footer (settings/index.phtml). ?>
         <div class="smaily-connection-status" id="smaily-w-connection-status">
             <span class="smaily-connection-status__label"><?= $escaper->escapeHtml(__('Status')) ?>:</span>
             <span class="smaily-pill smaily-pill--off" id="smaily-w-connection-pill">
@@ -106,6 +104,11 @@ $modeCards = [
             </span>
             <span class="smaily-connection-status__account" id="smaily-w-connection-account"></span>
         </div>
+        <?php else: ?>
+        <button type="button" class="action-secondary" id="smaily-w-test">
+            <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
+        </button>
+        <span class="smaily-result" id="smaily-w-test-result"></span>
         <?php endif; ?>
     </div>
 </div>
@@ -162,17 +165,5 @@ $modeCards = [
         </div>
         <?php endforeach; ?>
     </div>
-</div>
-<?php endif; ?>
-
-<?php if ($isSettings): ?>
-<div class="smaily-tab-footer" id="smaily-w-connection-footer">
-    <button type="button" class="action-secondary" id="smaily-w-test">
-        <span><?= $escaper->escapeHtml(__('Test Connection')) ?></span>
-    </button>
-    <button type="button" class="action-primary" id="smaily-w-connection-save">
-        <span><?= $escaper->escapeHtml(__('Save Connection')) ?></span>
-    </button>
-    <span class="smaily-result" id="smaily-w-test-result"></span>
 </div>
 <?php endif; ?>
