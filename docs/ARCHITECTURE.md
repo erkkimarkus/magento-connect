@@ -179,10 +179,16 @@ invoke `bin/magento cron:run` every minute.
 `Cron/ContactReconcile` polls Smaily's action log
 (`GET /api/history.php?since_seq_id=…&actions=optin,optout,delete,complaint`,
 comma-separated — note the Woo reference's bracket-array form is a latent
-bug there, not here) per website with a durable cursor
-(`FlagManager`), and mirrors state onto `newsletter_subscriber` inside the
-`ContactSync\ReconcileGuard` so the subscriber-save observer never echoes
-the write back to Smaily. Writes use import mode — no Magento emails.
+bug there, not here) per **resolved account** (a website's own account, plus
+one per distinct mode-A per-language account — `Multilingual\AccountResolver`,
+deduplicated by resolved credentials) with a durable cursor per account
+(`FlagManager`; a website's own account keeps its pre-existing
+`smaily_connect_reconcile_seq_w<websiteId>` key, an additional per-language
+account gets a `_<accountKey>`-suffixed one, since the action log's `seq_id`
+numbering is per Smaily account), and mirrors state onto
+`newsletter_subscriber` inside the `ContactSync\ReconcileGuard` so the
+subscriber-save observer never echoes the write back to Smaily. Writes use
+import mode — no Magento emails.
 
 ### Abandoned cart
 
