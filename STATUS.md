@@ -5,11 +5,68 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1468 — Log page gets a real `logging/verbosity`
-control, closing the gap PRO-1461's native-config removal left open)_
+_Last updated: 2026-07-20 (PRO-1468 — Intelligence sync toggles removed,
+closing the second gap PRO-1461's native-config removal left open)_
 
 ## Where we are
 
+- **PRO-1468 (Intelligence sync toggles) done — the three per-entity
+  Catalog/Customers/Orders sync toggles removed per target-spec §4.2
+  decision 4: connecting the engine now syncs everything, no on/off
+  switch.** These toggles' only UI (the wizard/Settings Intelligence panel's
+  three checkboxes) is gone (`panel/intelligence.phtml`,
+  `panel/panels-js.phtml`'s prefill + collect); `WizardStepSaver::
+  saveIntelligence()` no longer writes them; `WizardData::getBootJson()` no
+  longer exposes them. The observer gates that read them
+  (`Observer\Engine\ProductSaveAfter`/`ProductDeleteBefore`/
+  `CustomerSaveAfter`/`OrderSaveAfter`) now gate purely on
+  `Settings::isConnected()` — ingest is always-on for a connected install,
+  matching what an enabled install already had (`isCatalogSyncEnabled()`
+  etc. were `isConnected() && isSetFlag(...)`, and the default was already
+  `1`, so removing the toggle changes nothing for any install that hadn't
+  actively disabled one). `isCatalogSyncEnabled()`/`isCustomerSyncEnabled()`/
+  `isOrderSyncEnabled()` and their `XML_PATH_SYNC_*` constants are deleted
+  from `Model\Engine\Settings` (dead once the observers no longer call
+  them); the three `system.xml` fields and their `etc/config.xml` defaults
+  are deleted too (the section itself has been fully hidden since PRO-1461,
+  so this is cleanup of now-genuinely-dead declarations, not a UI change).
+  **Config paths abandoned in place, per the 2.8.x constraint — NOT renamed
+  or reused:** `intelligence/sync_catalog`/`sync_customers`/`sync_orders`
+  simply stop being read or written anywhere; any pre-existing stored value
+  in `core_config_data` is left orphaned, never migrated or cleaned up.
+  Six now-unused translation strings (the three field labels + three
+  checkbox descriptions) removed from both `i18n/en_US.csv` and
+  `i18n/et_EE.csv`, en↔et parity re-verified (400 keys each, same set).
+  `docs/USER_GUIDE.md`'s "What syncs" table updated to drop the per-row
+  "Toggle" column (replaced with a one-line note that connecting the engine
+  syncs everything) — Storefront Browse Tracking is unaffected, called out
+  explicitly as staying a separate, real, consent-gated control per
+  decision 4's own carve-out. **Verification:** 191 unit tests green (1
+  updated — `ProductDeleteBeforeTest`'s two settings-mock cases now stub
+  `isConnected()` instead of the deleted `isCatalogSyncEnabled()`, and the
+  disabled-path test is renamed `testEngineNotConnectedIsANoOp` to match
+  what it now actually asserts), phpcs 0 errors, phpstan clean, 65
+  integration tests green (throwaway MySQL), sandbox `setup:upgrade` +
+  `setup:di:compile` both green. **Real end-to-end check on the sandbox,
+  not just tests — ingest behavior unchanged for a connected install:**
+  faked a connected engine tenant (`intelligence/connected=1` + a real
+  encrypted `intelligence/api_key`, the same "fake connected account"
+  technique the PRO-1462 verification pass used), created one temporary
+  real product through `ProductRepositoryInterface::save()` (the same path
+  the admin grid uses, firing the real `catalog_product_save_after` event,
+  not a direct call into the observer class), and confirmed a real row
+  landed in `smaily_ingest_queue` (`domain=catalog, entity_id=<the new
+  product>, status=pending`) — proving `ProductSaveAfter`'s `isConnected()`-
+  only gate fires correctly with the toggle gone entirely. Cleanup: the
+  temporary product, its ingest row, and the fake connection config were
+  all removed afterward (the product needed a direct `catalog_product_
+  entity` delete — Magento's own `RemoveAction` validator blocks
+  `ProductRepository::delete()` from a bootstrap CLI context with "Delete
+  operation is forbidden for current area", an unrelated Magento
+  restriction, not a bug in this change); confirmed the sandbox's
+  `smaily_ingest_queue` and `core_config_data` are back to their pre-test
+  state (zero ingest rows, one `internal/last_seen_version` config row).
+  Resolves STATUS.md "Questions / tasks for Erkki" item 4(c).
 - **PRO-1468 (log verbosity) done — `smaily_connect/logging/verbosity` gets a
   home on the Log page (target-spec §2.4/§4.2), closing the "CLI/DB-only"
   gap PRO-1461's native-config removal flagged as a fast-follow.** A new
@@ -1668,8 +1725,10 @@ PRO-1267 (engine: Magento product-identity contract note).
    the task; ~~(b) `smaily_connect/logging/verbosity` now has no UI home at
    all (CLI/DB-only) since the native surface removal~~ **Resolved
    (PRO-1468):** a real control now lives on the Log page (§2.4/§4.2), see
-   the STATUS entry above; (c) the three `intelligence/sync_catalog`/
+   the STATUS entry above; ~~(c) the three `intelligence/sync_catalog`/
    `sync_customers`/`sync_orders` toggles lost their only UI (native) the
    same way — per target-spec decision 4 they're slated for outright
-   removal (observer gates still live, not yet deleted), so this is
-   arguably fine, but flagging for awareness alongside (a).
+   removal (observer gates still live, not yet deleted)~~ **Resolved
+   (PRO-1468):** the toggles, their config paths' readers/writers and the
+   observer gates are all deleted — ingest now gates purely on
+   `Settings::isConnected()`, see the STATUS entry above.

@@ -56,7 +56,7 @@ class OrderSaveAfter implements ObserverInterface
             }
         }
 
-        if (!$this->settings->isOrderSyncEnabled()) {
+        if (!$this->settings->isConnected()) {
             return;
         }
 

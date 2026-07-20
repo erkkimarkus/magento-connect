@@ -31,9 +31,6 @@ class Settings
     public const XML_PATH_ENDPOINTS = 'smaily_connect/intelligence/endpoints';
     public const XML_PATH_CONFIG = 'smaily_connect/intelligence/config';
     public const XML_PATH_ISSUED_AT = 'smaily_connect/intelligence/issued_at';
-    public const XML_PATH_SYNC_CATALOG = 'smaily_connect/intelligence/sync_catalog';
-    public const XML_PATH_SYNC_CUSTOMERS = 'smaily_connect/intelligence/sync_customers';
-    public const XML_PATH_SYNC_ORDERS = 'smaily_connect/intelligence/sync_orders';
     public const XML_PATH_BROWSE_TRACKING = 'smaily_connect/intelligence/browse_tracking';
 
     public function __construct(
@@ -106,21 +103,6 @@ class Settings
     public function getEngineConfig(): array
     {
         return $this->decodeJson((string)$this->scopeConfig->getValue(self::XML_PATH_CONFIG));
-    }
-
-    public function isCatalogSyncEnabled(): bool
-    {
-        return $this->isConnected() && $this->scopeConfig->isSetFlag(self::XML_PATH_SYNC_CATALOG);
-    }
-
-    public function isCustomerSyncEnabled(): bool
-    {
-        return $this->isConnected() && $this->scopeConfig->isSetFlag(self::XML_PATH_SYNC_CUSTOMERS);
-    }
-
-    public function isOrderSyncEnabled(): bool
-    {
-        return $this->isConnected() && $this->scopeConfig->isSetFlag(self::XML_PATH_SYNC_ORDERS);
     }
 
     public function isBrowseTrackingEnabled(): bool

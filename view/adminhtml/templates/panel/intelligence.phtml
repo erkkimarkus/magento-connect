@@ -4,9 +4,10 @@
  * See LICENSE.txt for license details.
  *
  * Campaign Intelligence panel — shared by the setup wizard (step 4) and the
- * Settings page (Intelligence tab). The Settings context adds the sync
- * toggles and the engine historical imports (catalog / customers / orders).
- * Behavior lives in panel/panels-js.phtml.
+ * Settings page (Intelligence tab). The Settings context adds the engine
+ * historical imports (catalog / customers / orders). Catalog/customer/order
+ * sync itself has no on/off toggle — connecting the engine syncs everything
+ * (target-spec §4.2 decision 4). Behavior lives in panel/panels-js.phtml.
  *
  * @var \Magento\Backend\Block\Template $block
  * @var \Magento\Framework\Escaper $escaper
@@ -39,18 +40,6 @@ $isSettings = $block->getData('context') === 'settings';
             <p class="note"><?= $escaper->escapeHtml(__('Off by default. Respects Magento cookie restriction mode; events flow through your own server, so the API key never reaches the browser.')) ?></p>
         </div>
         <?php if ($isSettings): ?>
-        <div class="smaily-inline-toggle">
-            <label><input type="checkbox" id="smaily-w-sync-catalog"/>
-                <?= $escaper->escapeHtml(__('Sync catalog changes to the engine')) ?></label>
-        </div>
-        <div class="smaily-inline-toggle">
-            <label><input type="checkbox" id="smaily-w-sync-customers"/>
-                <?= $escaper->escapeHtml(__('Sync customer changes to the engine')) ?></label>
-        </div>
-        <div class="smaily-inline-toggle">
-            <label><input type="checkbox" id="smaily-w-sync-orders"/>
-                <?= $escaper->escapeHtml(__('Sync order changes to the engine')) ?></label>
-        </div>
         <div class="smaily-card" style="background:#f8f8f8;">
             <strong><?= $escaper->escapeHtml(__('Historical imports to Campaign Intelligence')) ?></strong>
             <p class="note"><?= $escaper->escapeHtml(__('Send your existing data to the engine in the background — one chunk per cron minute. Imports are resumable and safe to re-run: deliveries are deduplicated on the receiving side.')) ?></p>

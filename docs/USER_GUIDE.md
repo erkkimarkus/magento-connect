@@ -284,12 +284,15 @@ engine-run automations (replenishment reminders, win-back, …).
 
 ### What syncs
 
-| Data | When | Toggle |
-|---|---|---|
-| Catalog | On product save/delete (deletes become out-of-stock) | Sync Catalog (on by default; no UI yet — `bin/magento config:set smaily_connect/intelligence/sync_catalog 0`) |
-| Customers | On profile create/update (no consent fields — the engine is a separate lawful surface) | Sync Customers (same as above) |
-| Orders | On order placement and status changes | Sync Orders (same as above) |
-| Browse events | Product views, searches, cart adds, checkout — batched from the storefront | Storefront Browse Tracking (**off by default**) |
+Connecting the engine syncs everything below — there is no per-entity on/off
+toggle; catalog, customer and order sync run automatically once connected.
+
+| Data | When |
+|---|---|
+| Catalog | On product save/delete (deletes become out-of-stock) |
+| Customers | On profile create/update (no consent fields — the engine is a separate lawful surface) |
+| Orders | On order placement and status changes |
+| Browse events | Product views, searches, cart adds, checkout — batched from the storefront (**Storefront Browse Tracking**, off by default — a separate, consent-gated toggle, not part of the always-on sync above) |
 
 Browse tracking respects Magento's cookie restriction mode and sends events
 through your own server (`smaily/relay`) so the API key never reaches the

@@ -150,9 +150,6 @@ class WizardData implements ArgumentInterface
                     ?: $this->engineSettings->getTenantId(),
                 'engineVersion' => $this->engineSettings->getEngineVersion(),
                 'browseTracking' => $this->engineSettings->isBrowseTrackingEnabled(),
-                'syncCatalog' => $this->engineSettings->isCatalogSyncEnabled(),
-                'syncCustomers' => $this->engineSettings->isCustomerSyncEnabled(),
-                'syncOrders' => $this->engineSettings->isOrderSyncEnabled(),
             ],
             'rss' => [
                 'enabled' => $this->config->isRssEnabled(),

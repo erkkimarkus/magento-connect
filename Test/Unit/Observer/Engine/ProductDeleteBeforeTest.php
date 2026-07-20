@@ -37,7 +37,7 @@ class ProductDeleteBeforeTest extends TestCase
     protected function setUp(): void
     {
         $this->settings = $this->createMock(Settings::class);
-        $this->settings->method('isCatalogSyncEnabled')->willReturn(true);
+        $this->settings->method('isConnected')->willReturn(true);
         $this->payloadBuilder = $this->createMock(CatalogPayloadBuilder::class);
         $this->parentResolver = $this->createMock(ParentProductResolver::class);
         $this->queue = $this->createMock(IngestQueue::class);
@@ -76,10 +76,10 @@ class ProductDeleteBeforeTest extends TestCase
         $this->createObserver()->execute($this->observerFor($this->product(7)));
     }
 
-    public function testCatalogSyncDisabledIsANoOp(): void
+    public function testEngineNotConnectedIsANoOp(): void
     {
         $settings = $this->createMock(Settings::class);
-        $settings->method('isCatalogSyncEnabled')->willReturn(false);
+        $settings->method('isConnected')->willReturn(false);
         $this->queue->expects(self::never())->method('enqueue');
 
         $observer = new ProductDeleteBefore(

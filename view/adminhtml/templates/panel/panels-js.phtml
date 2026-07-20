@@ -481,9 +481,6 @@ window.smailyPanelsInit = function ($) {
         if (boot.intelligence.connected) {
             engineConnected(boot.intelligence.tenantName, boot.intelligence.engineVersion);
             $('#smaily-w-browse').prop('checked', boot.intelligence.browseTracking);
-            $('#smaily-w-sync-catalog').prop('checked', boot.intelligence.syncCatalog);
-            $('#smaily-w-sync-customers').prop('checked', boot.intelligence.syncCustomers);
-            $('#smaily-w-sync-orders').prop('checked', boot.intelligence.syncOrders);
         }
 
         // RSS (Settings only).
@@ -756,13 +753,7 @@ window.smailyPanelsInit = function ($) {
             return data;
         },
         intelligence: function () {
-            var data = {browse_tracking: $('#smaily-w-browse').is(':checked')};
-            if ($('#smaily-w-sync-catalog').length) {
-                data.sync_catalog = $('#smaily-w-sync-catalog').is(':checked');
-                data.sync_customers = $('#smaily-w-sync-customers').is(':checked');
-                data.sync_orders = $('#smaily-w-sync-orders').is(':checked');
-            }
-            return data;
+            return {browse_tracking: $('#smaily-w-browse').is(':checked')};
         },
         rss: function () {
             return {rss_enabled: $('#smaily-w-rss-enabled').is(':checked')};

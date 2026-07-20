@@ -53,7 +53,7 @@ class ProductDeleteBefore implements ObserverInterface
      */
     public function execute(Observer $observer): void
     {
-        if (!$this->settings->isCatalogSyncEnabled()) {
+        if (!$this->settings->isConnected()) {
             return;
         }
 

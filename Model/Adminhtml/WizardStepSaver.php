@@ -361,9 +361,6 @@ class WizardStepSaver
     private function saveIntelligence(array $data): array
     {
         $this->saveFlag(EngineSettings::XML_PATH_BROWSE_TRACKING, $data, 'browse_tracking');
-        $this->saveFlag(EngineSettings::XML_PATH_SYNC_CATALOG, $data, 'sync_catalog');
-        $this->saveFlag(EngineSettings::XML_PATH_SYNC_CUSTOMERS, $data, 'sync_customers');
-        $this->saveFlag(EngineSettings::XML_PATH_SYNC_ORDERS, $data, 'sync_orders');
 
         return [];
     }

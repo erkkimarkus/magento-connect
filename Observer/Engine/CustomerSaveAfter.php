@@ -35,7 +35,7 @@ class CustomerSaveAfter implements ObserverInterface
      */
     public function execute(Observer $observer): void
     {
-        if (!$this->settings->isCustomerSyncEnabled()) {
+        if (!$this->settings->isConnected()) {
             return;
         }
 

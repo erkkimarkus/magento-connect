@@ -212,21 +212,6 @@
                     <comment>Paste the one-time setup URL (or token) provided by Smaily and save the configuration to connect. The token is exchanged immediately and never stored.</comment>
                     <backend_model>Smaily\Connect\Model\Config\Backend\EngineSetupToken</backend_model>
                 </field>
-                <field id="sync_catalog" translate="label" type="select" sortOrder="20"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
-                    <label>Sync Catalog</label>
-                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                </field>
-                <field id="sync_customers" translate="label" type="select" sortOrder="30"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
-                    <label>Sync Customers</label>
-                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                </field>
-                <field id="sync_orders" translate="label" type="select" sortOrder="40"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
-                    <label>Sync Orders</label>
-                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                </field>
                 <field id="browse_tracking" translate="label comment" type="select" sortOrder="50"
                        showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
                     <label>Storefront Browse Tracking</label>
