@@ -5,11 +5,24 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1460 — multi-website Phase 1: website-scoped
-config writes + website x language account resolver)_
+_Last updated: 2026-07-20 (PRO-1358 — backfill progress-bar count scoped to
+the canonical store)_
 
 ## Where we are
 
+- **PRO-1358 done — `EngineCatalogProcessor::countProducts()` scoped to the
+  same canonical store as `loadPage()`.** The progress-bar total's product
+  collection previously had no explicit store scope (falling back to
+  Magento's implicit current-store resolver), while `loadPage()` has set
+  `canonicalStoreId()` explicitly since PRO-1353 — a cosmetic drift where the
+  total could disagree with the scoped pages on multi-store installs.
+  `countProducts()` now calls the same `CatalogPayloadBuilder::
+  canonicalStoreId()` via `setStoreId()` before `getSize()`. New unit test
+  (`EngineCatalogProcessorTest::
+  testCountProductsAppliesTheSameCanonicalStoreScopeAsLoadPage`) drives a
+  full `process()` pass with `total_count` unset and asserts `setStoreId()`
+  is called with the canonical store id on both the count and page
+  collections — 176 unit tests green, phpcs 0 errors, phpstan clean.
 - **PRO-1460 done — multi-website Phase 1 (RFC_MULTI_WEBSITE.md §1–§2):
   website-scoped Wizard/Settings writes + a website x language
   `AccountResolver`, resolver-only, no UI.** Two coordinated changes, both

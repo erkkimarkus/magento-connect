@@ -72,6 +72,45 @@ class EngineCatalogProcessorTest extends TestCase
         $processor->process($job);
     }
 
+    /**
+     * PRO-1358: countProducts() (the progress-bar total) must be scoped to
+     * the same canonical store as loadPage() — otherwise the total can
+     * disagree with the scoped pages on multi-store installs.
+     */
+    public function testCountProductsAppliesTheSameCanonicalStoreScopeAsLoadPage(): void
+    {
+        $collection = $this->createMock(Collection::class);
+        $collection->expects(self::exactly(2))->method('setStoreId')->with(7);
+        $collection->method('getSize')->willReturn(42);
+        $collection->method('getItems')->willReturn([]);
+
+        $collectionFactory = $this->createMock(ProductCollectionFactory::class);
+        $collectionFactory->method('create')->willReturn($collection);
+
+        $jobManager = $this->createMock(JobManager::class);
+
+        $payloadBuilder = $this->createMock(CatalogPayloadBuilder::class);
+        $payloadBuilder->method('canonicalStoreId')->willReturn(7);
+
+        $ingestQueue = $this->createMock(IngestQueue::class);
+        $ingestQueue->method('countPending')->willReturn(0);
+
+        $job = $this->createMock(Job::class);
+        $job->method('getData')->willReturn(null);
+        $job->method('getCursorValue')->willReturn('0');
+        $job->expects(self::once())->method('setData')->with('total_count', 42);
+
+        $processor = new EngineCatalogProcessor(
+            $jobManager,
+            $collectionFactory,
+            $payloadBuilder,
+            $ingestQueue,
+            $this->createMock(Logger::class)
+        );
+
+        $processor->process($job);
+    }
+
     private function createJob(): Job&MockObject
     {
         $job = $this->createMock(Job::class);

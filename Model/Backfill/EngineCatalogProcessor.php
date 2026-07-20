@@ -133,6 +133,14 @@ class EngineCatalogProcessor implements ProcessorInterface
 
     private function countProducts(): int
     {
-        return $this->productCollectionFactory->create()->getSize();
+        $collection = $this->productCollectionFactory->create();
+        if ($collection instanceof \Magento\Catalog\Model\ResourceModel\Product\Collection) {
+            // Same canonical scope as loadPage() (PRO-1353) — otherwise the
+            // progress-bar total can disagree with the scoped pages on
+            // multi-store installs.
+            $collection->setStoreId($this->payloadBuilder->canonicalStoreId());
+        }
+
+        return $collection->getSize();
     }
 }
