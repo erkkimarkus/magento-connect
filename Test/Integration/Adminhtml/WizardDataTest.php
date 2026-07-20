@@ -11,6 +11,7 @@ namespace Smaily\Connect\Test\Integration\Adminhtml;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
 use Magento\Customer\Model\ResourceModel\Customer\CollectionFactory as CustomerCollectionFactory;
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
 use Magento\Store\Api\Data\StoreInterface;
@@ -50,6 +51,8 @@ class WizardDataTest extends IntegrationTestCase
         $defaultStore->method('getWebsiteId')->willReturn(self::WEBSITE_ID);
         $storeManager = $this->createMock(StoreManagerInterface::class);
         $storeManager->method('getDefaultStoreView')->willReturn($defaultStore);
+        $request = $this->createMock(RequestInterface::class);
+        $request->method('getParam')->willReturn(null);
 
         $this->viewModel = new WizardData(
             $this->objectManager->get(Config::class),
@@ -62,7 +65,7 @@ class WizardDataTest extends IntegrationTestCase
             $this->createMock(ProductCollectionFactory::class),
             $this->objectManager->get(Json::class),
             $this->objectManager->get(MappingCollectionFactory::class),
-            new WebsiteContext($storeManager)
+            new WebsiteContext($storeManager, $request)
         );
     }
 

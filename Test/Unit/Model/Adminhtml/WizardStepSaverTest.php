@@ -407,4 +407,21 @@ class WizardStepSaverTest extends TestCase
         self::assertSame($defaultScope, $this->savedScope(EngineSettings::XML_PATH_BROWSE_TRACKING));
         self::assertSame($defaultScope, $this->savedScope(Config::XML_PATH_RSS_ENABLED));
     }
+
+    /**
+     * PRO-1461 (RFC_MULTI_WEBSITE.md §2, Phase 2): the setup-completed flag
+     * is website-scoped so a second website's own wizard run is tracked
+     * independently of the first.
+     */
+    public function testFinishSavesTheSetupCompletedFlagAtTheTargetWebsite(): void
+    {
+        $this->websiteContext->method('getWebsiteId')->willReturn(7);
+
+        $this->saver->save('finish', []);
+
+        self::assertSame(
+            ['scope' => ScopeInterface::SCOPE_WEBSITES, 'scopeId' => 7],
+            $this->savedScope(WizardStepSaver::XML_PATH_SETUP_COMPLETED)
+        );
+    }
 }

@@ -10,6 +10,7 @@ namespace Smaily\Connect\Test\Integration\Adminhtml;
 
 use Magento\Framework\App\Cache\TypeListInterface;
 use Magento\Framework\App\Config\Storage\WriterInterface;
+use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\StoreManagerInterface;
@@ -50,6 +51,8 @@ class WizardStepSaverTest extends IntegrationTestCase
         $defaultStore->method('getWebsiteId')->willReturn(self::WEBSITE_ID);
         $storeManager = $this->createMock(StoreManagerInterface::class);
         $storeManager->method('getDefaultStoreView')->willReturn($defaultStore);
+        $request = $this->createMock(RequestInterface::class);
+        $request->method('getParam')->willReturn(null);
 
         $this->smailyClientProvider = $this->createMock(SmailyClientProvider::class);
 
@@ -60,7 +63,7 @@ class WizardStepSaverTest extends IntegrationTestCase
             new SubdomainNormalizer(),
             $this->createMock(AccountResolver::class),
             $this->objectManager->get(Config::class),
-            new WebsiteContext($storeManager),
+            new WebsiteContext($storeManager, $request),
             $storeManager,
             $this->objectManager->get(MappingSaver::class),
             $this->smailyClientProvider,
@@ -209,6 +212,43 @@ class WizardStepSaverTest extends IntegrationTestCase
             $otherWebsite->workflowId,
             'A single-website install (or an unmigrated website) keeps resolving the legacy row unchanged'
         );
+    }
+
+    /**
+     * PRO-1461 (RFC_MULTI_WEBSITE.md §2, Phase 2): the setup-completed flag
+     * lands as a real website-scoped row, and a real ScopeConfig read at that
+     * website resolves it — while a different website with no row of its own
+     * still falls back to a pre-existing default-scope value unchanged (an
+     * un-migrated single-website install carries its flag at default scope).
+     */
+    public function testFinishSavesTheSetupCompletedFlagAsARealWebsiteScopedRow(): void
+    {
+        $this->connection->insert('core_config_data', [
+            'scope' => 'default',
+            'scope_id' => 0,
+            'path' => WizardStepSaver::XML_PATH_SETUP_COMPLETED,
+            'value' => '1',
+        ]);
+
+        $errors = $this->saver->save('finish', []);
+        self::assertSame([], $errors);
+
+        $rows = $this->configRows(WizardStepSaver::XML_PATH_SETUP_COMPLETED);
+        $byScope = [];
+        foreach ($rows as $row) {
+            $byScope[$row['scope']] = $row['value'];
+        }
+        self::assertSame('1', $byScope['default'] ?? null, 'The pre-existing default-scope row survives untouched');
+        self::assertSame('1', $byScope['websites'] ?? null, 'The target website gets its own explicit row');
+
+        $websiteRow = null;
+        foreach ($rows as $row) {
+            if ($row['scope'] === 'websites') {
+                $websiteRow = $row;
+            }
+        }
+        self::assertNotNull($websiteRow);
+        self::assertSame(self::WEBSITE_ID, (int)$websiteRow['scope_id']);
     }
 
     /**
