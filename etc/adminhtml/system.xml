@@ -17,9 +17,26 @@
             (hosted on GitHub for now — update the URL here, in the setup
             wizard Done step and in Setup/Patch/Data/AddSetupNotice.php once
             a hosted docs site exists).
+
+            Native surface removal (PRO-1461, resolves PRO-1369's config-
+            architecture decision 3, docs/ADMIN_UI_TARGET_SPEC.md §4): this
+            section is deliberately hidden from Stores > Configuration —
+            showInDefault/showInWebsite/showInStore are "0" below so it never
+            appears in the native left nav for ANY admin, regardless of ACL
+            (a role with "All" resources still bypasses missing/denied ACL
+            resources, so hiding it that way alone would not work). Every
+            group/field below is otherwise UNCHANGED and must stay that way:
+            core_config_data storage, encrypted backend models
+            (`Backend\Subdomain`, core's `Backend\Encrypted`) and CLI
+            `bin/magento config:set`/`config:show` (which resolve fields by
+            walking this same structure) all keep working — only the native
+            FORM rendering is turned off. The module's own Settings/Wizard
+            pages are the sole editing surface; they read/write these same
+            paths directly via WriterInterface/ScopeConfigInterface, never
+            through this native form.
         -->
         <section id="smaily_connect" translate="label" type="text" sortOrder="10"
-                 showInDefault="1" showInWebsite="1" showInStore="1">
+                 showInDefault="0" showInWebsite="0" showInStore="0">
             <label>Smaily Connect</label>
             <tab>smaily</tab>
             <resource>Smaily_Connect::config</resource>

@@ -15,6 +15,9 @@
             <block class="Magento\Backend\Block\Template"
                    name="smaily.wizard"
                    template="Smaily_Connect::wizard/index.phtml">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">Smaily\Connect\ViewModel\Adminhtml\WizardData</argument>
+                </arguments>
                 <block class="Magento\Backend\Block\Template"
                        name="smaily.panel.connection" as="panel.connection"
                        template="Smaily_Connect::panel/connection.phtml">

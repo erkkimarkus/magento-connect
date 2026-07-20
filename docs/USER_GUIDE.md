@@ -59,27 +59,28 @@ Everything lives under **Marketing > Smaily Connect**, four pages:
 |---|---|
 | **Dashboard** | The landing page: a one-sentence health verdict, connection status for Smaily / Campaign Intelligence / browse tracking, operational counters (deliveries, failures) and the latest queue activity. Every number is a real local queue query. |
 | **Setup Wizard** | The guided five-step onboarding. On a fresh install every Smaily Connect page brings you here until setup is completed; you can re-run it any time — your settings are kept. |
-| **Settings** | The wizard's content as always-available tabs — Connection, Subscribers, Automations, Intelligence, RSS. Each tab saves instantly via AJAX into the same configuration the wizard and Stores > Configuration edit. Tabs are deep-linkable (`?tab=rss`). |
+| **Settings** | The wizard's content as always-available tabs — Connection, Subscribers, Automations, Intelligence, RSS. Each tab saves instantly via AJAX. Tabs are deep-linkable (`?tab=rss`). |
 | **Log** | One unified delivery log for both Smaily and Campaign Intelligence, with mass retry for failed rows. |
 
-Advanced fields (multilingual mode, abandoned-cart product fields, logging
-verbosity) and per-website / per-store-view overrides live in
-**Stores > Configuration > Smaily > Smaily Connect** as before — the
-Settings page and the wizard are views over that same configuration.
+The Settings page (and the wizard) is the **only** place to configure Smaily
+Connect — there is no separate entry under Stores > Configuration. Every
+field, including the ones that used to live only there (multilingual mode,
+the two Subscribers "advanced" toggles, abandoned-cart product fields), has a
+home on the module's own pages.
 
-The Settings page always saves at the default (global) scope. If a field is
-also set at a more specific scope — a per-website subdomain, or the
-per-store-view credentials created by multilingual "Per-language Smaily
-accounts" mode — that override is what actually takes effect, so the value you
-save here would be shadowed. When that happens the field shows an
-**"Overridden for &lt;website / store view&gt;"** marker naming each scope that
-overrides it, with a **Use default** button next to it. Clicking it (after a
-confirmation) removes just that one scope's override so the value saved here
-takes effect again — the same as pressing "Use Default" in Stores >
-Configuration. You can always set the override again at its own scope later.
-The **Connection** tab is the exception: it is the sole source of truth for
-its own fields (Subdomain, API Username/Password, Multilingual Mode) and does
-not show this marker — scope stays invisible there by design.
+### Multiple websites
+
+If your install has more than one **website** (Stores > All Stores), a
+**Website** selector appears next to the Settings tab strip, and the Setup
+Wizard opens with a website-picker step before Connect. Each website gets its
+own Smaily connection, subscriber sync, and automation settings — pick a
+website from the selector to view or edit its own values; run the wizard
+again for each additional website you want to onboard. Single-website
+installs never see the selector or the picker step.
+
+Campaign Intelligence (the recommendation engine tenant) is not yet
+per-website — one engine connection currently serves the whole installation
+regardless of which website is selected.
 
 After a major version upgrade the module posts a one-time admin
 notification suggesting a settings review — nothing is changed or blocked.
@@ -164,7 +165,7 @@ outside the per-language modes.
 
 ## Subscriber synchronization
 
-**Stores > Configuration > Smaily > Smaily Connect > Subscriber Synchronization**
+**Settings > Subscribers** (or Setup Wizard step 2)
 
 Subscribers sync in near-real-time through a durable queue (no lost events
 if Smaily is briefly unreachable — deliveries retry with backoff).
@@ -198,7 +199,7 @@ Additional options:
 
 ## Automations
 
-**Stores > Configuration > Smaily > Smaily Connect > Automations**
+**Settings > Automations** (or Setup Wizard step 3)
 
 Map Smaily automation workflows (the dropdowns load live from your account)
 to store events. Only enabled workflows with the **"form submitted"**
@@ -255,18 +256,16 @@ Optional query parameters:
 | `sort` | `created_at`, `updated_at`, `name`, `price` | `created_at` |
 | `order` | `asc`, `desc` | `desc` |
 
-You do not need to build the URL by hand: the **Feed URL Builder** — on the
-**Settings > RSS** tab and in the **Product RSS Feed** config group —
-assembles it live as you pick the category, limit and sorting, with a
-one-click **Copy** button. The wizard's Done step links straight to it. The
-**Advanced RSS options** link on the RSS tab opens Stores > Configuration
-with the Product RSS Feed group already expanded.
+You do not need to build the URL by hand: the **Feed URL Builder** on the
+**Settings > RSS** tab assembles it live as you pick the category, limit and
+sorting, with a one-click **Copy** button. The wizard's Done step links
+straight to it.
 
 Items include `smly:price` / `smly:old_price` / `smly:discount` (prices as
 shown in your storefront, tax included). Only catalog-visible, enabled
-products are listed; configurable variants resolve to their parent. The
-feed can be disabled per store view under the **Product RSS Feed** config
-group. Responses are cached for 15 minutes.
+products are listed; configurable variants resolve to their parent. The feed
+is a single store-wide on/off toggle on the **Settings > RSS** tab. Responses
+are cached for 15 minutes.
 
 ---
 
@@ -279,17 +278,17 @@ engine-run automations (replenishment reminders, win-back, …).
 ### Connecting
 
 1. Get a one-time **setup URL/token** from Smaily.
-2. Paste it under **Configuration > Smaily Connect > Campaign
-   Intelligence > Setup Token or URL** and save. The token is exchanged
-   immediately and never stored; the status row shows the connected tenant.
+2. Paste it on **Settings > Intelligence** (or Setup Wizard step 4) and save.
+   The token is exchanged immediately and never stored; the status row shows
+   the connected tenant.
 
 ### What syncs
 
 | Data | When | Toggle |
 |---|---|---|
-| Catalog | On product save/delete (deletes become out-of-stock) | Sync Catalog |
-| Customers | On profile create/update (no consent fields — the engine is a separate lawful surface) | Sync Customers |
-| Orders | On order placement and status changes | Sync Orders |
+| Catalog | On product save/delete (deletes become out-of-stock) | Sync Catalog (on by default; no UI yet — `bin/magento config:set smaily_connect/intelligence/sync_catalog 0`) |
+| Customers | On profile create/update (no consent fields — the engine is a separate lawful surface) | Sync Customers (same as above) |
+| Orders | On order placement and status changes | Sync Orders (same as above) |
 | Browse events | Product views, searches, cart adds, checkout — batched from the storefront | Storefront Browse Tracking (**off by default**) |
 
 Browse tracking respects Magento's cookie restriction mode and sends events
@@ -305,9 +304,9 @@ Page Cache because the capture runs client-side.
 
 ### Engine automations
 
-The engine-run triggers live right under your regular automations:
-**Stores > Configuration > Smaily Connect > Automations** lists the
-triggers available to your sector. Each row maps a trigger to a
+The engine-run triggers live right under your regular automations on
+**Settings > Automations**, which lists the triggers available to your
+sector. Each row maps a trigger to a
 Smaily workflow with a cooldown, an optional daily cap and a **test mode**
 (on by default — fires reach only the listed test emails until you turn it
 off). Nothing is enabled without your explicit action.
@@ -365,9 +364,10 @@ panel — you do not have to keep the page open:
   before parking as *failed* for manual retry.
 - An admin notification appears when the engine has been unreachable for
   over an hour, or when many events failed within 24 hours.
-- Logs: `var/log/smaily_connect.log`. Verbosity under **Configuration >
-  Smaily Connect > Logging** (debug logs summarize payloads — customer PII
-  is not written to disk).
+- Logs: `var/log/smaily_connect.log`. Verbosity (error / info / debug) has no
+  UI yet — set it with
+  `bin/magento config:set smaily_connect/logging/verbosity debug` (debug logs
+  summarize payloads — customer PII is not written to disk).
 - Sent queue rows are pruned after 30 days, failed rows after 90.
 
 ## Privacy and GDPR

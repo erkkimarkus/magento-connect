@@ -233,8 +233,29 @@ Setup Wizard, Settings, Log. Design rules:
 
 - **One source of truth.** The wizard and the Settings page write through
   the same `Model\Adminhtml\WizardStepSaver` into the same system-config
-  paths `etc/adminhtml/system.xml` edits. There is no parallel settings
-  store.
+  paths declared in `etc/adminhtml/system.xml` — that section's
+  `showInDefault`/`showInWebsite`/`showInStore` are all `"0"` (PRO-1461), so
+  it never renders under Stores > Configuration for any admin; the
+  declarations stay only for encrypted backend models and CLI
+  `config:set`/`config:show`. There is no parallel settings store, and no
+  second editing surface.
+- **Multi-website (RFC_MULTI_WEBSITE.md).** `Model\Adminhtml\WebsiteContext`
+  is the single seam every admin save/prefill path reads to know its target
+  website: it resolves a `website` request param (validated against real
+  websites) falling back to the installation's default website. On a
+  2+-website install, the Settings page renders an explicit website
+  selector next to the tab strip and the wizard renders a website-chooser
+  step before Connect (own chrome, not Magento's native store-switcher);
+  both work by reloading with `?website=<id>` — every AJAX call and the
+  page's own prefill (`ViewModel\Adminhtml\WizardData::getBootJson()`)
+  already read that same context, so no further plumbing is needed per
+  field. Single-website installs never see either control.
+  `Model\Adminhtml\SetupGuard`'s completed flag is website-scoped the same
+  way, so each website's own onboarding is tracked independently (a new
+  website falls back to the installation's existing completed flag via the
+  normal website→default scope chain, same as any other field). Campaign
+  Intelligence stays installation-wide regardless of the selected website
+  (Phase 4 of the RFC, gated on engine-side confirmation).
 - **Shared step partials.** The wizard's step content and the Settings
   tabs are the SAME templates (`view/adminhtml/templates/panel/*.phtml`),
   composed by two thin page templates (`wizard/index.phtml`,
@@ -271,8 +292,9 @@ Setup Wizard, Settings, Log. Design rules:
   `Controller\Adminhtml\Log\MassRetry` splits to route retries back to the
   right queue. Grid filters/sorting apply to the outer select.
 - **Wizard-first gating.** `Model\Adminhtml\SetupGuard`: while
-  `smaily_connect/internal/setup_completed` is unset, Dashboard/Settings/
-  Log redirect to the wizard. The guard also tracks
+  `smaily_connect/internal/setup_completed` is unset for the current
+  `WebsiteContext` target, Dashboard/Settings/Log redirect to the wizard.
+  The guard also tracks
   `smaily_connect/internal/last_seen_version` (module version read from
   composer.json via `Model\ModuleVersion`) and posts a one-time admin
   notice after a MAJOR version jump instead of any hard redirect.

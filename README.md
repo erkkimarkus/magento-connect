@@ -74,9 +74,10 @@ See [docs/UPGRADING.md](docs/UPGRADING.md).
    always-available tabs, including historical imports) and **Log** (every
    delivery, with retry).
 
-Advanced fields and per-website overrides stay in Stores > Configuration >
-Smaily > Smaily Connect — the wizard and Settings edit that same
-configuration.
+Everything is configured on the module's own pages — there is no separate
+Stores > Configuration entry. Installs with more than one website get an
+explicit website selector on Settings (and a website-picker step in the
+wizard) so each website keeps its own connection and settings.
 
 ## Development
 

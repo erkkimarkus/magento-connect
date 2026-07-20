@@ -19,10 +19,5 @@
     </div>
     <div id="smaily-w-rss-builder-wrap">
         <?= $block->getChildHtml('rss.builder') ?>
-        <p class="note">
-            <?php $rssConfigUrl = $block->getUrl('adminhtml/system_config/edit', ['section' => 'smaily_connect', '_fragment' => 'smaily_connect_rss']); ?>
-            <a href="<?= $escaper->escapeUrl($rssConfigUrl) ?>"><?= $escaper->escapeHtml(__('Advanced RSS options in Stores > Configuration')) ?></a>
-            <?= $escaper->escapeHtml(__('(the feed group opens automatically).')) ?>
-        </p>
     </div>
 </div>

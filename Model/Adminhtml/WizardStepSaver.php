@@ -30,18 +30,22 @@ use Smaily\Connect\Model\Multilingual\AccountResolver;
 use Smaily\Connect\Model\SubdomainNormalizer;
 
 /**
- * Persists wizard steps into the SAME system config paths the
- * Stores > Configuration page edits — one source of truth, the wizard is
- * just a guided view over it.
+ * Persists wizard steps into the SAME system config paths declared by
+ * `etc/adminhtml/system.xml` (kept for encrypted backend models and CLI
+ * `config:set`/`config:show`; the native `Stores > Configuration > Smaily`
+ * section itself is hidden) — one source of truth, the wizard is just a
+ * guided view over it.
  *
  * Website-scoped fields (connection credentials, subscriber sync toggles,
  * automation toggles — RFC_MULTI_WEBSITE.md §1) write at the target
  * website's scope, defaulting to the installation's default website when no
  * website is specified — unchanged behaviour for a single-website install,
  * since Config's readers already resolve website scope. The automation
- * mapping table saves at that same target website scope (§6, Phase 3).
- * Fields outside that list (Intelligence, RSS, the setup-completed flag)
- * are untouched in this phase — they stay at default scope.
+ * mapping table saves at that same target website scope (§6, Phase 3). The
+ * setup-completed flag is also website-scoped (§2, Phase 2) so each
+ * website's own onboarding is tracked independently. Fields outside that
+ * list (Intelligence, RSS) are untouched in this phase — they stay at
+ * default scope.
  */
 class WizardStepSaver
 {
@@ -75,7 +79,7 @@ class WizardStepSaver
             'automations' => $this->saveAutomations($data, $websiteId),
             'intelligence' => $this->saveIntelligence($data),
             'rss' => $this->saveRss($data),
-            'finish' => $this->saveFinish(),
+            'finish' => $this->saveFinish($websiteId),
             default => [['field' => 'step', 'message' => (string)__('Unknown wizard step "%1".', $step)]],
         };
 
@@ -380,9 +384,14 @@ class WizardStepSaver
     /**
      * @return array<int, array{field: string, message: string}>
      */
-    private function saveFinish(): array
+    private function saveFinish(int $websiteId): array
     {
-        $this->configWriter->save(self::XML_PATH_SETUP_COMPLETED, '1');
+        $this->configWriter->save(
+            self::XML_PATH_SETUP_COMPLETED,
+            '1',
+            ScopeInterface::SCOPE_WEBSITES,
+            $websiteId
+        );
 
         return [];
     }

@@ -561,13 +561,12 @@
 .smaily-backfill-verdict { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--fs-13); line-height: 1.45; }
 .smaily-backfill-verdict__icon { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 700 var(--fs-12)/1 var(--font); }
 
-/* --- Config-scope override awareness (PRO-1274) --------------------------- *
- * Layout glue only: the indicator reuses .smaily-banner (--warning),
- * .smaily-pill (--neutral) and .smaily-inline-status; this just spaces the
- * per-scope rows and detaches the banner from the field above it. */
-.smaily-override { margin: var(--sp-2) 0 var(--sp-3); }
-.smaily-override__row { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-top: var(--sp-1); }
-.smaily-override__clear { margin: 0; }
+/* --- Settings website selector (RFC_MULTI_WEBSITE.md §2, PRO-1461) --------- *
+ * Own chrome next to the tab strip, shown only on 2+-website installs. */
+.smaily-settings-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); }
+.smaily-settings-header .smaily-tabs { flex: 1 1 auto; }
+.smaily-website-select { display: flex; align-items: center; gap: var(--sp-2); white-space: nowrap; margin-top: 0.6rem; }
+.smaily-website-select label { font-weight: 600; font-size: var(--fs-13); }
 
 /* --- Settings > Connection tab (PRO-1379 pilot) ---------------------------- *
  * Target-spec §2.3.A: H3 title + one-line description above the card, a

@@ -14,6 +14,7 @@ use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
 use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
+use Magento\Store\Model\ScopeInterface;
 use Smaily\Connect\Model\Adminhtml\WebsiteContext;
 use Smaily\Connect\Model\Adminhtml\WizardStepSaver;
 use Smaily\Connect\Model\Automation\Mapping;
@@ -49,41 +50,87 @@ class WizardData implements ArgumentInterface
 
     public function isSetupCompleted(): bool
     {
-        return $this->scopeConfig->isSetFlag(WizardStepSaver::XML_PATH_SETUP_COMPLETED);
+        return $this->scopeConfig->isSetFlag(
+            WizardStepSaver::XML_PATH_SETUP_COMPLETED,
+            ScopeInterface::SCOPE_WEBSITE,
+            $this->websiteContext->getWebsiteId()
+        );
+    }
+
+    /**
+     * The website the page/wizard currently targets — feeds the Settings
+     * selector's/wizard chooser's own chrome (RFC_MULTI_WEBSITE.md §2).
+     */
+    public function getSelectedWebsiteId(): int
+    {
+        return $this->websiteContext->getWebsiteId();
+    }
+
+    /**
+     * Whether this request explicitly named a website (as opposed to
+     * resolving the installation's default one) — the wizard uses this to
+     * decide whether its website-chooser step still needs to be shown.
+     */
+    public function hasSelectedWebsite(): bool
+    {
+        return $this->websiteContext->isExplicit();
+    }
+
+    /**
+     * More than one real website on this install? The selector/chooser only
+     * ever render when true; single-website installs never see them.
+     */
+    public function hasMultipleWebsites(): bool
+    {
+        return $this->websiteContext->hasMultipleWebsites();
+    }
+
+    /**
+     * Every real website, id => name, for the selector/chooser controls.
+     *
+     * @return array<int, string>
+     */
+    public function getWebsiteOptions(): array
+    {
+        return $this->websiteContext->getWebsiteOptions();
     }
 
     public function getBootJson(): string
     {
+        $websiteId = $this->websiteContext->getWebsiteId();
+        $storeId = $this->websiteContext->getStoreId();
+
         return $this->serializer->serialize([
-            'connected' => $this->config->isConnected(),
+            'connected' => $this->config->isConnected($storeId),
             'setupCompleted' => $this->isSetupCompleted(),
+            'storeId' => $storeId,
             'connection' => [
-                'subdomain' => $this->config->getSubdomain(),
-                'username' => $this->config->getUsername(),
-                'hasPassword' => $this->config->getPassword() !== '',
+                'subdomain' => $this->config->getSubdomain($storeId),
+                'username' => $this->config->getUsername($storeId),
+                'hasPassword' => $this->config->getPassword($storeId) !== '',
                 'multilingualMode' => $this->getMultilingualMode(),
             ],
             'multilingual' => [
-                'languages' => $this->accountResolver->detectedLanguages($this->websiteContext->getWebsiteId()),
+                'languages' => $this->accountResolver->detectedLanguages($websiteId),
                 'fallbackLanguage' => $this->config->getFallbackLanguage(),
             ],
             'subscribers' => [
-                'syncEnabled' => $this->config->isSyncEnabled(),
-                'syncMode' => $this->mode->mode(),
-                'syncFields' => $this->config->getSyncFields(),
-                'includeGuests' => $this->config->includeGuests(),
-                'forceOptIn' => $this->config->automationForceOptIn(),
-                'checkoutOptin' => $this->config->isCheckoutOptinEnabled(),
-                'suppressOptinEmails' => $this->config->suppressOptinEmails(),
+                'syncEnabled' => $this->config->isSyncEnabled($websiteId),
+                'syncMode' => $this->mode->mode($websiteId),
+                'syncFields' => $this->config->getSyncFields($websiteId),
+                'includeGuests' => $this->config->includeGuests($websiteId),
+                'forceOptIn' => $this->config->automationForceOptIn($websiteId),
+                'checkoutOptin' => $this->config->isCheckoutOptinEnabled($websiteId),
+                'suppressOptinEmails' => $this->config->suppressOptinEmails($websiteId),
             ],
             'automations' => [
-                'welcomeEnabled' => $this->config->isWelcomeEnabled(),
-                'welcomeWorkflow' => (string)($this->config->getWelcomeWorkflow() ?: ''),
-                'firstOrderEnabled' => $this->config->isFirstOrderEnabled(),
-                'firstOrderWorkflow' => (string)($this->config->getFirstOrderWorkflow() ?: ''),
-                'abandonedEnabled' => $this->config->isAbandonedCartEnabled(),
-                'abandonedWorkflow' => (string)($this->config->getAbandonedCartWorkflow() ?: ''),
-                'abandonedCutoff' => $this->config->getAbandonedCutoffMinutes(),
+                'welcomeEnabled' => $this->config->isWelcomeEnabled($websiteId),
+                'welcomeWorkflow' => (string)($this->config->getWelcomeWorkflow($websiteId) ?: ''),
+                'firstOrderEnabled' => $this->config->isFirstOrderEnabled($websiteId),
+                'firstOrderWorkflow' => (string)($this->config->getFirstOrderWorkflow($websiteId) ?: ''),
+                'abandonedEnabled' => $this->config->isAbandonedCartEnabled($websiteId),
+                'abandonedWorkflow' => (string)($this->config->getAbandonedCartWorkflow($websiteId) ?: ''),
+                'abandonedCutoff' => $this->config->getAbandonedCutoffMinutes($websiteId),
             ],
             'intelligence' => [
                 'connected' => $this->engineSettings->isConnected(),
@@ -109,7 +156,7 @@ class WizardData implements ArgumentInterface
      */
     public function getSelectedSyncFields(): array
     {
-        return $this->config->getSyncFields();
+        return $this->config->getSyncFields($this->websiteContext->getWebsiteId());
     }
 
     /**
@@ -120,7 +167,7 @@ class WizardData implements ArgumentInterface
      */
     public function getSelectedAbandonedFields(): array
     {
-        return $this->config->getAbandonedFields();
+        return $this->config->getAbandonedFields($this->websiteContext->getWebsiteId());
     }
 
     /**
@@ -145,7 +192,8 @@ class WizardData implements ArgumentInterface
             return MultilingualMode::MODE_SINGLE;
         }
 
-        return $this->config->getMultilingualMode() ?: MultilingualMode::MODE_SINGLE;
+        return $this->config->getMultilingualMode($this->websiteContext->getWebsiteId())
+            ?: MultilingualMode::MODE_SINGLE;
     }
 
     /**

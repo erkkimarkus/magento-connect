@@ -5,10 +5,203 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1462/PRO-1457 — multi-website Phase 3, turning
-on already-built per-website plumbing)_
+_Last updated: 2026-07-20 (PRO-1461 — multi-website Phase 2: wizard
+website-chooser + Settings selector, and the native `Stores > Configuration`
+surface removed)_
 
 ## Where we are
+
+- **PRO-1461 done — multi-website Phase 2 (RFC_MULTI_WEBSITE.md §2): wizard
+  website-chooser step + Settings website selector, wired to the
+  already-built `WebsiteContext` seam** — plus the native `Stores >
+  Configuration > Smaily` surface removal this phase's own scope folded in
+  (resolves PRO-1369 open question #2), and the PRO-1274/PRO-1398 override
+  banner's retirement as dead weight the selector supersedes.
+  1. **`Model\Adminhtml\WebsiteContext` gained the actual chooser mechanism**
+     (previously just resolved the installation's default website, no UI
+     existed yet): `getWebsiteId()` now reads a `website` request param,
+     validated against real websites, falling back to the default website
+     when absent/blank/stale — the RFC's own prescription ("a request param
+     the context reads under admin scope"). New `isExplicit()` (did this
+     request name a website, vs. fall back?), `getStoreId()` (the resolved
+     website's own canonical default store, for store-scoped reads like
+     subdomain/username/password), `hasMultipleWebsites()`/`getWebsiteOptions()`
+     (drive both the selector and the chooser, one place, no duplicated
+     `getWebsites()` loops).
+  2. **Settings page**: an explicit `<select>` next to the tab strip (own
+     chrome, not Magento's native store-switcher, exactly as the RFC
+     recommends), shown only when `hasMultipleWebsites()`; picking a website
+     reloads with `?website=<id>` (preserving the current `?tab=`) — every
+     save/prefill path already reads `WebsiteContext`, so the reload is the
+     entire mechanism, no new plumbing per field.
+  3. **Wizard**: a website-chooser card renders before the normal step rail
+     whenever `hasMultipleWebsites() && !hasSelectedWebsite()`; picking one
+     reloads with `?website=<id>` the same way, after which the chooser
+     never reappears for that page load and the normal 5-step flow proceeds
+     scoped to that website. The Done step's Settings/Log links and the RSS
+     builder deep link carry the same `?website=` forward so a multi-website
+     merchant lands back on the website they just configured.
+  4. **Prefill gap fixed, not just wiring added.** `WizardData::getBootJson()`
+     previously called most `Config`/`Mode` getters with **no scope argument
+     at all** (only `detectedLanguages`/`languageStoreIds`/`getSavedMappings`
+     threaded `$websiteId`) — meaning the selector/chooser would have
+     silently kept showing website 1's Connection/Subscribers/Automations
+     values regardless of which website was selected. Every affected getter
+     (`getSubdomain`/`getUsername`/`getPassword` via the new `getStoreId()`;
+     `isSyncEnabled`/`getSyncMode`/`getSyncFields`/`includeGuests`/
+     `automationForceOptIn`/`isCheckoutOptinEnabled`/`suppressOptinEmails`;
+     `isWelcomeEnabled`/`getWelcomeWorkflow`/`isFirstOrderEnabled`/
+     `getFirstOrderWorkflow`/`isAbandonedCartEnabled`/`getAbandonedCartWorkflow`/
+     `getAbandonedCutoffMinutes`; `getMultilingualMode`) now threads the
+     resolved website/store id through. `getSelectedSyncFields()`/
+     `getSelectedAbandonedFields()` (server-rendered checkbox prefill) fixed
+     the same way. Intelligence and RSS deliberately keep reading default
+     scope (Phase 4/RFC-fenced, unchanged).
+  5. **Setup-completed flag is now website-scoped**, not just the visible
+     UI: `WizardStepSaver::saveFinish()` writes
+     `smaily_connect/internal/setup_completed` at `SCOPE_WEBSITES` for the
+     target website (was bare default-scope); `SetupGuard`/`WizardData`'s
+     `isSetupCompleted()` read it via the normal website→default fallback
+     chain. Without this, a second website would have inherited the FIRST
+     website's completion via the pre-existing default-scope flag and the
+     wizard would have jumped straight to the "Done" step for a website that
+     was never actually configured — the chooser would have been
+     structurally pointless. **Deliberate design choice, not fully
+     migration-proofed to the strictest possible reading:** the flag uses
+     the SAME website→default fallback every other field in this module
+     uses, so a *brand-new* website on an *already-completed* install also
+     inherits "completed" via that fallback (consistent with every other
+     field silently inheriting the default website's value until the
+     merchant saves its own) — it does not force a hard "never configured"
+     state for a new website. This is flagged as an assumption in the PRO-1461
+     report, not silently decided; a stricter alternative (explicit-row-only
+     completion, ignoring fallback) was considered and rejected as
+     inconsistent with how every other field in this phase behaves.
+  6. **Native `Stores > Configuration > Smaily` section removed** (resolves
+     PRO-1369 open question #2, Erkki 2026-07-20). Investigated exactly what
+     system.xml's role actually is before touching it: our own AJAX save
+     path (`WizardStepSaver`) already encrypts/writes directly via
+     `EncryptorInterface`/`WriterInterface`, never through system.xml's
+     `backend_model`; `core_config_data` storage and `ScopeConfigInterface`
+     reads are keyed by path, not system.xml presence; only
+     `bin/magento config:set`/`config:show` and the native admin FORM
+     actually consult the structure tree. The fix is a single, minimal,
+     provably-complete change: the `smaily_connect` `<section>`'s
+     `showInDefault`/`showInWebsite`/`showInStore` all flip to `"0"` — traced
+     the real Magento code path (`Structure\Element\Section::isVisible()` →
+     `AbstractElement::isVisible()`) to confirm this hides the section (and,
+     since it's the tab's only section, the "Smaily" tab too) from the left
+     nav for **every** admin regardless of ACL — a role with "All" access
+     bypasses missing/denied ACL resources entirely (confirmed via
+     `Magento\Framework\Authorization\Policy\Acl`'s own doc comment: "If ACL
+     doesn't contain provided resource, permission for all resources is
+     checked"), so an ACL-only hide would NOT have worked for the sandbox's
+     own admin user. Every group/field declaration (backend/source models,
+     `type="obscure"`, `canRestore`) is otherwise untouched — `config:set`/
+     `config:show` and encryption keep working, confirmed by direct code
+     read of `Magento\Config\Model\Config::getElementByConfigPath()` (a raw
+     path-parts walk, not gated by the same visibility flags). Direct URL
+     access to the now-hidden section (`system_config/edit/section/
+     smaily_connect`) safely redirects to the config index instead of
+     erroring (`Edit::execute()`'s own `isVisible()` check) — confirmed live.
+     No menu.xml entry pointed at the native page (checked); the ACL
+     resource (`Smaily_Connect::config`) stays untouched since it's shared
+     with our own Settings page's menu/ACL gate, unrelated to system.xml
+     visibility. Removed the now-dead pointers to the native page: the RSS
+     tab's "Advanced RSS options in Stores > Configuration" link
+     (`panel/rss.phtml`), the Settings page's "Need per-website or
+     per-store-view overrides..." footer note + link, and the Dashboard's
+     "Stores > Configuration" quick link.
+  7. **PRO-1274/PRO-1398 "Overridden for X" override-awareness chrome
+     removed** (`ViewModel\Adminhtml\ConfigOverrides`,
+     `Model\Config\OverrideDetector`/`OverrideClearer`/`ModuleConfigPaths`,
+     `Controller\Adminhtml\Config\ClearOverride`, plus its JS/CSS in
+     `settings/index.phtml`/`smaily-admin.css`) — not merely "dead because
+     native is gone," genuinely **actively wrong and dangerous** once
+     combined with this phase's own website selector. `OverrideDetector`'s
+     premise ("the Settings page always saves at the default scope, a more
+     specific row shadows it") stopped being true the moment Phase 1
+     (PRO-1460) made Subscribers/Automations/Connection saves land at
+     WEBSITE scope by default — meaning the very row a merchant's OWN save
+     just created is exactly what the detector flags as a "shadowing
+     override," and its "Use Default" affordance
+     (`OverrideClearer::clear()`) would **delete that merchant's own
+     just-saved website-scoped row** the moment they clicked it. Combined
+     with this phase's selector making per-website editing an explicit,
+     intentional, everyday action (not a rare 2.8.x-migration leftover),
+     shipping this banner unchanged would have surfaced a real,
+     first-contact data-loss footgun on every 2+-website install. The
+     website selector is the correct, already-shipped replacement for
+     "see/manage this website's own value" — no auto-clear-on-save
+     follow-up is needed, closing that PRO-1274 open item as moot rather
+     than deferred.
+  **Assumptions stated, not silently decided (see the PRO-1461 report for
+  full reasoning):** (a) the setup-completed-flag fallback behaviour above;
+  (b) Settings selector → an unconfigured website redirects into the wizard
+  (same "wizard-first" gating a single-website install already has) rather
+  than rendering blank Settings fields — a deliberate extension of existing
+  behaviour, not explicitly specified by the task; (c) Dashboard and Log
+  stay default-website-scoped with no selector of their own (task named only
+  Settings + wizard).
+  **Verification:** 191 unit tests green (10 new: `WebsiteContextTest` (7),
+  `SetupGuardTest` (2), `WizardStepSaverTest`'s new `saveFinish` case, plus a
+  new `Test/Unit/ViewModel/Adminhtml/WizardDataTest` (5 cases) pinning the
+  getBootJson prefill-scope fix), 65 integration tests green (throwaway
+  MySQL, 1 new: `saveFinish` lands a real website-scoped row alongside a
+  surviving pre-existing default-scope one), phpcs 0 errors, phpstan clean.
+  Sandbox `setup:upgrade` + `setup:di:compile` both green. **Real end-to-end
+  check on the sandbox, not just tests** — created a genuinely temporary
+  second website (+store group "Second Website Store" +store view "Second
+  Store View", codes `second_website`/`second_website_store`/
+  `second_store_view`) via the real Stores > All Stores admin UI (Magento
+  core has no delete button for these, so the temporary teardown at the end
+  used direct SQL against `store`/`store_group`/`store_website`, matching how
+  such installs are actually cleaned up): confirmed native Stores >
+  Configuration shows zero "Smaily" mentions anywhere in its nav (General/Web
+  section, real admin session, not a confounded test) and safely redirects
+  away from a forged direct URL to the hidden section; ran the real wizard
+  end-to-end for the new website (chooser → Connect → Subscribers →
+  Automations → Intelligence → Done, all 5 steps green) and confirmed via
+  raw `core_config_data` reads that `subdomain`/`username`/`password`/
+  `sync_*`/`automations_*`/`setup_completed` all landed at
+  `scope=websites, scope_id=2` with distinct values from website 1 (which
+  had nothing saved); the Settings selector correctly showed website 2's
+  real saved values and, separately, correctly bounced to the wizard when
+  switched to website 1 (not yet onboarded); repeated the wizard-chooser +
+  Settings-selector checks in **et_EE** (screenshots confirm full
+  translation: "Millist veebisaiti seadistad?", "Veebisait", "Jätka") with
+  zero console errors in any run. **Bug caught by this live pass, not by
+  unit tests:** baking `?website=<id>` into `panels-js.phtml`'s AJAX URLs
+  server-side collided with the shared `post()` helper's own
+  `url + '?form_key=' + ...` string concatenation, producing a
+  double-`?` query string that silently broke `form_key` parsing (Magento's
+  `BackendValidator`/`_processUrlKeys()` rejected every website-2 AJAX save
+  with "Invalid Form Key" until this was caught live) — fixed by having
+  `post()` pick `&` vs `?` based on whether the URL already has a query
+  string. After verification, the temporary website/store/store view were
+  deleted, their `core_config_data` rows (`scope=websites, scope_id=2`,
+  which Magento's own website deletion does NOT clean up — verified, then
+  removed by hand) and an incidental default-scope `intelligence/
+  browse_tracking` row from the Intelligence step were removed, and the
+  sandbox was reindexed/cache-flushed — confirmed back to the exact
+  pre-test row count (one `last_seen_version` row) and single-website
+  behaviour (no selector, no chooser).
+  **Not done, flagged for a fast follow, not silently left stale:**
+  `smaily_connect/logging/verbosity` had no home anywhere on our own pages
+  before this change (target-spec §4.2 flags it as needing one, "gets a home
+  on the Log page" — not yet built) and was only ever reachable via the now-
+  hidden native form; it is now CLI/DB-only
+  (`bin/magento config:set smaily_connect/logging/verbosity debug`), a real,
+  if narrow, capability loss this phase's native removal causes. Same shape
+  for `intelligence/sync_catalog`/`sync_customers`/`sync_orders` — per
+  target-spec decision 4 these three are slated for outright removal (engine
+  connection already syncs everything), so losing their native toggle is
+  arguably the intended end state rather than a gap, but the observer gates
+  reading them are still live code, not yet deleted. `docs/USER_GUIDE.md`
+  updated to point every native-config cross-reference at its real page and
+  to document the new website selector/chooser; both of the above dead ends
+  called out explicitly there too (CLI commands given) rather than left
+  silently broken.
 
 - **PRO-1462/PRO-1457 done — multi-website Phase 3 (RFC_MULTI_WEBSITE.md §6):
   automation mapping saves at the real website scope, and consent reconcile
@@ -1416,3 +1609,17 @@ PRO-1267 (engine: Magento product-identity contract note).
    `setup:install` now only runs when `app/etc/env.php` doesn't already
    exist; verified with a container rebuild + `docker compose down` /
    `up -d` against the existing volumes.
+4. PRO-1461 follow-ups (Medium): (a) confirm the Settings-selector-switches-
+   to-an-unconfigured-website → redirect-into-the-wizard behaviour is the
+   intended UX (vs. showing blank Settings fields for that website without
+   forcing the wizard) — currently mirrors the existing single-website
+   "wizard-first" gating, extended per-website, but wasn't spelled out by
+   the task; (b) `smaily_connect/logging/verbosity` now has no UI home at
+   all (CLI/DB-only) since the native surface removal — target-spec §4.2
+   already flagged it as needing a Log-page control, just not yet built;
+   worth prioritizing as a fast-follow rather than leaving it CLI-only
+   indefinitely; (c) the three `intelligence/sync_catalog`/`sync_customers`/
+   `sync_orders` toggles lost their only UI (native) the same way — per
+   target-spec decision 4 they're slated for outright removal (observer
+   gates still live, not yet deleted), so this is arguably fine, but flagging
+   for awareness alongside (b).

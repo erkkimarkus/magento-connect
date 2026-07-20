@@ -23,10 +23,16 @@
 
 /** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
 $viewModel = $block->getData('view_model');
+// Connection/Subscribers/Automations are website-scoped (RFC_MULTI_WEBSITE.md
+// §2): every AJAX call those tabs make carries the currently selected website
+// so Model\Adminhtml\WebsiteContext resolves the same target the page was
+// rendered with, no further plumbing. Intelligence/backfill stay installation-
+// wide in this phase (Phase 4/5), so their URLs are left as-is.
+$websiteQuery = ['_query' => ['website' => $viewModel->getSelectedWebsiteId()]];
 $urls = [
-    'test' => $block->getUrl('smaily_connect/api/testsmaily'),
-    'workflows' => $block->getUrl('smaily_connect/api/workflows'),
-    'saveStep' => $block->getUrl('smaily_connect/api/savestep'),
+    'test' => $block->getUrl('smaily_connect/api/testsmaily', $websiteQuery),
+    'workflows' => $block->getUrl('smaily_connect/api/workflows', $websiteQuery),
+    'saveStep' => $block->getUrl('smaily_connect/api/savestep', $websiteQuery),
     'engineExchange' => $block->getUrl('smaily_connect/api/engineexchange'),
     'enginePing' => $block->getUrl('smaily_connect/api/engineping'),
     'backfill' => $block->getUrl('smaily_connect/api/backfillstate'),
@@ -48,7 +54,11 @@ window.smailyPanelsInit = function ($) {
     var mlSwitchConfirmed = false;
 
     function post(url, data) {
-        return fetch(url + '?form_key=' + encodeURIComponent(window.FORM_KEY), {
+        // Some URLs (Connection/Subscribers/Automations, RFC_MULTI_WEBSITE.md
+        // §2) already carry a ?website=<id> query string baked in server-side
+        // — append with & instead of a second ? so form_key still parses.
+        var separator = url.indexOf('?') === -1 ? '?' : '&';
+        return fetch(url + separator + 'form_key=' + encodeURIComponent(window.FORM_KEY), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
@@ -90,7 +100,13 @@ window.smailyPanelsInit = function ($) {
         return {
             subdomain: $('#smaily-w-subdomain').val(),
             username: $('#smaily-w-username').val(),
-            password: $('#smaily-w-password').val()
+            password: $('#smaily-w-password').val(),
+            // Falls back to the saved credentials of the selected website's
+            // own store scope whenever the password field is left blank (see
+            // Controller\Adminhtml\Api\Workflows/TestSmaily) — keeps the
+            // workflow list / Test Connection scoped to whichever website the
+            // Settings selector currently targets.
+            store_id: boot.storeId
         };
     }
 

@@ -23,7 +23,6 @@ $urls = [
     'settings' => $block->getUrl('smaily_connect/settings'),
     'log' => $block->getUrl('smaily_connect/log'),
     'logFailed' => $block->getUrl('smaily_connect/log', ['_query' => ['filters' => ['status' => 'failed']]]),
-    'config' => $block->getUrl('adminhtml/system_config/edit', ['section' => 'smaily_connect']),
 ];
 
 $statusLabels = [
@@ -190,7 +189,6 @@ $connections = [
                 <li><a href="<?= $escaper->escapeUrl($urls['settings']) ?>"><?= $escaper->escapeHtml(__('Settings')) ?></a> — <?= $escaper->escapeHtml(__('connection, subscribers, automations, Intelligence and RSS in one tabbed page')) ?></li>
                 <li><a href="<?= $escaper->escapeUrl($urls['log']) ?>"><?= $escaper->escapeHtml(__('Log')) ?></a> — <?= $escaper->escapeHtml(__('every delivery with retry for failed rows')) ?></li>
                 <li><a href="<?= $escaper->escapeUrl($urls['wizard']) ?>"><?= $escaper->escapeHtml(__('Setup Wizard')) ?></a> — <?= $escaper->escapeHtml(__('re-run the guided setup at any time; your settings are kept')) ?></li>
-                <li><a href="<?= $escaper->escapeUrl($urls['config']) ?>"><?= $escaper->escapeHtml(__('Stores > Configuration')) ?></a> — <?= $escaper->escapeHtml(__('advanced fields and per-website or per-store-view overrides')) ?></li>
             </ul>
         </div>
     </div>

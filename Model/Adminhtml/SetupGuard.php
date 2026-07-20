@@ -13,6 +13,7 @@ use Magento\Framework\App\Cache\TypeListInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\App\Config\Storage\WriterInterface;
 use Magento\Framework\Notification\NotifierInterface;
+use Magento\Store\Model\ScopeInterface;
 use Smaily\Connect\Model\ModuleVersion;
 
 /**
@@ -22,6 +23,15 @@ use Smaily\Connect\Model\ModuleVersion;
  * - After a MAJOR version upgrade a one-time "review what's new" notice is
  *   posted instead of a hard redirect — the store keeps running on the
  *   migrated settings.
+ *
+ * The completed flag is website-scoped (RFC_MULTI_WEBSITE.md §2, Phase 2):
+ * it reads via the normal website-falls-back-to-default chain, so an
+ * existing single-website install is unaffected (its default-scope flag
+ * still resolves as "completed" for its one website), while a newly added
+ * second website that inherits the same value via fallback is treated as
+ * already set up too — consistent with every other field in this module,
+ * which the merchant can still give its own distinct settings via the
+ * Settings page's website selector or by revisiting the wizard's steps.
  */
 class SetupGuard
 {
@@ -32,13 +42,18 @@ class SetupGuard
         private readonly WriterInterface $configWriter,
         private readonly TypeListInterface $cacheTypeList,
         private readonly NotifierInterface $notifier,
-        private readonly ModuleVersion $moduleVersion
+        private readonly ModuleVersion $moduleVersion,
+        private readonly WebsiteContext $websiteContext
     ) {
     }
 
     public function isSetupCompleted(): bool
     {
-        return $this->scopeConfig->isSetFlag(WizardStepSaver::XML_PATH_SETUP_COMPLETED);
+        return $this->scopeConfig->isSetFlag(
+            WizardStepSaver::XML_PATH_SETUP_COMPLETED,
+            ScopeInterface::SCOPE_WEBSITE,
+            $this->websiteContext->getWebsiteId()
+        );
     }
 
     /**
