@@ -102,6 +102,24 @@ class AccountResolver
     }
 
     /**
+     * Representative store view per detected language on the given website:
+     * language => store view id, or null when the language has no resolvable
+     * store view. The shared walk behind every per-language-account surface
+     * (admin credential blocks, workflow listing, consent reconcile).
+     *
+     * @return array<string, int|null>
+     */
+    public function languageStoreIds(int $websiteId): array
+    {
+        $map = [];
+        foreach ($this->detectedLanguages($websiteId) as $language) {
+            $map[$language] = $this->storeIdForAccountKey($language, $websiteId);
+        }
+
+        return $map;
+    }
+
+    /**
      * The website model behind an id, or null when the id no longer resolves
      * (a stale id from an event payload after a website was deleted must
      * resolve to "no stores", not throw).

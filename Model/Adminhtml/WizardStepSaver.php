@@ -325,10 +325,8 @@ class WizardStepSaver
     private function availableWorkflowIdsByAccount(int $websiteId): array
     {
         $byAccount = [Mapping::ACCOUNT_DEFAULT => $this->workflowIdsForStore(null)];
-        foreach ($this->accountResolver->detectedLanguages($websiteId) as $language) {
-            $byAccount[$language] = $this->workflowIdsForStore(
-                $this->accountResolver->storeIdForAccountKey($language, $websiteId)
-            );
+        foreach ($this->accountResolver->languageStoreIds($websiteId) as $language => $storeId) {
+            $byAccount[$language] = $this->workflowIdsForStore($storeId);
         }
 
         return $byAccount;

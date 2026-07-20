@@ -185,8 +185,7 @@ class WizardData implements ArgumentInterface
     {
         $websiteId = $this->websiteContext->getWebsiteId();
         $accounts = [];
-        foreach ($this->accountResolver->detectedLanguages($websiteId) as $language) {
-            $storeId = $this->accountResolver->storeIdForAccountKey($language, $websiteId);
+        foreach ($this->accountResolver->languageStoreIds($websiteId) as $language => $storeId) {
             $accounts[] = [
                 'language' => $language,
                 'storeId' => $storeId,

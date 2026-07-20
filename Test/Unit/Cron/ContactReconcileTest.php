@@ -85,11 +85,7 @@ class ContactReconcileTest extends TestCase
             [6, 'user-en'],
         ]);
 
-        $this->accountResolver->method('detectedLanguages')->with(1)->willReturn(['et', 'en']);
-        $this->accountResolver->method('storeIdForAccountKey')->willReturnMap([
-            ['et', 1, 5],
-            ['en', 1, 6],
-        ]);
+        $this->accountResolver->method('languageStoreIds')->with(1)->willReturn(['et' => 5, 'en' => 6]);
 
         $this->stubClientsWithEmptyHistory();
 
@@ -118,8 +114,7 @@ class ContactReconcileTest extends TestCase
             [6, 'user-default'],
         ]);
 
-        $this->accountResolver->method('detectedLanguages')->with(1)->willReturn(['en']);
-        $this->accountResolver->method('storeIdForAccountKey')->with('en', 1)->willReturn(6);
+        $this->accountResolver->method('languageStoreIds')->with(1)->willReturn(['en' => 6]);
 
         $this->stubClientsWithEmptyHistory();
 
@@ -138,7 +133,7 @@ class ContactReconcileTest extends TestCase
         $this->config->method('isConnected')->willReturn(true);
         $this->config->method('getSubdomain')->willReturn('demo');
         $this->config->method('getUsername')->willReturn('user');
-        $this->accountResolver->method('detectedLanguages')->willReturn([]);
+        $this->accountResolver->method('languageStoreIds')->willReturn([]);
 
         $this->stubClientsWithEmptyHistory();
 
@@ -167,8 +162,7 @@ class ContactReconcileTest extends TestCase
             [1, 'user-default'],
             [5, 'user-et'],
         ]);
-        $this->accountResolver->method('detectedLanguages')->willReturn(['et']);
-        $this->accountResolver->method('storeIdForAccountKey')->with('et', 1)->willReturn(5);
+        $this->accountResolver->method('languageStoreIds')->willReturn(['et' => 5]);
 
         $this->stubClientsWithEmptyHistory();
 
@@ -197,8 +191,7 @@ class ContactReconcileTest extends TestCase
         ]);
         $this->config->method('getSubdomain')->willReturn('demo-default');
         $this->config->method('getUsername')->willReturn('user-default');
-        $this->accountResolver->method('detectedLanguages')->willReturn(['et']);
-        $this->accountResolver->method('storeIdForAccountKey')->with('et', 1)->willReturn(5);
+        $this->accountResolver->method('languageStoreIds')->willReturn(['et' => 5]);
 
         $this->stubClientsWithEmptyHistory();
 

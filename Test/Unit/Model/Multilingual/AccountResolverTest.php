@@ -121,6 +121,14 @@ class AccountResolverTest extends TestCase
         self::assertSame([], $resolver->storeIdsForAccountKey('en', self::WEBSITE_ONE));
     }
 
+    public function testLanguageStoreIdsMapsEveryDetectedLanguageToItsRepresentativeStore(): void
+    {
+        self::assertSame(
+            ['en' => 1, 'et' => 2],
+            $this->resolver->languageStoreIds(self::WEBSITE_ONE)
+        );
+    }
+
     public function testAStaleWebsiteIdResolvesEmptyInsteadOfThrowing(): void
     {
         $storeManager = $this->createMock(StoreManagerInterface::class);

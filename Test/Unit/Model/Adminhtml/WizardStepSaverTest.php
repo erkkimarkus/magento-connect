@@ -380,7 +380,7 @@ class WizardStepSaverTest extends TestCase
     public function testAutomationMappingsAreSavedAtTheTargetWebsite(): void
     {
         $this->websiteContext->method('getWebsiteId')->willReturn(7);
-        $this->accountResolver->method('detectedLanguages')->with(7)->willReturn([]);
+        $this->accountResolver->method('languageStoreIds')->with(7)->willReturn([]);
         $this->withWorkflows([]);
         $this->mappingSaver->expects(self::once())
             ->method('save')

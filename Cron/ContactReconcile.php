@@ -115,8 +115,7 @@ class ContactReconcile
     private function resolveAccounts(int $websiteId, int $defaultStoreId): array
     {
         $candidates = [self::DEFAULT_ACCOUNT_KEY => $defaultStoreId];
-        foreach ($this->accountResolver->detectedLanguages($websiteId) as $language) {
-            $storeId = $this->accountResolver->storeIdForAccountKey($language, $websiteId);
+        foreach ($this->accountResolver->languageStoreIds($websiteId) as $language => $storeId) {
             if ($storeId !== null) {
                 $candidates[$language] = $storeId;
             }
