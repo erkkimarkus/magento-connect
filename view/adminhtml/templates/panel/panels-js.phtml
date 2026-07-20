@@ -28,7 +28,7 @@ $viewModel = $block->getData('view_model');
 // so Model\Adminhtml\WebsiteContext resolves the same target the page was
 // rendered with, no further plumbing. Intelligence/backfill stay installation-
 // wide in this phase (Phase 4/5), so their URLs are left as-is.
-$websiteQuery = ['_query' => ['website' => $viewModel->getSelectedWebsiteId()]];
+$websiteQuery = $viewModel->getWebsiteQuery();
 $urls = [
     'test' => $block->getUrl('smaily_connect/api/testsmaily', $websiteQuery),
     'workflows' => $block->getUrl('smaily_connect/api/workflows', $websiteQuery),

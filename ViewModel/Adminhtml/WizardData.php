@@ -95,6 +95,18 @@ class WizardData implements ArgumentInterface
         return $this->websiteContext->getWebsiteOptions();
     }
 
+    /**
+     * The `_query` fragment carrying the current target website, for any
+     * admin URL that must land back on (or post to) the same website the
+     * page was rendered with — the one shared definition of that mechanism.
+     *
+     * @return array{_query: array{website: int}}
+     */
+    public function getWebsiteQuery(): array
+    {
+        return ['_query' => ['website' => $this->websiteContext->getWebsiteId()]];
+    }
+
     public function getBootJson(): string
     {
         $websiteId = $this->websiteContext->getWebsiteId();

@@ -27,6 +27,13 @@ use Magento\Store\Model\Website;
  */
 class WebsiteContext
 {
+    /** @var array<int, string>|null */
+    private ?array $websiteOptions = null;
+
+    private bool $requestedResolved = false;
+
+    private ?int $requestedId = null;
+
     public function __construct(
         private readonly StoreManagerInterface $storeManager,
         private readonly RequestInterface $request
@@ -79,12 +86,14 @@ class WebsiteContext
      */
     public function getWebsiteOptions(): array
     {
-        $options = [];
-        foreach ($this->storeManager->getWebsites() as $website) {
-            $options[(int)$website->getId()] = (string)$website->getName();
+        if ($this->websiteOptions === null) {
+            $this->websiteOptions = [];
+            foreach ($this->storeManager->getWebsites() as $website) {
+                $this->websiteOptions[(int)$website->getId()] = (string)$website->getName();
+            }
         }
 
-        return $options;
+        return $this->websiteOptions;
     }
 
     /**
@@ -94,14 +103,16 @@ class WebsiteContext
      */
     private function requestedWebsiteId(): ?int
     {
-        $requested = $this->request->getParam('website');
-        if ($requested === null || $requested === '') {
-            return null;
+        if (!$this->requestedResolved) {
+            $this->requestedResolved = true;
+            $requested = $this->request->getParam('website');
+            if ($requested !== null && $requested !== '') {
+                $id = (int)$requested;
+                $this->requestedId = isset($this->getWebsiteOptions()[$id]) ? $id : null;
+            }
         }
 
-        $id = (int)$requested;
-
-        return isset($this->getWebsiteOptions()[$id]) ? $id : null;
+        return $this->requestedId;
     }
 
     private function defaultWebsiteId(): int

@@ -34,9 +34,7 @@ $userGuideUrl = 'https://github.com/erkkimarkus/magento-connect/blob/v3/docs/USE
 // Carries the website this run just configured through to Settings/Log so a
 // multi-website merchant lands back on the same website, not silently the
 // installation's default one.
-$websiteQuery = $viewModel->hasMultipleWebsites()
-    ? ['_query' => ['website' => $viewModel->getSelectedWebsiteId()]]
-    : [];
+$websiteQuery = $viewModel->getWebsiteQuery();
 $settingsUrl = $block->getUrl('smaily_connect/settings', $websiteQuery);
 $logUrl = $block->getUrl('smaily_connect/log', $websiteQuery);
 ?>
