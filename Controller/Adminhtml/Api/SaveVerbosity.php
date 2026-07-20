@@ -10,14 +10,11 @@ namespace Smaily\Connect\Controller\Adminhtml\Api;
 
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Action\HttpPostActionInterface;
-use Magento\Framework\App\Cache\Type\Config as ConfigCache;
-use Magento\Framework\App\Cache\TypeListInterface;
-use Magento\Framework\App\Config\Storage\WriterInterface;
 use Magento\Framework\Controller\Result\Json;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Serialize\Serializer\Json as JsonSerializer;
-use Smaily\Connect\Model\Config;
 use Smaily\Connect\Model\Config\Source\LogVerbosity;
+use Smaily\Connect\Model\LogVerbositySaver;
 
 /**
  * POST {verbosity: error|info|debug} -> {saved: bool, error?: string}
@@ -39,8 +36,7 @@ class SaveVerbosity extends AbstractJsonAction implements HttpPostActionInterfac
         Context $context,
         JsonFactory $jsonFactory,
         JsonSerializer $serializer,
-        private readonly WriterInterface $configWriter,
-        private readonly TypeListInterface $cacheTypeList
+        private readonly LogVerbositySaver $verbositySaver
     ) {
         parent::__construct($context, $jsonFactory, $serializer);
     }
@@ -58,8 +54,7 @@ class SaveVerbosity extends AbstractJsonAction implements HttpPostActionInterfac
             ]);
         }
 
-        $this->configWriter->save(Config::XML_PATH_LOG_VERBOSITY, $verbosity);
-        $this->cacheTypeList->cleanType(ConfigCache::TYPE_IDENTIFIER);
+        $this->verbositySaver->save($verbosity);
 
         return $this->jsonResponse(['saved' => true]);
     }

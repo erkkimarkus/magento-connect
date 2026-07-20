@@ -48,25 +48,39 @@ require(['jquery'], function ($) {
         }).then(function (response) { return response.json(); });
     }
 
-    function setResult(text, ok) {
-        $('#smaily-log-verbosity-result').text(text).css('color', ok ? '#006400' : '#e22626');
+    // Same inline-status vocabulary (CSS-only glyphs) the panels' shared
+    // result() renders — this page just doesn't load panels-js.phtml.
+    function setResult(text, state) {
+        var $el = $('#smaily-log-verbosity-result');
+        $el.empty()
+            .removeClass('is-working is-saved is-error')
+            .addClass('smaily-inline-status')
+            .addClass('is-' + state);
+        if (state === 'working') {
+            $el.append($('<span></span>').addClass('smaily-inline-status__spinner'));
+        } else if (state === 'saved') {
+            $el.append($('<span></span>').addClass('smaily-inline-status__check'));
+        } else if (state === 'error') {
+            $el.append($('<span></span>').addClass('smaily-inline-status__error').text('!'));
+        }
+        $el.append($('<span></span>').text(text));
     }
 
     $('#smaily-log-verbosity-save').on('click', function () {
         var $button = $(this);
         $button.prop('disabled', true);
-        setResult('<?= $escaper->escapeJs(__('Saving…')) ?>', true);
+        setResult('<?= $escaper->escapeJs(__('Saving…')) ?>', 'working');
 
         post('<?= $escaper->escapeJs($saveUrl) ?>', {verbosity: $('#smaily-log-verbosity-select').val()})
             .then(function (data) {
                 if (data.saved) {
-                    setResult('<?= $escaper->escapeJs(__('Saved.')) ?>', true);
+                    setResult('<?= $escaper->escapeJs(__('Saved.')) ?>', 'saved');
                 } else {
-                    setResult(data.error || '<?= $escaper->escapeJs(__('Saving failed.')) ?>', false);
+                    setResult(data.error || '<?= $escaper->escapeJs(__('Saving failed.')) ?>', 'error');
                 }
             })
             .catch(function () {
-                setResult('<?= $escaper->escapeJs(__('Saving failed.')) ?>', false);
+                setResult('<?= $escaper->escapeJs(__('Saving failed.')) ?>', 'error');
             })
             .finally(function () {
                 $button.prop('disabled', false);
