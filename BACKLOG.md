@@ -27,9 +27,6 @@ executed verification matrix (Luma / Hyvä / strict CSP — all pass) in
   store scope, saves land at the default scope — a website-scope override
   (e.g. migrated from a per-website 2.8.x setup) silently shadows a fresh
   save. Surface/edit overrides or warn when one is in effect.
-- Per-language automation mapping UI (modes A/B: the `smaily_automation_mapping`
-  table and Router support it; only the editing UI is missing — currently
-  seeded by migration or managed via DB).
 - Engine automations form: per-language `automation_map` editing
   (`language_mode: per_language`); MVP ships single-language maps.
 - Backfill job cancel button in the admin grid (CLI/DB only for now).
