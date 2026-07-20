@@ -38,9 +38,10 @@ use Smaily\Connect\Model\SubdomainNormalizer;
  * automation toggles — RFC_MULTI_WEBSITE.md §1) write at the target
  * website's scope, defaulting to the installation's default website when no
  * website is specified — unchanged behaviour for a single-website install,
- * since Config's readers already resolve website scope. Fields outside that
- * list (Intelligence, RSS, the setup-completed flag, automation mapping
- * rows) are untouched in this phase — they stay at default scope.
+ * since Config's readers already resolve website scope. The automation
+ * mapping table saves at that same target website scope (§6, Phase 3).
+ * Fields outside that list (Intelligence, RSS, the setup-completed flag)
+ * are untouched in this phase — they stay at default scope.
  */
 class WizardStepSaver
 {
@@ -296,12 +297,15 @@ class WizardStepSaver
         // The per-account available-workflow lists let the saver preserve a
         // saved mapping row whose id is missing from its account's live list
         // instead of dropping it on the full sync (PRO-1286). The mapping
-        // table itself stays at website id 0 (global) — turning that into a
-        // real per-website scope is Phase 3 (RFC_MULTI_WEBSITE.md §6).
+        // table now saves at the real target website scope
+        // (RFC_MULTI_WEBSITE.md §6, Phase 3) — the Router already prefers a
+        // website-specific row over a legacy website_id=0 row, so a
+        // single-website install keeps resolving its pre-existing rows
+        // unchanged until this website's own row is saved.
         if (isset($data['mappings']) && is_array($data['mappings'])) {
             return $this->mappingSaver->save(
                 $data['mappings'],
-                0,
+                $websiteId,
                 $this->availableWorkflowIdsByAccount($websiteId)
             );
         }

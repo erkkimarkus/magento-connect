@@ -35,7 +35,10 @@ class MappingSaver
     /**
      * @param array<int, mixed> $rows desired mapping rows:
      *        {trigger_type, language, account_key?, workflow_id, is_default_fallback?}
-     * @param int $websiteId 0 = the global scope the Settings/wizard panels edit
+     * @param int $websiteId the target website scope (the Settings/wizard panels
+     *        pass the real target website; 0 is the legacy/global scope left
+     *        behind by pre-Phase-3 saves and the 2.8.x migration's default-scope
+     *        seeding — still readable, per the Router's website-or-0 fallback)
      * @param array<string, array<int, string>>|null $availableByAccount workflow
      *        ids each account key (language, or 'default') can currently list.
      *        When provided, a stale existing row (one the desired state no longer

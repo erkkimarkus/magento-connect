@@ -63,16 +63,17 @@ Observer / cron ──enqueue──> smaily_event_queue ──cron flush (1 min)
   modes `a`/`b` resolve `smaily_automation_mapping` rows — the exact
   (trigger, language) row first, then the trigger's `is_default_fallback`
   row, then the config default; no match anywhere is a terminal skip. Rows
-  are looked up for the event's website with global rows (`website_id 0`,
-  written by the admin panels) as the fallback; a website-specific row
-  wins. A matched row's `account_key` travels with the workflow
-  (`WorkflowMatch`) and the handler posts through THAT account's
-  credentials (`Multilingual\AccountResolver` maps the key to a store
-  view; `default` = default scope) — so a mode-A fallback row never fires
-  another account's workflow ID through the event store view's
-  credentials. The admin panels write rows through
-  `Model/Automation/MappingSaver` (full-desired-state sync: unique-key
-  upsert, cleared rows deleted, other websites' rows untouched).
+  are looked up for the event's website with legacy global rows
+  (`website_id 0` — the 2.8.x migration's default-scope seeding, or a
+  pre-Phase-3 save) as the fallback; a website-specific row wins. A matched
+  row's `account_key` travels with the workflow (`WorkflowMatch`) and the
+  handler posts through THAT account's credentials
+  (`Multilingual\AccountResolver` maps the key to a store view; `default`
+  = default scope) — so a mode-A fallback row never fires another
+  account's workflow ID through the event store view's credentials. The
+  admin panels write rows through `Model/Automation/MappingSaver` at the
+  target website scope (full-desired-state sync: unique-key upsert,
+  cleared rows deleted, other websites' rows untouched).
 - Handlers are registered per type in `di.xml`
   (`Model/Queue/HandlerPool`); adding an event type = adding a handler.
 - Payloads are built at enqueue time (`ContactSync\SubscriberPayloadBuilder`,

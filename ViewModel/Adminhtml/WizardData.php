@@ -200,17 +200,22 @@ class WizardData implements ArgumentInterface
     }
 
     /**
-     * Saved workflow-mapping rows of the global scope (website 0 — the scope
-     * the Settings/wizard mapping editor manages), keyed "trigger|language"
-     * for template prefill.
+     * Saved workflow-mapping rows for the target website, keyed
+     * "trigger|language" for template prefill. Legacy website_id=0 rows
+     * (pre-Phase-3 saves, the 2.8.x migration's default-scope seeding) are
+     * read as a fallback for a key the target website hasn't saved its own
+     * row for yet — the same website-beats-global preference
+     * `Model\Automation\Router` applies at dispatch time.
      *
      * @return array<string, array{workflowId: int, isDefaultFallback: bool}>
      */
     public function getSavedMappings(): array
     {
+        $websiteId = $this->websiteContext->getWebsiteId();
         $collection = $this->mappingCollectionFactory->create();
-        $collection->addFieldToFilter('website_id', ['eq' => 0])
-            ->addFieldToFilter('trigger_type', ['in' => Trigger::ALL]);
+        $collection->addFieldToFilter('website_id', ['in' => [$websiteId, 0]])
+            ->addFieldToFilter('trigger_type', ['in' => Trigger::ALL])
+            ->setOrder('website_id', 'ASC');
 
         $rows = [];
         /** @var Mapping $mapping */
