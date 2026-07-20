@@ -5,11 +5,26 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1456 — multi-website support RFC drafted,
-`docs/RFC_MULTI_WEBSITE.md`, awaiting review)_
+_Last updated: 2026-07-20 (PRO-1449 — engine contract synced to v1.5.0,
+docs-only)_
 
 ## Where we are
 
+- **PRO-1449 done — engine contract synced v1.4.1 → v1.5.0, docs-only.**
+  `docs/RECENGINE_API_CONTRACT.md` overwritten byte-identical from engine
+  main (staleness check green, `bin/check-contract-staleness.sh` run against
+  the local `../re` checkout). The v1.5.0 bump is additive only: new
+  **§14 `POST /api/v1/notifications/ingest`** (Notifications 2.0 external
+  ingest — same bearer auth + 100 req/sec tier as existing ingest endpoints,
+  registry-gated fail-closed `type`, upsert-on-open-dedupe idempotency), plus
+  the matching TOC entry, rate-limit table row, setup-exchange endpoints map
+  gaining `notifications_ingest`, and the changelog/version-header lines. No
+  existing wire shape changed. We are **not** building against §14 now (event
+  types must first be registered engine-side; out of scope) — verified our
+  `Model/Engine/Settings::getEndpoint()`/`Client::endpoint()` map lookup is a
+  generic keyed fallback, so the new map key is inert for us; no code or test
+  fixture changes needed. Gates: 162 unit tests green (unchanged from before
+  the sync), phpcs/phpstan not implicated (docs-only).
 - **PRO-1456 — multi-website support RFC drafted, docs only.** Erkki's
   binding direction (2026-07-20): one Magento website = one Campaign
   Intelligence tenant + its own Smaily binding; inside a website the
