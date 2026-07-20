@@ -49,6 +49,12 @@ class WizardStepSaverTest extends TestCase
     /** @var AccountResolver&\PHPUnit\Framework\MockObject\MockObject */
     private $accountResolver;
 
+    /** @var MappingSaver&\PHPUnit\Framework\MockObject\MockObject */
+    private $mappingSaver;
+
+    /** @var WebsiteContext&\PHPUnit\Framework\MockObject\MockObject */
+    private $websiteContext;
+
     /** @var array<int, array{path: string, value: mixed, scope: string, scopeId: int}> */
     private array $saved = [];
 
@@ -63,6 +69,8 @@ class WizardStepSaverTest extends TestCase
         $normalizer = $this->createMock(SubdomainNormalizer::class);
         $normalizer->method('normalize')->willReturnArgument(0);
         $this->accountResolver = $this->createMock(AccountResolver::class);
+        $this->mappingSaver = $this->createMock(MappingSaver::class);
+        $this->websiteContext = $this->createMock(WebsiteContext::class);
 
         $this->saved = [];
         $this->configWriter->method('save')->willReturnCallback(
@@ -85,9 +93,9 @@ class WizardStepSaverTest extends TestCase
             $normalizer,
             $this->accountResolver,
             $this->config,
-            $this->createMock(WebsiteContext::class),
+            $this->websiteContext,
             $this->createMock(StoreManagerInterface::class),
-            $this->createMock(MappingSaver::class),
+            $this->mappingSaver,
             $this->clientProvider,
             new ConfigRowNormalizer()
         );
@@ -362,6 +370,28 @@ class WizardStepSaverTest extends TestCase
         self::assertSame($expectedScope, $this->savedScope(Config::XML_PATH_WELCOME_ENABLED));
         self::assertSame($expectedScope, $this->savedScope(Config::XML_PATH_WELCOME_WORKFLOW));
         self::assertSame($expectedScope, $this->savedScope(Config::XML_PATH_ABANDONED_CUTOFF));
+    }
+
+    /**
+     * PRO-1462 (RFC_MULTI_WEBSITE.md §6, Phase 3): the automation-mapping
+     * table's admin save routes through the real target website instead of
+     * the previously hardcoded website_id=0.
+     */
+    public function testAutomationMappingsAreSavedAtTheTargetWebsite(): void
+    {
+        $this->websiteContext->method('getWebsiteId')->willReturn(7);
+        $this->accountResolver->method('detectedLanguages')->with(7)->willReturn([]);
+        $this->withWorkflows([]);
+        $this->mappingSaver->expects(self::once())
+            ->method('save')
+            ->with(self::anything(), 7, self::anything())
+            ->willReturn([]);
+
+        $this->saver->save('automations', [
+            'mappings' => [
+                ['trigger_type' => 'welcome', 'language' => 'default', 'workflow_id' => 5],
+            ],
+        ]);
     }
 
     /**
