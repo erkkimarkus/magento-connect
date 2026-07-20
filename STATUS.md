@@ -5,11 +5,21 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1358 — backfill progress-bar count scoped to
-the canonical store)_
+_Last updated: 2026-07-20 (PRO-1467 — sandbox entrypoint already-installed
+guard)_
 
 ## Where we are
 
+- **PRO-1467 done — sandbox `entrypoint.sh` no longer reinstalls Magento on
+  every container start.** `bin/magento setup:install` now runs only when
+  `app/etc/env.php` doesn't yet exist, guarding the whole install block with
+  `if [ ! -f app/etc/env.php ]; then ... fi`; fresh-volume first boot is
+  unchanged. Fixes the defect flagged in "Questions / tasks for Erkki" item 3
+  below (removed from that list) — a `docker compose down`/`up` against the
+  persistent `db-data`/`data` volumes no longer fails with `Trigger already
+  exists`. Verified with a real container rebuild + `docker compose down` /
+  `up -d` against the existing volumes: containers came back healthy and the
+  admin responded at `localhost:8080/admin`.
 - **PRO-1358 done — `EngineCatalogProcessor::countProducts()` scoped to the
   same canonical store as `loadPage()`.** The progress-bar total's product
   collection previously had no explicit store scope (falling back to
@@ -1325,20 +1335,8 @@ PRO-1267 (engine: Magento product-identity contract note).
    The compat package vendor/name is decided: `smaily/module-connect-hyva`
    (module PHP name stays `Hyva_SmailyConnect` per the Hyvä convention);
    actual publication remains part of the release train.
-3. Sandbox infra defect found during PRO-1460 verification (Low, not a
-   module bug — `.sandbox/entrypoint.sh` only): the container's entrypoint
-   runs `bin/magento setup:install` **unconditionally** on every container
-   start, with no "already installed" guard. `db-data`/`data` are named,
-   persistent Docker volumes (`docker_magento2-db-data`/`docker_magento2-data`),
-   so any `docker compose down` (or a container recreate) followed by
-   `up`/`start` re-runs a full `setup:install` against an already-installed
-   DB and reliably fails with `SQLSTATE[HY000]: ... Trigger already exists`
-   partway through, since Magento's schema recurring step assumes a green
-   field. Worked around this session with a one-off
-   `docker compose run --rm --entrypoint bash magento2 -lc "bin/magento
-   setup:install ... --cleanup-database"` against the same volumes, then
-   started the real `magento2` container with `--entrypoint
-   docker-php-entrypoint` to skip the flawed install step. A proper fix is a
-   one-line guard in `entrypoint.sh` (skip `setup:install` when
-   `app/etc/env.php` already exists) — small, but touches shared sandbox
-   infra outside this task's scope, so only flagged here, not fixed.
+3. ~~Sandbox infra defect: `.sandbox/entrypoint.sh` reinstalled Magento
+   unconditionally on every container start.~~ **Resolved (PRO-1467):**
+   `setup:install` now only runs when `app/etc/env.php` doesn't already
+   exist; verified with a container rebuild + `docker compose down` /
+   `up -d` against the existing volumes.
