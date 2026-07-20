@@ -364,10 +364,11 @@ panel — you do not have to keep the page open:
   before parking as *failed* for manual retry.
 - An admin notification appears when the engine has been unreachable for
   over an hour, or when many events failed within 24 hours.
-- Logs: `var/log/smaily_connect.log`. Verbosity (error / info / debug) has no
-  UI yet — set it with
-  `bin/magento config:set smaily_connect/logging/verbosity debug` (debug logs
-  summarize payloads — customer PII is not written to disk).
+- Logs: `var/log/smaily_connect.log`. Verbosity (error / info / debug) is a
+  small control above the Log grid; debug verbosity logs full API requests
+  and responses — use only for troubleshooting (debug logs summarize
+  payloads, customer PII is not written to disk). Also settable via
+  `bin/magento config:set smaily_connect/logging/verbosity debug`.
 - Sent queue rows are pruned after 30 days, failed rows after 90.
 
 ## Privacy and GDPR

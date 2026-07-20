@@ -5,12 +5,63 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1461 — multi-website Phase 2: wizard
-website-chooser + Settings selector, and the native `Stores > Configuration`
-surface removed)_
+_Last updated: 2026-07-20 (PRO-1468 — Log page gets a real `logging/verbosity`
+control, closing the gap PRO-1461's native-config removal left open)_
 
 ## Where we are
 
+- **PRO-1468 (log verbosity) done — `smaily_connect/logging/verbosity` gets a
+  home on the Log page (target-spec §2.4/§4.2), closing the "CLI/DB-only"
+  gap PRO-1461's native-config removal flagged as a fast-follow.** A new
+  small strip above the grid (`log/verbosity.phtml`, wired via a new
+  `ViewModel\Adminhtml\LogVerbositySettings`) shows the current value and
+  the same three options the native field had (Errors only / Info / Debug),
+  with its own Save button and inline status — no design-pack mockup exists
+  for this control, so placement follows the common shell idioms per the
+  spec's own note. Saves through a new dedicated endpoint,
+  `Controller\Adminhtml\Api\SaveVerbosity` (POST `{verbosity}` ->
+  `{saved, error?}`, the same JSON contract shape every other AJAX config
+  save in this module uses), gated on the Log page's own ACL resource
+  (`Smaily_Connect::event_log`) rather than Settings' `::config` since the
+  control lives on the Log page, not Settings. The field is genuinely
+  installation-wide (`Config::getLogVerbosity()` already read default scope
+  only, matching its native `system.xml` declaration's own
+  `showInWebsite="0" showInStore="0"`), so the save writes at default scope,
+  no website/store argument threaded through. **First implementation attempt
+  had a real bug, caught before commit, not silently worked around:** the
+  layout XML originally passed `Model\Config` and
+  `Model\Config\Source\LogVerbosity` directly as `xsi:type="object"`
+  arguments — Magento's layout argument resolution requires such objects to
+  implement `Magento\Framework\View\Element\Block\ArgumentInterface`, which
+  neither class does, so the block silently failed to attach (logged as a
+  `main.CRITICAL` "Instance of ArgumentInterface is expected" line, no user-
+  visible error) and the whole control vanished from the rendered page with
+  no other symptom. Fixed by introducing the `LogVerbositySettings` ViewModel
+  (implements `ArgumentInterface`, matching the existing `LogHealth`
+  pattern already used for the failed-deliveries banner on this same page)
+  instead of passing raw Model classes. **Verification:** 192 unit tests
+  green (0 new — no dedicated controller/ViewModel unit tests exist anywhere
+  in this repo; controllers are verified live, matching that precedent),
+  phpcs 0 errors, phpstan clean, 65 integration tests green (throwaway
+  MySQL), sandbox `setup:upgrade` + `setup:di:compile` both green. **Real
+  end-to-end check on the sandbox, not just a code read:** logged into the
+  live admin via a real HTTP session (cookie + the exact secret-key/form-key
+  mechanism Magento's own rendered menu links carry — reproduced by
+  replicating a real navigation, not by disabling `admin/security/use_form_key`),
+  confirmed the control renders with "Errors only" pre-selected (the
+  `etc/config.xml` default), POSTed a real `{"verbosity":"debug"}` to
+  `smaily_connect/api/saveverbosity` and got `{"saved":true}`, confirmed via
+  a raw `core_config_data` read that the row landed at `scope=default,
+  scope_id=0, value=debug`, reloaded the page and confirmed "Debug" now
+  renders pre-selected (proving the read-back path, not just the write),
+  and confirmed an invalid value (`"bogus"`) is rejected with
+  `{"saved":false,"error":"Invalid log verbosity value."}` and no config
+  write. Saved the value back to `error` afterward and the sandbox's one
+  test-only `internal/setup_completed=1` row (needed to get past this
+  install's own wizard-first gate, since this sandbox was left in a
+  pristine unconfigured state by the prior PRO-1461 session) was deleted
+  again afterward — confirmed back to the exact pre-test single-row
+  `core_config_data` state (`internal/last_seen_version` only).
 - **PRO-1461 done — multi-website Phase 2 (RFC_MULTI_WEBSITE.md §2): wizard
   website-chooser step + Settings website selector, wired to the
   already-built `WebsiteContext` seam** — plus the native `Stores >
@@ -1614,12 +1665,11 @@ PRO-1267 (engine: Magento product-identity contract note).
    intended UX (vs. showing blank Settings fields for that website without
    forcing the wizard) — currently mirrors the existing single-website
    "wizard-first" gating, extended per-website, but wasn't spelled out by
-   the task; (b) `smaily_connect/logging/verbosity` now has no UI home at
-   all (CLI/DB-only) since the native surface removal — target-spec §4.2
-   already flagged it as needing a Log-page control, just not yet built;
-   worth prioritizing as a fast-follow rather than leaving it CLI-only
-   indefinitely; (c) the three `intelligence/sync_catalog`/`sync_customers`/
-   `sync_orders` toggles lost their only UI (native) the same way — per
-   target-spec decision 4 they're slated for outright removal (observer
-   gates still live, not yet deleted), so this is arguably fine, but flagging
-   for awareness alongside (b).
+   the task; ~~(b) `smaily_connect/logging/verbosity` now has no UI home at
+   all (CLI/DB-only) since the native surface removal~~ **Resolved
+   (PRO-1468):** a real control now lives on the Log page (§2.4/§4.2), see
+   the STATUS entry above; (c) the three `intelligence/sync_catalog`/
+   `sync_customers`/`sync_orders` toggles lost their only UI (native) the
+   same way — per target-spec decision 4 they're slated for outright
+   removal (observer gates still live, not yet deleted), so this is
+   arguably fine, but flagging for awareness alongside (a).
