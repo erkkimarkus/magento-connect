@@ -9,17 +9,20 @@ declare(strict_types=1);
 namespace Smaily\Connect\Model\Multilingual;
 
 use Magento\Store\Model\StoreManagerInterface;
+use Magento\Store\Model\Website;
 
 /**
- * Maps Smaily account keys onto Magento store views.
+ * Maps Smaily account keys onto Magento store views, scoped to one website.
  *
  * The Woo-aligned surfaces (admin panels, mapping rows) address per-language
  * Smaily accounts by an account key (the language code, or 'default'); in
  * Magento a per-language account is a store-view scoped credential set, so
  * an account key resolves to the store views whose locale matches that
- * language. Used both by the admin save path (writing mode-A credentials)
- * and by the automation dispatcher (posting a mapping row's workflow through
- * the account the row names).
+ * language. The binding unit is website x language (RFC_MULTI_WEBSITE.md
+ * §2): two websites that both have an 'en' store view are distinct account
+ * keys, never resolved across each other. Used both by the admin save path
+ * (writing mode-A credentials) and by the automation dispatcher (posting a
+ * mapping row's workflow through the account the row names).
  */
 class AccountResolver
 {
@@ -30,16 +33,22 @@ class AccountResolver
     }
 
     /**
-     * Store view IDs whose language matches the account key.
+     * Store view IDs, within the given website, whose language matches the
+     * account key.
      *
      * @return int[]
      */
-    public function storeIdsForAccountKey(string $accountKey): array
+    public function storeIdsForAccountKey(string $accountKey, int $websiteId): array
     {
+        $website = $this->storeManager->getWebsite($websiteId);
+        if (!$website instanceof Website) {
+            return [];
+        }
+
         $storeIds = [];
-        foreach ($this->storeManager->getStores() as $store) {
-            if ($this->languageResolver->forStore((int)$store->getId()) === $accountKey) {
-                $storeIds[] = (int)$store->getId();
+        foreach ($website->getStoreIds() as $storeId) {
+            if ($this->languageResolver->forStore((int)$storeId) === $accountKey) {
+                $storeIds[] = (int)$storeId;
             }
         }
 
@@ -47,36 +56,42 @@ class AccountResolver
     }
 
     /**
-     * A representative store view for credential resolution ('default' =
-     * default scope).
+     * A representative store view, within the given website, for credential
+     * resolution ('default' = default scope).
      */
-    public function storeIdForAccountKey(string $accountKey): ?int
+    public function storeIdForAccountKey(string $accountKey, int $websiteId): ?int
     {
         if ($accountKey === '' || $accountKey === 'default') {
             return null;
         }
-        $storeIds = $this->storeIdsForAccountKey($accountKey);
+        $storeIds = $this->storeIdsForAccountKey($accountKey, $websiteId);
 
         return $storeIds[0] ?? null;
     }
 
     /**
-     * Distinct storefront languages, default store's language first.
+     * Distinct storefront languages within the given website, its default
+     * store's language first.
      *
      * @return string[]
      */
-    public function detectedLanguages(): array
+    public function detectedLanguages(int $websiteId): array
     {
+        $website = $this->storeManager->getWebsite($websiteId);
+        if (!$website instanceof Website) {
+            return [];
+        }
+
         $languages = [];
-        $defaultStore = $this->storeManager->getDefaultStoreView();
+        $defaultStore = $website->getDefaultStore();
         if ($defaultStore !== null) {
             $default = $this->languageResolver->forStore((int)$defaultStore->getId());
             if ($default !== '') {
                 $languages[] = $default;
             }
         }
-        foreach ($this->storeManager->getStores() as $store) {
-            $language = $this->languageResolver->forStore((int)$store->getId());
+        foreach ($website->getStoreIds() as $storeId) {
+            $language = $this->languageResolver->forStore((int)$storeId);
             if ($language !== '' && !in_array($language, $languages, true)) {
                 $languages[] = $language;
             }

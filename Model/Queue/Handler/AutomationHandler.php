@@ -88,7 +88,7 @@ class AutomationHandler implements EventHandlerInterface
                     // The mapping row names the account. 'default' (and an
                     // account whose language no longer has a store view)
                     // resolves to null = the default-scope credentials.
-                    $clientStoreId = $this->accountResolver->storeIdForAccountKey($match->accountKey);
+                    $clientStoreId = $this->accountResolver->storeIdForAccountKey($match->accountKey, $websiteId);
                 }
                 $this->clientProvider->forStore($clientStoreId)->post(SmailyClient::ENDPOINT_AUTORESPONDER, [
                     'autoresponder' => $match->workflowId,
