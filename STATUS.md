@@ -5,10 +5,86 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1467 — sandbox entrypoint already-installed
-guard)_
+_Last updated: 2026-07-20 (PRO-1462/PRO-1457 — multi-website Phase 3, turning
+on already-built per-website plumbing)_
 
 ## Where we are
+
+- **PRO-1462/PRO-1457 done — multi-website Phase 3 (RFC_MULTI_WEBSITE.md §6):
+  automation mapping saves at the real website scope, and consent reconcile
+  covers every resolved Smaily account, not just a website's default one.**
+  Two independent fixes, both reusing schema/plumbing Phase 1 already built:
+  1. **Automation mapping website routing.** `Model\Adminhtml\WizardStepSaver
+     ::saveAutomations()` passed `Model\Automation\MappingSaver::save()` a
+     hardcoded `websiteId=0`; it now threads through the real target website
+     (`WebsiteContext::getWebsiteId()`, same idiom the rest of the wizard's
+     writes already use). `Router` already preferred a website-specific row
+     over a `website_id=0` one (`website_id IN [$websiteId, 0]`, ordered
+     DESC) — no change needed there. The admin's own prefill
+     (`ViewModel\Adminhtml\WizardData::getSavedMappings()`) was still
+     hardcoded to `website_id=0` only, which would have gone stale the moment
+     a website-scoped save landed; it now applies the same
+     website-beats-global merge as the Router (`IN [$websiteId, 0]`, ordered
+     ASC so the website-specific row wins the keyed array). **Migration:** no
+     row is moved or renamed — a single-website install's pre-existing
+     `website_id=0` rows (from the 2.8.x migration's default-scope seeding,
+     or any pre-Phase-3 save) keep resolving exactly as before, both via the
+     Router and via the admin's prefill, until that website's own row is
+     saved.
+  2. **Consent reconcile per-account coverage (closes PRO-1457).**
+     `Cron\ContactReconcile` iterated websites but polled Smaily using only
+     each website's default store's account — on multilingual mode A
+     (per-language Smaily accounts), unsubscribes made directly in a
+     non-default language's account were never pulled back. The cron now
+     resolves every distinct account a website has (`Multilingual
+     \AccountResolver::detectedLanguages()`/`storeIdForAccountKey()`, website
+     x language) and polls each once, deduplicated by the account's actual
+     resolved credentials (subdomain+username) so two account keys that
+     happen to share the same underlying Smaily account are never polled
+     twice. Each account keeps its own reconcile cursor — the action log's
+     `seq_id` numbering is per Smaily account, so sharing one would skip or
+     re-replay events; the website's own default account keeps the
+     pre-existing flag key (`smaily_connect_reconcile_seq_w<websiteId>`)
+     unchanged so an upgrade never replays its whole history, while an
+     additional per-language account gets a new `_<accountKey>`-suffixed key.
+  **Verification:** 6 new unit tests (`Test/Unit/Model/Adminhtml/
+  WizardStepSaverTest.php` — mapping save routes through the target website;
+  `Test/Unit/Cron/ContactReconcileTest.php`, 5 cases — polls every distinct
+  per-language account, dedupes an account reached via two keys, the default
+  account keeps its pre-existing flag key, a new per-language account gets
+  its own suffixed key, an unconfigured account is skipped) plus 3 new
+  integration tests against real MySQL (`Test/Integration/Adminhtml/
+  WizardStepSaverTest.php` — a mapping save lands at the real website row,
+  a legacy `website_id=0` row survives untouched, and the Router prefers the
+  new row for this website while a different/unmigrated website still
+  resolves the legacy fallback; `Test/Integration/Adminhtml/WizardDataTest.php`,
+  2 cases — the admin prefill prefers a website row over a legacy global one
+  for the same key, and falls back to the legacy row when the website hasn't
+  saved its own) — 182 unit tests green, 64 integration tests green
+  (throwaway MySQL), phpcs 0 errors, phpstan clean. Sandbox `setup:upgrade`
+  + `setup:di:compile` both green (new `AccountResolver` constructor
+  dependency on `ContactReconcile` resolved cleanly). **Real end-to-end
+  check, not just tests:** on the sandbox (single website, single store
+  view — Main Website, "default" store), ran the actual
+  `WizardStepSaver::save('connect'/'automations', …)` path through a real
+  bootstrap: a saved mapping landed as a real `website_id=1` row, `Router::
+  resolve()` picked it, and `WizardData::getSavedMappings()` reflected it.
+  Separately inserted a raw `website_id=0` row (simulating a pre-existing/
+  2.8.x-migrated install), confirmed `Router` and the admin prefill both
+  resolved it unchanged, then saved a different trigger for website 1 and
+  confirmed the legacy row was left untouched. For the reconcile side, wrote
+  real website-scoped consent config + a (fake) connected account, ran
+  `Cron\ContactReconcile::execute()` directly, and confirmed a real
+  `GET api/history.php` call was attempted with `var/log/smaily_connect.log`
+  recording `Consent reconcile failed {"website_id":1,"account_key":"default",
+  ...}` — proving the new `account_key` context and the real per-account
+  code path both fire correctly for today's single-account shape. The
+  sandbox has only one store view, so it cannot exercise a second genuinely
+  distinct per-language account live; that shape (2+ distinct accounts,
+  dedup, per-account flag keys) is covered by the `ContactReconcileTest`
+  regression suite instead, run against mocked account resolution. All
+  sandbox config/mapping/flag rows created for these checks were deleted
+  afterwards (verified back to 0 rows).
 
 - **PRO-1467 done — sandbox `entrypoint.sh` no longer reinstalls Magento on
   every container start.** `bin/magento setup:install` now runs only when
