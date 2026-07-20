@@ -1717,18 +1717,20 @@ PRO-1267 (engine: Magento product-identity contract note).
    `setup:install` now only runs when `app/etc/env.php` doesn't already
    exist; verified with a container rebuild + `docker compose down` /
    `up -d` against the existing volumes.
-4. PRO-1461 follow-ups (Medium): (a) confirm the Settings-selector-switches-
+4. ~~PRO-1461 follow-ups (Medium): (a) confirm the Settings-selector-switches-
    to-an-unconfigured-website → redirect-into-the-wizard behaviour is the
    intended UX (vs. showing blank Settings fields for that website without
    forcing the wizard) — currently mirrors the existing single-website
    "wizard-first" gating, extended per-website, but wasn't spelled out by
-   the task; ~~(b) `smaily_connect/logging/verbosity` now has no UI home at
-   all (CLI/DB-only) since the native surface removal~~ **Resolved
-   (PRO-1468):** a real control now lives on the Log page (§2.4/§4.2), see
-   the STATUS entry above; ~~(c) the three `intelligence/sync_catalog`/
-   `sync_customers`/`sync_orders` toggles lost their only UI (native) the
-   same way — per target-spec decision 4 they're slated for outright
-   removal (observer gates still live, not yet deleted)~~ **Resolved
-   (PRO-1468):** the toggles, their config paths' readers/writers and the
-   observer gates are all deleted — ingest now gates purely on
-   `Settings::isConnected()`, see the STATUS entry above.
+   the task; (b) `smaily_connect/logging/verbosity` now has no UI home at
+   all (CLI/DB-only) since the native surface removal; (c) the three
+   `intelligence/sync_catalog`/`sync_customers`/`sync_orders` toggles lost
+   their only UI (native) the same way.~~ **Resolved (Erkki, 2026-07-20 +
+   PRO-1468):** (a) the redirect-into-the-wizard behaviour for an
+   unconfigured website STANDS as-is — no change needed, Erkki confirmed
+   the extended single-website "wizard-first" gating is the intended UX;
+   (b) a real verbosity control now lives on the Log page (§2.4/§4.2); (c)
+   the three Intelligence sync toggles, their config paths' readers/writers
+   and the observer gates are all deleted — ingest now gates purely on
+   `Settings::isConnected()`. (b) and (c) are both covered by the STATUS
+   entries above.

@@ -23,10 +23,6 @@ executed verification matrix (Luma / Hyvä / strict CSP — all pass) in
 
 ## Admin / UX
 
-- Config-scope override honesty on the Settings page: reads resolve the
-  store scope, saves land at the default scope — a website-scope override
-  (e.g. migrated from a per-website 2.8.x setup) silently shadows a fresh
-  save. Surface/edit overrides or warn when one is in effect.
 - Engine automations form: per-language `automation_map` editing
   (`language_mode: per_language`); MVP ships single-language maps.
 - Backfill job cancel button in the admin grid (CLI/DB only for now).
