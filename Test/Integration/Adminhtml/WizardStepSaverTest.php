@@ -13,6 +13,7 @@ use Magento\Framework\App\Config\Storage\WriterInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\StoreManagerInterface;
+use Smaily\Connect\Model\Adminhtml\WebsiteContext;
 use Smaily\Connect\Model\Adminhtml\WizardStepSaver;
 use Smaily\Connect\Model\Automation\ConfigRowNormalizer;
 use Smaily\Connect\Model\Automation\MappingSaver;
@@ -51,6 +52,7 @@ class WizardStepSaverTest extends IntegrationTestCase
             new SubdomainNormalizer(),
             $this->createMock(AccountResolver::class),
             $this->objectManager->get(Config::class),
+            new WebsiteContext($storeManager),
             $storeManager,
             $this->createMock(MappingSaver::class),
             $this->createMock(SmailyClientProvider::class),

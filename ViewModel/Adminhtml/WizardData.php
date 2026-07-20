@@ -10,12 +10,11 @@ namespace Smaily\Connect\ViewModel\Adminhtml;
 
 use Magento\Customer\Model\ResourceModel\Customer\CollectionFactory as CustomerCollectionFactory;
 use Magento\Framework\App\Config\ScopeConfigInterface;
-use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
 use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
-use Magento\Store\Model\StoreManagerInterface;
+use Smaily\Connect\Model\Adminhtml\WebsiteContext;
 use Smaily\Connect\Model\Adminhtml\WizardStepSaver;
 use Smaily\Connect\Model\Automation\Mapping;
 use Smaily\Connect\Model\Automation\Trigger;
@@ -44,22 +43,8 @@ class WizardData implements ArgumentInterface
         private readonly ProductCollectionFactory $productCollectionFactory,
         private readonly Json $serializer,
         private readonly MappingCollectionFactory $mappingCollectionFactory,
-        private readonly StoreManagerInterface $storeManager
+        private readonly WebsiteContext $websiteContext
     ) {
-    }
-
-    /**
-     * The website this boot data describes. No website chooser exists yet
-     * (Phase 2, RFC_MULTI_WEBSITE.md §2) — always the installation's default
-     * website, which for a single-website install is its only website.
-     */
-    private function defaultWebsiteId(): int
-    {
-        try {
-            return (int)($this->storeManager->getDefaultStoreView()?->getWebsiteId() ?? 0);
-        } catch (NoSuchEntityException) {
-            return 0;
-        }
     }
 
     public function isSetupCompleted(): bool
@@ -79,7 +64,7 @@ class WizardData implements ArgumentInterface
                 'multilingualMode' => $this->getMultilingualMode(),
             ],
             'multilingual' => [
-                'languages' => $this->accountResolver->detectedLanguages($this->defaultWebsiteId()),
+                'languages' => $this->accountResolver->detectedLanguages($this->websiteContext->getWebsiteId()),
                 'fallbackLanguage' => $this->config->getFallbackLanguage(),
             ],
             'subscribers' => [
@@ -168,7 +153,7 @@ class WizardData implements ArgumentInterface
      */
     public function isMultilingual(): bool
     {
-        return count($this->accountResolver->detectedLanguages($this->defaultWebsiteId())) > 1;
+        return count($this->accountResolver->detectedLanguages($this->websiteContext->getWebsiteId())) > 1;
     }
 
     /**
@@ -176,7 +161,7 @@ class WizardData implements ArgumentInterface
      */
     public function getDetectedLanguages(): array
     {
-        return $this->accountResolver->detectedLanguages($this->defaultWebsiteId());
+        return $this->accountResolver->detectedLanguages($this->websiteContext->getWebsiteId());
     }
 
     /**
@@ -198,7 +183,7 @@ class WizardData implements ArgumentInterface
      */
     public function getMultilingualAccounts(): array
     {
-        $websiteId = $this->defaultWebsiteId();
+        $websiteId = $this->websiteContext->getWebsiteId();
         $accounts = [];
         foreach ($this->accountResolver->detectedLanguages($websiteId) as $language) {
             $storeId = $this->accountResolver->storeIdForAccountKey($language, $websiteId);

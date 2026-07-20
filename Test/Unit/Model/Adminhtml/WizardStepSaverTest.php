@@ -15,6 +15,7 @@ use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\TestCase;
+use Smaily\Connect\Model\Adminhtml\WebsiteContext;
 use Smaily\Connect\Model\Adminhtml\WizardStepSaver;
 use Smaily\Connect\Model\Automation\ConfigRowNormalizer;
 use Smaily\Connect\Model\Automation\MappingSaver;
@@ -84,6 +85,7 @@ class WizardStepSaverTest extends TestCase
             $normalizer,
             $this->accountResolver,
             $this->config,
+            $this->createMock(WebsiteContext::class),
             $this->createMock(StoreManagerInterface::class),
             $this->createMock(MappingSaver::class),
             $this->clientProvider,

@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Model\Multilingual;
 
+use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Store\Model\Website;
 
@@ -40,8 +41,8 @@ class AccountResolver
      */
     public function storeIdsForAccountKey(string $accountKey, int $websiteId): array
     {
-        $website = $this->storeManager->getWebsite($websiteId);
-        if (!$website instanceof Website) {
+        $website = $this->website($websiteId);
+        if ($website === null) {
             return [];
         }
 
@@ -77,8 +78,8 @@ class AccountResolver
      */
     public function detectedLanguages(int $websiteId): array
     {
-        $website = $this->storeManager->getWebsite($websiteId);
-        if (!$website instanceof Website) {
+        $website = $this->website($websiteId);
+        if ($website === null) {
             return [];
         }
 
@@ -98,5 +99,21 @@ class AccountResolver
         }
 
         return $languages;
+    }
+
+    /**
+     * The website model behind an id, or null when the id no longer resolves
+     * (a stale id from an event payload after a website was deleted must
+     * resolve to "no stores", not throw).
+     */
+    private function website(int $websiteId): ?Website
+    {
+        try {
+            $website = $this->storeManager->getWebsite($websiteId);
+        } catch (NoSuchEntityException) {
+            return null;
+        }
+
+        return $website instanceof Website ? $website : null;
     }
 }

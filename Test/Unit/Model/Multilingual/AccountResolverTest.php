@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Test\Unit\Model\Multilingual;
 
+use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Store\Api\Data\WebsiteInterface;
 use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
@@ -118,5 +119,18 @@ class AccountResolverTest extends TestCase
 
         self::assertSame([], $resolver->detectedLanguages(self::WEBSITE_ONE));
         self::assertSame([], $resolver->storeIdsForAccountKey('en', self::WEBSITE_ONE));
+    }
+
+    public function testAStaleWebsiteIdResolvesEmptyInsteadOfThrowing(): void
+    {
+        $storeManager = $this->createMock(StoreManagerInterface::class);
+        $storeManager->method('getWebsite')->willThrowException(
+            new NoSuchEntityException(__('The website with id %1 that was requested wasn\'t found.', 99))
+        );
+        $resolver = new AccountResolver($storeManager, $this->languageResolver);
+
+        self::assertSame([], $resolver->detectedLanguages(99));
+        self::assertSame([], $resolver->storeIdsForAccountKey('en', 99));
+        self::assertNull($resolver->storeIdForAccountKey('en', 99));
     }
 }

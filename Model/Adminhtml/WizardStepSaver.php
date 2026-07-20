@@ -12,7 +12,6 @@ use Magento\Framework\App\Cache\Type\Config as ConfigCache;
 use Magento\Framework\App\Cache\TypeListInterface;
 use Magento\Framework\App\Config\Storage\WriterInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
-use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Store\Model\Website;
@@ -54,6 +53,7 @@ class WizardStepSaver
         private readonly SubdomainNormalizer $normalizer,
         private readonly AccountResolver $accountResolver,
         private readonly Config $config,
+        private readonly WebsiteContext $websiteContext,
         private readonly StoreManagerInterface $storeManager,
         private readonly MappingSaver $mappingSaver,
         private readonly SmailyClientProvider $smailyClientProvider,
@@ -67,7 +67,7 @@ class WizardStepSaver
      */
     public function save(string $step, array $data): array
     {
-        $websiteId = $this->defaultWebsiteId();
+        $websiteId = $this->websiteContext->getWebsiteId();
         $errors = match ($step) {
             'connect' => $this->saveConnect($data, $websiteId),
             'subscribers' => $this->saveSubscribers($data, $websiteId),
@@ -81,21 +81,6 @@ class WizardStepSaver
         $this->cacheTypeList->cleanType(ConfigCache::TYPE_IDENTIFIER);
 
         return $errors;
-    }
-
-    /**
-     * The website these save methods target. No website chooser exists yet
-     * (Phase 2, RFC_MULTI_WEBSITE.md §2) — every save targets the
-     * installation's default website, which for a single-website install is
-     * its only website.
-     */
-    private function defaultWebsiteId(): int
-    {
-        try {
-            return (int)($this->storeManager->getDefaultStoreView()?->getWebsiteId() ?? 0);
-        } catch (NoSuchEntityException) {
-            return 0;
-        }
     }
 
     /**
