@@ -5,10 +5,98 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1449 — engine contract synced to v1.5.0,
-docs-only)_
+_Last updated: 2026-07-20 (PRO-1460 — multi-website Phase 1: website-scoped
+config writes + website x language account resolver)_
 
 ## Where we are
+
+- **PRO-1460 done — multi-website Phase 1 (RFC_MULTI_WEBSITE.md §1–§2):
+  website-scoped Wizard/Settings writes + a website x language
+  `AccountResolver`, resolver-only, no UI.** Two coordinated changes, both
+  reversible and both invisible to a single-website install:
+  1. **Write scope.** `Model\Adminhtml\WizardStepSaver`'s `save()` resolves
+     the installation's default website (`getDefaultStoreView()->getWebsiteId()`,
+     the same "canonical default" idiom `CatalogPayloadBuilder::canonicalStoreId()`
+     already uses) and threads it into `saveConnect()`/`saveSubscribers()`/
+     `saveAutomations()` — every field in RFC §1's list (connection
+     credentials, the multilingual mode, subscriber sync toggles, automation
+     toggles/workflows/cutoff/fields) now writes via
+     `WriterInterface::save($path, $value, ScopeInterface::SCOPE_WEBSITES, $websiteId)`
+     instead of bare default-scope saves. Deliberately **untouched** (per the
+     task's own scope fence): the Intelligence tab (`saveIntelligence()` —
+     Phase 4, engine tenant scoping), RSS (`saveRss()` — outside §1's field
+     list, its `Config::isRssEnabled()` getter is store-view-scoped, not the
+     website-scope helper the others use), `saveFinish()`'s setup-completed
+     flag (Phase 2, per-website `SetupGuard`), the mode-A fallback-language
+     hint (`XML_PATH_FALLBACK_LANGUAGE` — its getter reads literal default
+     scope with no scope argument at all, unlike its siblings; moving the
+     write without fixing that getter would silently break it, flagged as a
+     follow-up, not fixed here), and the automation-mapping table's own
+     `MappingSaver::save(..., 0, ...)` website id (§6's "already-hardcoded
+     0", explicitly Phase 3). **No config path renamed** — same paths, new
+     scope argument only, so the 2.8.x migration patch is untouched and its
+     tests stay green.
+  2. **Resolver dimension.** `Model\Multilingual\AccountResolver::detectedLanguages()`
+     and `storeIdsForAccountKey()` (plus `storeIdForAccountKey()`) gain a
+     required `$websiteId` parameter and scope their store iteration to
+     `$storeManager->getWebsite($websiteId)->getStoreIds()`/`getDefaultStore()`
+     instead of every store in the installation — two websites sharing a
+     language (e.g. both `en`) no longer collapse onto the same account key.
+     Every call site now threads a website id: `WizardStepSaver`'s mode-A
+     per-language write loop and its "leaving mode A" teardown (now scoped to
+     the target website's own stores, not every store in the install),
+     `WizardStepSaver::availableWorkflowIdsByAccount()` (the PRO-1286
+     preserve-list check), `Model\Queue\Handler\AutomationHandler` (already
+     had the event's `website_id` in hand, just wasn't passing it), and
+     `ViewModel\Adminhtml\WizardData` (kept its own public methods'
+     zero-arg signatures — no UI selector exists yet — but now resolves the
+     installation's default website internally before calling the resolver,
+     a forced but behavior-preserving knock-on of the resolver's new
+     required parameter).
+  **Deliberately out of scope, matching the task fence:** no website chooser
+  UI (Phase 2), no per-website `SetupGuard` (Phase 2), no automation-mapping
+  website id fix (Phase 3), no engine tenant scoping (Phase 4) — the RFC's
+  phase boundaries, not partially anticipated here.
+  **Verification:** 20 new unit tests (`Test/Unit/Model/Multilingual/AccountResolverTest.php`,
+  6 cases: website-scoped `detectedLanguages`/`storeIdsForAccountKey`, no
+  cross-website bleed on a shared language, `storeIdForAccountKey`
+  default-account nulls, a non-`Website`-instance website resolving empty;
+  `Test/Unit/Model/Adminhtml/WizardStepSaverTest.php`, 6 new cases: connect
+  credentials + multilingual mode at website scope, the fallback-language
+  exception staying at default scope, subscriber/automation fields at
+  website scope, mode-A per-language writes resolving through the target
+  website, Intelligence/RSS staying at default scope) — 174 unit tests
+  green total, phpcs 0 errors, phpstan clean. New integration suite
+  `Test/Integration/Adminhtml/WizardStepSaverTest.php` (5 cases) exercises
+  the real `core_config_data` table end to end: connect/subscriber/
+  automation writes land as real `scope='websites'` rows at the resolved
+  website id; a **pre-existing default-scope row survives untouched
+  alongside the new website row** (the RFC's "fallback, not migration"
+  claim, checked against a real table, not a mock); saving twice updates
+  the same row instead of duplicating — 61 integration tests green
+  (throwaway MySQL, `SMAILY_IT_DB_PORT=3316`), including the pre-existing
+  2.8.x `MigrateLegacyConfigTest` suite unchanged (no path renamed). Sandbox
+  `setup:upgrade` + `setup:di:compile` green (a stale `db-data` volume from
+  an earlier session needed a one-off `--cleanup-database` reinstall first —
+  an environment hiccup unrelated to this change, noted under Questions
+  below). **Real end-to-end read/write check** (not just units): logged into
+  the live sandbox admin, POSTed the real `connect` step via
+  `smaily_connect/api/savestep` — the resulting `core_config_data` row
+  landed at `scope='websites', scope_id=1` (the sandbox's one real website).
+  A one-off bootstrap script then called the exact getters
+  `WizardData::getBootJson()` calls (`Config::isConnected()`/`getSubdomain()`/
+  `getMultilingualMode()`, no scope argument, `adminhtml` area code) and
+  confirmed they resolve the new website-scoped value correctly
+  (`isConnected(): true`, `getSubdomain(): pro1460demo`) — settling the one
+  open risk in this design (whether a no-arg read in the admin area walks
+  the store→website→default chain through the *real* default website, not
+  an admin pseudo-scope): `$storeManager->getStore()` resolves to store id 1,
+  website id 1, in a plain adminhtml bootstrap, matching the website the
+  write landed at. Deleting the website-scope row and reinserting the same
+  value at default scope only (simulating an un-migrated pre-existing
+  install) confirmed the getter still reads it correctly as a fallback — the
+  "no migration needed" half of the acceptance criteria, live. Sandbox
+  config rows cleared back to a pristine unconfigured state afterwards.
 
 - **PRO-1449 done — engine contract synced v1.4.1 → v1.5.0, docs-only.**
   `docs/RECENGINE_API_CONTRACT.md` overwritten byte-identical from engine
@@ -1224,3 +1312,20 @@ PRO-1267 (engine: Magento product-identity contract note).
    The compat package vendor/name is decided: `smaily/module-connect-hyva`
    (module PHP name stays `Hyva_SmailyConnect` per the Hyvä convention);
    actual publication remains part of the release train.
+3. Sandbox infra defect found during PRO-1460 verification (Low, not a
+   module bug — `.sandbox/entrypoint.sh` only): the container's entrypoint
+   runs `bin/magento setup:install` **unconditionally** on every container
+   start, with no "already installed" guard. `db-data`/`data` are named,
+   persistent Docker volumes (`docker_magento2-db-data`/`docker_magento2-data`),
+   so any `docker compose down` (or a container recreate) followed by
+   `up`/`start` re-runs a full `setup:install` against an already-installed
+   DB and reliably fails with `SQLSTATE[HY000]: ... Trigger already exists`
+   partway through, since Magento's schema recurring step assumes a green
+   field. Worked around this session with a one-off
+   `docker compose run --rm --entrypoint bash magento2 -lc "bin/magento
+   setup:install ... --cleanup-database"` against the same volumes, then
+   started the real `magento2` container with `--entrypoint
+   docker-php-entrypoint` to skip the flawed install step. A proper fix is a
+   one-line guard in `entrypoint.sh` (skip `setup:install` when
+   `app/etc/env.php` already exists) — small, but touches shared sandbox
+   infra outside this task's scope, so only flagged here, not fixed.
