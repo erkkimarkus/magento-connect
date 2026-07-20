@@ -5,11 +5,29 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-14 (PRO-1401 done — Settings > Automations tab rebuilt
-to the card-list + run-mode-pill spec §2.3.C, finding #9 fixed; the orphan
-abandoned-cart product-field control wired end to end)_
+_Last updated: 2026-07-20 (PRO-1456 — multi-website support RFC drafted,
+`docs/RFC_MULTI_WEBSITE.md`, awaiting review)_
 
 ## Where we are
+
+- **PRO-1456 — multi-website support RFC drafted, docs only.** Erkki's
+  binding direction (2026-07-20): one Magento website = one Campaign
+  Intelligence tenant + its own Smaily binding; inside a website the
+  existing multilingual mode choice is unchanged, but the account resolver
+  becomes website × language instead of today's install-wide language
+  keying; store groups are not a binding unit; single-website installs are
+  unaffected and migration maps the existing single tenant onto the default
+  website. `docs/RFC_MULTI_WEBSITE.md` works out the how, per subsystem
+  (config write scope, account resolver, engine tenant, queue/backfill
+  schema, ingest payload scoping, consent-reconcile completeness,
+  migration) and a 5-phase LOW-effort rollout — Phase 4 (engine tenant per
+  website) is explicitly gated on PRO-1459 (engine-side per-tenant
+  provisioning/billing confirmation), and Phase 5 starts with a one-way-door
+  schema migration (`smaily_ingest_queue` gains a `website_id` column) that
+  needs its own sign-off before build. No code changed in this pass; the
+  scope map that grounds the RFC's current-state claims (file:line
+  citations per subsystem) was produced as investigation-only groundwork,
+  not committed as a repo doc. Awaiting review before any phase starts.
 
 - **PRO-1401 done — Settings > Automations tab rebuilt to target spec
   (§2.3.C), the finding-#9 fix.** The store-event triggers (Welcome / First
