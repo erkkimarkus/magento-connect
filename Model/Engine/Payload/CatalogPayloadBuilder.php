@@ -34,7 +34,7 @@ use Smaily\Connect\Model\Multilingual\LanguageResolver;
  */
 class CatalogPayloadBuilder
 {
-    /** Contract §3/§5 default when the store has no currency configured. */
+    /** Contract §3 default when the store has no currency configured. */
     private const DEFAULT_CURRENCY = 'EUR';
 
     public function __construct(

@@ -291,7 +291,7 @@ toggle; catalog, customer and order sync run automatically once connected.
 |---|---|
 | Catalog | On product save/delete (deletes become out-of-stock) |
 | Customers | On profile create/update (no consent fields — the engine is a separate lawful surface) |
-| Orders | On order placement and status changes |
+| Orders | On order placement, status changes, and refunds — a credit memo re-syncs the order, so a fully credited line is reported as returned and stops being recommended back to that customer (a partly credited line still counts as kept) |
 | Browse events | Product views, searches, cart adds, checkout — batched from the storefront (**Storefront Browse Tracking**, off by default — a separate, consent-gated toggle, not part of the always-on sync above) |
 
 Browse tracking respects Magento's cookie restriction mode and sends events

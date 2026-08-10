@@ -5,10 +5,120 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-07-20 (PRO-1468 — Intelligence sync toggles removed,
-closing the second gap PRO-1461's native-config removal left open)_
+_Last updated: 2026-08-10 (PRO-1762 — engine contract synced v1.5.0 → v1.8.1
+and carried through code: catalog `currency`, browse-hint deprecation, order
+return signals)_
 
 ## Where we are
+
+- **PRO-1762 done — engine contract synced v1.5.0 → v1.8.1, and every wire
+  change carried through code + tests in the same pass.**
+  `docs/RECENGINE_API_CONTRACT.md` overwritten byte-identical from engine main
+  (`bin/check-contract-staleness.sh` green against the local `../re`
+  checkout, engine commit `bfebf94`). Three deltas needed code:
+  1. **Catalog `currency`** (v1.7.0 §3, optional). Every catalog row now
+     carries it; orders have carried `currency` since v1.4.0, so the two
+     ingest paths disagreed on what a price was denominated in.
+     **First implementation was wrong and the sandbox caught it, not the unit
+     tests:** it sent the canonical store's BASE currency, on the reasoning
+     that Magento authors catalog prices in base. Exercised live against a
+     store with base USD / display EUR, the emitted price was 16.25 (Magento's
+     own price readers — `RegularPrice`/`BasePrice`, which `final_price`
+     resolves through — already convert into the display currency) while the
+     label said USD: a price stated in a currency it was never charged in,
+     strictly worse than sending no currency at all. Now sends the canonical
+     store's **default display** currency, so both halves come from one place;
+     re-verified live in all three configurations (EUR/EUR → EUR at 22.99,
+     USD/EUR → EUR at 16.25, USD/USD → USD at 22.99). `'EUR'` fallback when no
+     store resolves, matching the contract default. **EUR stores are unchanged
+     engine-side** — the engine's column default is `EUR`, so an explicit
+     `"EUR"` stores identically.
+     **Scope-relaxation question answered: NO, the field does not unlock it,
+     and the constraint was not relaxed.** The old code comment justified
+     `canonicalStoreId()`'s single-store-scope pin with "there is no currency
+     field in the wire contract" — that justification is now stale, but the
+     constraint stands on independent grounds: §3 still states "one currency
+     per tenant remains the assumed model", and a catalog row is keyed on
+     `sku` **per tenant**, so a second store scope's rows would upsert onto
+     the SAME row — they can only overwrite each other, never coexist.
+     Per-scope catalog rows require a tenant per scope, which is the
+     multi-website RFC's Phase 4 (gated on PRO-1459), not this field. Comment
+     rewritten to say so; no behaviour change to the scope pin.
+  2. **Deprecated browse hints** (v1.7.0 §6). `Engine\BrowseEventValidator`
+     no longer accepts `smaily_rec_id` / `smaily_ctx` from the anonymous
+     beacon: the engine stopped persisting and consulting both (dropping the
+     4th-priority attribution fallback they fed), yet still UUID-validates
+     `smaily_rec_id`, so a truncated cookie could reject an otherwise good
+     event for a value nothing reads. Both trackers (`view/frontend/web/js/
+     tracker.js` and the Hyvä `compat/` copy) stop echoing the cookies onto
+     the beacon — the cookies themselves and `attribution.js`'s writes are
+     untouched, because the order-level cookie→order attribution path (§5,
+     `Engine\AttributionManager` → `smaily_order_attribution` →
+     `OrderPayloadBuilder`) is the one that actually works and is unchanged.
+     The validator's pre-existing refusal of client-asserted `customer_email`
+     is kept as-is (it was already correct, and covers PRO-1502's browse
+     deprecation too).
+  3. **Order return signals** (v1.8.0 §5). `items[].returned_at` is derived
+     from the order's own credit memos on every build, never from a one-shot
+     event — the engine replaces an order's items wholesale on re-ingest, so a
+     later sync that omitted the field would ERASE a return it already had;
+     deriving at send time means the live observer, a flusher retry and the
+     order backfill all re-send it for free. A line is marked returned only
+     once its FULL quantity has been credited (§5: a partly credited line is
+     still owned by the customer, so it stays KEPT — this is also PRO-1806's
+     clarification, verified live); quantities accumulate across memos and the
+     memo that COMPLETES the line dates the return; a dateless memo falls back
+     to the order date, the same stable basis the engine's own full-refund
+     derivation uses. **Neither reason field is sent** (`return_reason_
+     standardised` / `return_reason_raw`): Magento Open Source has no
+     structured return taxonomy anywhere, and §5 is explicit that guessing one
+     is worse than sending nothing. **A second, load-bearing gap this
+     uncovered:** `Observer\Engine\OrderSaveAfter` only enqueued when the order
+     STATE moved — and a Magento partial credit memo does not move the state at
+     all, so the return signal would never have left the store. The gate now
+     also fires when `total_refunded` changes.
+  **Doc-only siblings verified, no code needed:** PRO-1845 (v1.8.1 —
+  `403 tenant_inactive` now also covers purged tenants): `Engine\Client`
+  treats every non-429 4xx as a non-retryable `EngineRequestException`, the
+  ingest flusher marks such a batch terminally failed rather than rescheduling
+  it, and the admin is notified through `Cron\HealthCheck` (ping fails the
+  same way) plus the Log page's failed-deliveries banner — the §2 sender rule
+  exactly; grep-confirmed that `tenant_status` appears nowhere in the codebase,
+  so nothing branches on that fixed string. PRO-1536 (§7 identity/merge
+  errata): `browse_events_already_bound` is referenced nowhere — our merge
+  handler reads no response fields at all. PRO-1502 (v1.6.0): browse
+  `customer_email` was already refused; `tags.category_defaulted` is NOT sent
+  and our `categoryPath()` substitutes the literal `'uncategorized'` for a
+  product with no categories — exactly the placeholder case the flag exists
+  for — logged as a follow-up rather than folded into this sync's scope.
+  **Verification — real payloads through the real builders/observers on the
+  sandbox, not just green units.** Stood up a mock engine inside the container
+  and pointed the stored endpoints map at it (via the real
+  `Settings::storeExchange()` seam), then drove genuinely real flows: two
+  products created through `ProductRepositoryInterface::save()` (catalog rows
+  captured on the wire carrying `"currency": "EUR"`), a real guest order placed
+  through the quote → `CartManagementInterface::placeOrder()` path (1 × line A,
+  3 × line B), an offline invoice, then two real credit memos through
+  `CreditmemoFactory::createByOrder()` + `CreditmemoManagementInterface::
+  refund()`. Captured wire evidence: the invoice save produced NO queue row
+  (the gate stays tight); credit memo #1 (line A 1/1, line B 1/3) DID produce
+  one **while the order state never left `new`** — the exact case the old gate
+  missed — and its payload carried `returned_at` on line A only, line B still
+  kept; credit memo #2 (line B 2/3 more) produced a payload where line B
+  carries the LATER memo's timestamp and line A's return was **re-sent, not
+  erased**, demonstrating the re-send-on-resync rule on a real second sync. A
+  real `POST /smaily/relay` beacon carrying `smaily_rec_id`, `smaily_ctx` and
+  a spoofed `customer_email` was forwarded to the engine with all three
+  stripped and `smaily_visitor_token` intact. Gates: 200 unit tests green (8
+  new: 2 catalog currency, 3 order return signals, 1 browse hint, 3
+  `OrderSaveAfterTest` — a new file, pinning the refund-aware gate), phpcs 0
+  errors, phpstan clean, 65 integration tests green (throwaway MySQL), sandbox
+  `setup:upgrade` + `setup:di:compile` both green (`OrderPayloadBuilder` gained
+  two constructor dependencies). Sandbox restored: every fixture product,
+  order, invoice, credit memo, quote and ingest-queue row deleted, the faked
+  `smaily_connect/intelligence/*` config removed, currency config returned to
+  EUR/EUR/EUR, reindexed — confirmed back to the exact pre-test 21-row
+  `core_config_data` state with zero products/orders/memos/queue rows.
 
 - **PRO-1468 (Intelligence sync toggles) done — the three per-entity
   Catalog/Customers/Orders sync toggles removed per target-spec §4.2
