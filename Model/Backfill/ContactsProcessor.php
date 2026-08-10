@@ -18,6 +18,7 @@ use Magento\Store\Model\Website;
 use Smaily\Connect\Model\Client\Exception\SmailyClientException;
 use Smaily\Connect\Model\Client\SmailyClient;
 use Smaily\Connect\Model\Client\SmailyClientProvider;
+use Smaily\Connect\Model\Config;
 use Smaily\Connect\Model\ContactSync\SubscriberPayloadBuilder;
 use Smaily\Connect\Model\Logger\Logger;
 
@@ -29,6 +30,10 @@ use Smaily\Connect\Model\Logger\Logger;
  * Cursor = last processed subscriber_id; each tick processes pages until
  * the time budget is spent, so a large base imports across several cron
  * runs without ever blocking the cron group.
+ *
+ * The website's stored "Enable subscriber synchronization" answer gates
+ * this import exactly as it gates the live paths and the reconcile tick —
+ * one stored answer owns every outbound contact path (PRO-1764).
  */
 class ContactsProcessor implements ProcessorInterface
 {
@@ -43,6 +48,7 @@ class ContactsProcessor implements ProcessorInterface
         private readonly SubscriberPayloadBuilder $payloadBuilder,
         private readonly SmailyClientProvider $clientProvider,
         private readonly StoreManagerInterface $storeManager,
+        private readonly Config $config,
         private readonly Logger $logger
     ) {
     }
@@ -52,6 +58,20 @@ class ContactsProcessor implements ProcessorInterface
      */
     public function process(Job $job): void
     {
+        // Same stored answer, same website resolution as the live paths
+        // (Observer\SubscriberSaveAfter, Cron\ContactReconcile): with the
+        // switch off nothing is sent, and the total says 0 instead of
+        // promising a sync that will not happen.
+        if (!$this->config->isSyncEnabled($job->getWebsiteId())) {
+            $job->setData('total_count', 0);
+            $this->jobManager->complete($job);
+            $this->logger->info('Contacts backfill sent nothing — subscriber synchronization is off', [
+                'website_id' => $job->getWebsiteId(),
+            ]);
+
+            return;
+        }
+
         $storeIds = $this->websiteStoreIds($job->getWebsiteId());
         if (!$storeIds) {
             $this->jobManager->fail($job, sprintf('Website %d has no stores', $job->getWebsiteId()));
