@@ -8,9 +8,7 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Model\Engine\Payload;
 
-use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\App\ResourceConnection;
-use Magento\Sales\Api\CreditmemoRepositoryInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderItemInterface;
 use Magento\Sales\Model\Order;
@@ -45,9 +43,7 @@ class OrderPayloadBuilder
     private const ATTRIBUTION_TABLE = 'smaily_order_attribution';
 
     public function __construct(
-        private readonly ResourceConnection $resourceConnection,
-        private readonly CreditmemoRepositoryInterface $creditmemoRepository,
-        private readonly SearchCriteriaBuilder $searchCriteriaBuilder
+        private readonly ResourceConnection $resourceConnection
     ) {
     }
 
@@ -63,16 +59,14 @@ class OrderPayloadBuilder
             return null;
         }
 
-        $orderedAt = strtotime((string)$order->getCreatedAt()) ?: time();
-
         $item = [
             'external_order_id' => (string)$order->getIncrementId(),
             'customer_email' => $email,
-            'ordered_at' => gmdate('Y-m-d\TH:i:s\Z', $orderedAt),
+            'ordered_at' => $this->wireTimestamp((string)$order->getCreatedAt()),
             'total_amount' => round((float)$order->getGrandTotal(), 4),
-            'currency' => (string)$order->getOrderCurrencyCode() ?: 'EUR',
+            'currency' => (string)$order->getOrderCurrencyCode() ?: CatalogPayloadBuilder::DEFAULT_CURRENCY,
             'status' => $status,
-            'items' => $this->items($order, $orderedAt),
+            'items' => $this->items($order),
         ];
 
         $discount = abs((float)$order->getDiscountAmount());
@@ -86,9 +80,9 @@ class OrderPayloadBuilder
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function items(OrderInterface $order, int $orderedAt): array
+    private function items(OrderInterface $order): array
     {
-        $returns = $this->returnsByOrderItem((int)$order->getEntityId());
+        $returns = $this->returnsByOrderItem($order);
         $items = [];
         foreach ($order->getItems() as $orderItem) {
             // Product rows only: children of configurables carry the price on
@@ -124,7 +118,7 @@ class OrderPayloadBuilder
             // sending nothing.
             $returned = $returns[(int)$orderItem->getItemId()] ?? null;
             if ($returned !== null && $returned['qty'] >= $qty) {
-                $row['returned_at'] = gmdate('Y-m-d\TH:i:s\Z', $returned['timestamp'] ?: $orderedAt);
+                $row['returned_at'] = $this->wireTimestamp($returned['created_at']);
             }
 
             $items[] = $row;
@@ -143,44 +137,58 @@ class OrderPayloadBuilder
      * re-sync can never erase a return the engine already has.
      *
      * Quantities accumulate across several credit memos for the same line;
-     * the latest contributing memo dates the return, because that is the one
-     * that completed it. A memo with no usable date falls back to the order
-     * date — the same basis the engine's own full-refund derivation uses, and
-     * stable across re-syncs where a now() fallback would not be.
+     * rows come oldest-first, so the last memo to touch a line — the one that
+     * completed it — dates the return.
      *
-     * @return array<int, array{qty: float, timestamp: int}> keyed by order-item id
+     * @return array<int, array{qty: float, created_at: string}> keyed by order-item id
      */
-    private function returnsByOrderItem(int $orderId): array
+    private function returnsByOrderItem(OrderInterface $order): array
     {
-        if ($orderId <= 0) {
+        // A NULL total_refunded means no credit memo has ever touched this
+        // order, so the overwhelming majority of orders skip the query. A
+        // 0.00 total is NOT the same thing: a zero-value credit memo still
+        // carries returned lines, and dropping them would erase a return the
+        // engine already has on the next re-sync (PRO-1955).
+        if ($order->getTotalRefunded() === null) {
             return [];
         }
 
-        $criteria = $this->searchCriteriaBuilder->addFilter('order_id', $orderId)->create();
-        try {
-            $creditmemos = $this->creditmemoRepository->getList($criteria)->getItems();
-        } catch (\Exception) {
-            return [];
-        }
+        $connection = $this->resourceConnection->getConnection('sales');
+        $select = $connection->select()
+            ->from(
+                ['ci' => $this->resourceConnection->getTableName('sales_creditmemo_item', 'sales')],
+                ['order_item_id', 'qty']
+            )
+            ->join(
+                ['c' => $this->resourceConnection->getTableName('sales_creditmemo', 'sales')],
+                'c.entity_id = ci.parent_id',
+                ['created_at']
+            )
+            ->where('c.order_id = ?', (int)$order->getEntityId())
+            ->order('c.created_at ASC');
 
         $returns = [];
-        foreach ($creditmemos as $creditmemo) {
-            $timestamp = strtotime((string)$creditmemo->getCreatedAt()) ?: 0;
-            foreach ((array)$creditmemo->getItems() as $memoItem) {
-                $orderItemId = (int)$memoItem->getOrderItemId();
-                $qty = (float)$memoItem->getQty();
-                if ($orderItemId <= 0 || $qty <= 0) {
-                    continue;
-                }
-                $known = $returns[$orderItemId] ?? ['qty' => 0.0, 'timestamp' => 0];
-                $returns[$orderItemId] = [
-                    'qty' => $known['qty'] + $qty,
-                    'timestamp' => max($known['timestamp'], $timestamp),
-                ];
+        foreach ($connection->fetchAll($select) as $row) {
+            $orderItemId = (int)$row['order_item_id'];
+            $qty = (float)$row['qty'];
+            if ($orderItemId <= 0 || $qty <= 0) {
+                continue;
             }
+            $returns[$orderItemId] = [
+                'qty' => ($returns[$orderItemId]['qty'] ?? 0.0) + $qty,
+                'created_at' => (string)$row['created_at'],
+            ];
         }
 
         return $returns;
+    }
+
+    /**
+     * A Magento DB datetime (always UTC) as a contract wire timestamp.
+     */
+    private function wireTimestamp(string $datetime): string
+    {
+        return gmdate('Y-m-d\TH:i:s\Z', strtotime($datetime) ?: time());
     }
 
     /**

@@ -18,6 +18,7 @@ use Magento\Catalog\Model\Product\Visibility;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
 use Magento\Framework\App\Area;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\App\Emulation;
 use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
@@ -34,8 +35,17 @@ use Smaily\Connect\Model\Multilingual\LanguageResolver;
  */
 class CatalogPayloadBuilder
 {
-    /** Contract §3 default when the store has no currency configured. */
-    private const DEFAULT_CURRENCY = 'EUR';
+    /**
+     * Contract §3 default when the store has no currency configured.
+     * OrderPayloadBuilder reads it from here so the two payloads can never
+     * disagree on what "no currency" means.
+     */
+    public const DEFAULT_CURRENCY = 'EUR';
+
+    /** Memoized: process-invariant, but read for every product in a backfill. */
+    private ?StoreInterface $canonicalStore = null;
+
+    private bool $canonicalStoreResolved = false;
 
     public function __construct(
         private readonly StoreManagerInterface $storeManager,
@@ -255,11 +265,21 @@ class CatalogPayloadBuilder
      */
     public function canonicalStoreId(): int
     {
-        try {
-            return (int)$this->storeManager->getDefaultStoreView()?->getId();
-        } catch (NoSuchEntityException) {
-            return 0;
+        return (int)$this->canonicalStore()?->getId();
+    }
+
+    private function canonicalStore(): ?StoreInterface
+    {
+        if (!$this->canonicalStoreResolved) {
+            $this->canonicalStoreResolved = true;
+            try {
+                $this->canonicalStore = $this->storeManager->getDefaultStoreView();
+            } catch (NoSuchEntityException) {
+                $this->canonicalStore = null;
+            }
         }
+
+        return $this->canonicalStore;
     }
 
     /**
@@ -273,12 +293,8 @@ class CatalogPayloadBuilder
      */
     private function currency(): string
     {
-        try {
-            $store = $this->storeManager->getDefaultStoreView();
-        } catch (NoSuchEntityException) {
-            $store = null;
-        }
-        $code = $store instanceof Store ? strtoupper(trim((string)$store->getDefaultCurrencyCode())) : '';
+        $store = $this->canonicalStore();
+        $code = $store instanceof Store ? (string)$store->getDefaultCurrencyCode() : '';
 
         return $code !== '' ? $code : self::DEFAULT_CURRENCY;
     }

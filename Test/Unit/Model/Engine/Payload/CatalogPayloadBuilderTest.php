@@ -200,7 +200,7 @@ class CatalogPayloadBuilderTest extends TestCase
         $canonicalStore = $this->createMock(Store::class);
         $canonicalStore->method('getId')->willReturn(1);
         $canonicalStore->method('getBaseCurrencyCode')->willReturn('EUR');
-        $canonicalStore->method('getDefaultCurrencyCode')->willReturn('usd');
+        $canonicalStore->method('getDefaultCurrencyCode')->willReturn('USD');
 
         $storeManager = $this->createMock(StoreManagerInterface::class);
         $storeManager->method('getStores')->willReturn([]);
@@ -209,7 +209,7 @@ class CatalogPayloadBuilderTest extends TestCase
         $product = $this->product(42, 'SHIRT');
         $product->method('getStoreId')->willReturn(1);
 
-        $builder = $this->builderWith($storeManager);
+        $builder = $this->createBuilder('42', null, $storeManager);
 
         self::assertSame('USD', $builder->build($product)['currency']);
         self::assertSame('USD', $builder->buildTombstone($product)['currency']);
@@ -225,40 +225,23 @@ class CatalogPayloadBuilderTest extends TestCase
         $storeManager->method('getStores')->willReturn([]);
         $storeManager->method('getDefaultStoreView')->willReturn(null);
 
-        $item = $this->builderWith($storeManager)->build($this->product(42, 'SHIRT'));
+        $item = $this->createBuilder('42', null, $storeManager)->build($this->product(42, 'SHIRT'));
 
         self::assertSame('EUR', $item['currency']);
     }
 
-    private function builderWith(StoreManagerInterface&MockObject $storeManager): CatalogPayloadBuilder
-    {
-        $parentResolver = $this->createMock(ParentProductResolver::class);
-        $parentResolver->method('productIdOf')->willReturn('42');
-
-        $stockItem = $this->createMock(StockItemInterface::class);
-        $stockItem->method('getIsInStock')->willReturn(true);
-        $stockRegistry = $this->createMock(StockRegistryInterface::class);
-        $stockRegistry->method('getStockItem')->willReturn($stockItem);
-
-        return new CatalogPayloadBuilder(
-            $storeManager,
-            $this->createMock(ProductRepositoryInterface::class),
-            $this->createMock(CategoryRepositoryInterface::class),
-            $stockRegistry,
-            new ImageHelperFactory(),
-            $this->createMock(LanguageResolver::class),
-            $parentResolver,
-            $this->createMock(Emulation::class)
-        );
-    }
-
-    private function createBuilder(string $resolvedProductId, ?Emulation $emulation = null): CatalogPayloadBuilder
-    {
+    private function createBuilder(
+        string $resolvedProductId,
+        ?Emulation $emulation = null,
+        ?StoreManagerInterface $storeManager = null
+    ): CatalogPayloadBuilder {
         $parentResolver = $this->createMock(ParentProductResolver::class);
         $parentResolver->method('productIdOf')->with(42)->willReturn($resolvedProductId);
 
-        $storeManager = $this->createMock(StoreManagerInterface::class);
-        $storeManager->method('getStores')->willReturn([]);
+        if ($storeManager === null) {
+            $storeManager = $this->createMock(StoreManagerInterface::class);
+            $storeManager->method('getStores')->willReturn([]);
+        }
 
         $stockItem = $this->createMock(StockItemInterface::class);
         $stockItem->method('getIsInStock')->willReturn(true);

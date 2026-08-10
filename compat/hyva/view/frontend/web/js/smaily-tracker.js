@@ -66,9 +66,8 @@
         var visitorToken = helper.getCookie(config.attribution.cookieVisitor);
 
         // Identity hint only with consent (sender-side anonymous mode).
-        // The rec id/ctx cookies are deliberately NOT echoed here — the
-        // engine ignores both on browse events since contract v1.7.0; they
-        // reach the engine on the order instead (§5).
+        // The rec id/ctx cookies are deliberately NOT echoed here — see
+        // Model/Engine/BrowseEventValidator for why.
         if (visitorToken && consentGiven()) {
             event.smaily_visitor_token = visitorToken;
         }

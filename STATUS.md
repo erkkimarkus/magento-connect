@@ -67,9 +67,11 @@ return signals)_
      once its FULL quantity has been credited (§5: a partly credited line is
      still owned by the customer, so it stays KEPT — this is also PRO-1806's
      clarification, verified live); quantities accumulate across memos and the
-     memo that COMPLETES the line dates the return; a dateless memo falls back
-     to the order date, the same stable basis the engine's own full-refund
-     derivation uses. **Neither reason field is sent** (`return_reason_
+     memo that COMPLETES the line dates the return. The memos are read with one
+     joined select over `sales_creditmemo_item`, and only for orders whose
+     `total_refunded` is non-NULL — a memo has then touched the order at least
+     once, so the overwhelming majority of builds skip the query entirely.
+     **Neither reason field is sent** (`return_reason_
      standardised` / `return_reason_raw`): Magento Open Source has no
      structured return taxonomy anywhere, and §5 is explicit that guessing one
      is worse than sending nothing. **A second, load-bearing gap this
