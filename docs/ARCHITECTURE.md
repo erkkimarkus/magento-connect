@@ -144,6 +144,13 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
 
 - **Retry policy:** backoff 60 s / 5 min / 15 min / 1 h / 6 h, max 5
   attempts, then parked as `failed` for manual retry from the admin Log.
+  Only failures that can plausibly pass later get those attempts: a
+  permanent refusal (4xx other than 429) stops on the first one, parked as
+  `failed` with a `permanent_http_<code>` reason. A 429 is parked for the
+  `Retry-After` the response asked for (delta-seconds form, capped at 6 h;
+  an HTTP-date falls back to the ladder step). `Model\Queue\RetryPolicy`
+  for the Smaily queue, `Engine\Client` + `Cron\FlushIngestQueue` for the
+  ingest queue.
 - **Claiming:** rows are claimed with a per-worker `claim_token`; only rows
   the worker actually won are processed, so concurrent flushes (manual cron,
   multi-node) can never double-send. Rows stuck in `sending` (killed

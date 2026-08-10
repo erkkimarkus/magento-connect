@@ -12,6 +12,7 @@ use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
+use Psr\Http\Message\ResponseInterface;
 use Smaily\Connect\Model\Client\Exception\ApiException;
 use Smaily\Connect\Model\Client\Exception\AuthenticationException;
 use Smaily\Connect\Model\Client\Exception\TransportException;
@@ -149,7 +150,8 @@ class SmailyClient
             throw new TransportException(
                 (string)__('Smaily API request failed with HTTP %1', $status),
                 $status,
-                $exception
+                $exception,
+                $this->retryAfterSeconds($exception->getResponse())
             );
         } catch (GuzzleException $exception) {
             $this->logger->error('Smaily API transport error', [
@@ -186,6 +188,23 @@ class SmailyClient
         }
 
         return $decoded;
+    }
+
+    /**
+     * The Retry-After header as whole seconds, or null when absent or
+     * expressed as an HTTP-date (Smaily sends the delta-seconds form; a date
+     * falls back to the queue's own backoff rather than being mis-parsed).
+     */
+    private function retryAfterSeconds(ResponseInterface $response): ?int
+    {
+        $header = $response->getHeaderLine('Retry-After');
+        if (!is_numeric($header)) {
+            return null;
+        }
+
+        $seconds = (int)$header;
+
+        return $seconds > 0 ? $seconds : null;
     }
 
     private function getHttpClient(): HttpClient

@@ -13,6 +13,7 @@ use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Model\Queue\Event;
 use Smaily\Connect\Model\Queue\EventQueue;
 use Smaily\Connect\Model\Queue\HandlerPool;
+use Smaily\Connect\Model\Queue\RetryPolicy;
 
 /**
  * Drains the marketing event queue: claims due events, dispatches them to
@@ -25,7 +26,8 @@ class FlushEventQueue
     public function __construct(
         private readonly EventQueue $eventQueue,
         private readonly HandlerPool $handlerPool,
-        private readonly Logger $logger
+        private readonly Logger $logger,
+        private readonly RetryPolicy $retryPolicy
     ) {
     }
 
@@ -68,9 +70,9 @@ class FlushEventQueue
             $results = $handler->handle($events);
         } catch (SmailyClientException $exception) {
             foreach ($events as $event) {
-                $this->eventQueue->markFailed($event, $exception->getMessage());
+                $this->retryPolicy->apply($event, $exception);
             }
-            $this->logger->info('Queue batch failed, rescheduled', [
+            $this->logger->info('Queue batch failed', [
                 'event_type' => $eventType,
                 'count' => count($events),
                 'error' => $exception->getMessage(),
@@ -83,6 +85,9 @@ class FlushEventQueue
             $result = $results[(int)$event->getId()] ?? 'Handler returned no result for event';
             if ($result === true) {
                 $this->eventQueue->markSent($event);
+            } elseif ($result instanceof SmailyClientException) {
+                // A refused send: the policy decides retry vs. stop for good.
+                $this->retryPolicy->apply($event, $result);
             } else {
                 $this->eventQueue->markFailed($event, (string)$result);
             }

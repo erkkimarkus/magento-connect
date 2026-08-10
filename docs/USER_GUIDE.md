@@ -386,7 +386,12 @@ panel — you do not have to keep the page open:
   says so and links straight to the grid pre-filtered to failed rows; the
   dashboard's failed-deliveries tile links to the same view.
 - Deliveries retry automatically with backoff (1 min → 6 h, 5 attempts)
-  before parking as *failed* for manual retry.
+  before parking as *failed* for manual retry. A delivery that was refused
+  outright — wrong credentials, a deleted workflow, a rejected address —
+  is not retried at all: it is marked *failed* immediately, with the
+  refusal in the last error, so the failed count tells you now instead of
+  six hours later. When Smaily asks the store to slow down, the row waits
+  exactly as long as it asked before the next attempt.
 - An admin notification appears when the engine has been unreachable for
   over an hour, or when many events failed within 24 hours.
 - Logs: `var/log/smaily_connect.log`. Verbosity (error / info / debug) is a

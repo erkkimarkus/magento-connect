@@ -16,7 +16,8 @@ class TransportException extends SmailyClientException
     public function __construct(
         string $message,
         private readonly int $httpStatus = 0,
-        ?\Throwable $previous = null
+        ?\Throwable $previous = null,
+        private readonly ?int $retryAfter = null
     ) {
         parent::__construct($message, $httpStatus, $previous);
     }
@@ -27,5 +28,14 @@ class TransportException extends SmailyClientException
     public function getHttpStatus(): int
     {
         return $this->httpStatus;
+    }
+
+    /**
+     * Seconds Smaily asked the caller to wait (the Retry-After header on a
+     * 429), or null when it sent none. Read by the queue's RetryPolicy.
+     */
+    public function getRetryAfter(): ?int
+    {
+        return $this->retryAfter;
     }
 }

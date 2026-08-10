@@ -97,7 +97,9 @@ class AutomationHandler implements EventHandlerInterface
                 ]);
                 $results[$id] = true;
             } catch (SmailyClientException $exception) {
-                $results[$id] = $exception->getMessage();
+                // Handed on whole: only the exception carries the HTTP status
+                // and Retry-After the RetryPolicy classifies on.
+                $results[$id] = $exception;
             }
         }
 

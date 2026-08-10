@@ -57,11 +57,13 @@ class ContactSyncHandler implements EventHandlerInterface
                     ->post(SmailyClient::ENDPOINT_CONTACT, $contacts);
                 $error = null;
             } catch (SmailyClientException $exception) {
-                $error = $exception->getMessage();
+                // Handed on whole: only the exception carries the HTTP status
+                // and Retry-After the RetryPolicy classifies on.
+                $error = $exception;
                 $this->logger->info('Contact sync batch failed', [
                     'store_id' => $storeId,
                     'count' => count($rows),
-                    'error' => $error,
+                    'error' => $exception->getMessage(),
                 ]);
             }
 

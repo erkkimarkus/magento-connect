@@ -22,7 +22,8 @@ use Smaily\Connect\Model\ResourceModel\Queue\Event\CollectionFactory;
  *
  * Retry semantics mirror the WooCommerce plugin: exponential backoff of
  * 60s, 5m, 15m, 1h, 6h with at most 5 attempts, after which a row is
- * parked as failed for manual retry from the admin event log.
+ * parked as failed for manual retry from the admin event log. Which
+ * failures earn a retry at all is RetryPolicy's call.
  */
 class EventQueue
 {
@@ -181,14 +182,16 @@ class EventQueue
     }
 
     /**
-     * Record a failed delivery attempt; reschedules with backoff or parks
-     * the event as failed once attempts are exhausted.
+     * Record a failed delivery attempt; reschedules with backoff (or with the
+     * delay Smaily itself asked for) or parks the event as failed once
+     * attempts are exhausted.
      */
     public function markFailed(
         Event $event,
         string $error,
         ?string $sentPayload = null,
-        ?string $response = null
+        ?string $response = null,
+        ?int $retryAfter = null
     ): void {
         $attempts = $event->getAttempts() + 1;
         $exhausted = $attempts >= self::MAX_ATTEMPTS;
@@ -196,7 +199,7 @@ class EventQueue
         $event->addData([
             'attempts' => $attempts,
             'status' => $exhausted ? Event::STATUS_FAILED : Event::STATUS_PENDING,
-            'next_retry_at' => $exhausted ? null : $this->nextRetryAt($attempts),
+            'next_retry_at' => $exhausted ? null : $this->nextRetryAt($attempts, $retryAfter),
             'last_error' => mb_substr($error, 0, 60000),
             'sent_payload' => $sentPayload,
             'last_response' => $response,
@@ -204,12 +207,26 @@ class EventQueue
         $this->eventResource->save($event);
 
         if ($exhausted) {
-            $this->logger->error('Queue event failed permanently', [
-                'id' => $event->getId(),
-                'event_type' => $event->getEventType(),
-                'error' => $error,
-            ]);
+            $this->logPermanentFailure($event, $error);
         }
+    }
+
+    /**
+     * Park an event as failed on the spot, attempts left unspent: a refusal
+     * that no amount of retrying can change (RetryPolicy decides which those
+     * are). The attempt that WAS refused is still counted.
+     */
+    public function markPermanentlyFailed(Event $event, string $error): void
+    {
+        $event->addData([
+            'attempts' => $event->getAttempts() + 1,
+            'status' => Event::STATUS_FAILED,
+            'next_retry_at' => null,
+            'last_error' => mb_substr($error, 0, 60000),
+        ]);
+        $this->eventResource->save($event);
+
+        $this->logPermanentFailure($event, $error);
     }
 
     /**
@@ -252,9 +269,22 @@ class EventQueue
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function nextRetryAt(int $attempts): string
+    private function logPermanentFailure(Event $event, string $error): void
     {
-        $backoff = self::BACKOFF_SECONDS[min($attempts, count(self::BACKOFF_SECONDS)) - 1];
+        $this->logger->error('Queue event failed permanently', [
+            'id' => $event->getId(),
+            'event_type' => $event->getEventType(),
+            'error' => $error,
+        ]);
+    }
+
+    private function nextRetryAt(int $attempts, ?int $retryAfter = null): string
+    {
+        // A delay Smaily asked for wins over the ladder, capped at the
+        // ladder's own ceiling so a wild header cannot park a row for days.
+        $backoff = $retryAfter !== null && $retryAfter > 0
+            ? min($retryAfter, self::BACKOFF_SECONDS[count(self::BACKOFF_SECONDS) - 1])
+            : self::BACKOFF_SECONDS[min($attempts, count(self::BACKOFF_SECONDS)) - 1];
 
         return $this->dateTime->gmtDate('Y-m-d H:i:s', $this->dateTime->gmtTimestamp() + $backoff);
     }
