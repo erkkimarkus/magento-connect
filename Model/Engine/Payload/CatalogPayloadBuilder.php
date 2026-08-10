@@ -264,11 +264,12 @@ class CatalogPayloadBuilder
 
     /**
      * The currency the `price` we send is denominated in (contract §3,
-     * v1.7.0). The canonical store's BASE currency, because that is the
-     * currency Magento authors catalog prices in and the one
-     * `catalog/price/scope` governs — a store view's display currency is a
-     * presentation-time conversion that the admin/CLI contexts this builder
-     * runs in never apply.
+     * v1.7.0). The canonical store's DEFAULT DISPLAY currency, not its base
+     * currency: Magento's price readers (`RegularPrice`/`BasePrice`, which
+     * `final_price` resolves through) already convert the stored base amount
+     * into the store's display currency, so on a store whose base and display
+     * currencies differ, labelling the number with the base code would state
+     * a price that was never charged in it.
      */
     private function currency(): string
     {
@@ -277,7 +278,7 @@ class CatalogPayloadBuilder
         } catch (NoSuchEntityException) {
             $store = null;
         }
-        $code = $store instanceof Store ? strtoupper(trim((string)$store->getBaseCurrencyCode())) : '';
+        $code = $store instanceof Store ? strtoupper(trim((string)$store->getDefaultCurrencyCode())) : '';
 
         return $code !== '' ? $code : self::DEFAULT_CURRENCY;
     }

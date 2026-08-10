@@ -190,15 +190,17 @@ class CatalogPayloadBuilderTest extends TestCase
     }
 
     /**
-     * PRO-1762 (contract v1.7.0 §3): every catalog row carries the canonical
-     * store's base currency — the currency the `price` we send is actually
-     * denominated in.
+     * PRO-1762 (contract v1.7.0 §3): every catalog row carries the currency
+     * the price we send is actually denominated in — the canonical store's
+     * DISPLAY currency, which is what Magento's price readers convert into,
+     * not the base currency the amount is stored in.
      */
-    public function testCatalogRowCarriesTheCanonicalStoresBaseCurrency(): void
+    public function testCatalogRowCarriesTheCanonicalStoresDisplayCurrency(): void
     {
         $canonicalStore = $this->createMock(Store::class);
         $canonicalStore->method('getId')->willReturn(1);
-        $canonicalStore->method('getBaseCurrencyCode')->willReturn('usd');
+        $canonicalStore->method('getBaseCurrencyCode')->willReturn('EUR');
+        $canonicalStore->method('getDefaultCurrencyCode')->willReturn('usd');
 
         $storeManager = $this->createMock(StoreManagerInterface::class);
         $storeManager->method('getStores')->willReturn([]);
