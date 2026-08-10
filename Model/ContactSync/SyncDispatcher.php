@@ -11,6 +11,7 @@ namespace Smaily\Connect\Model\ContactSync;
 use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Store\Model\StoreManagerInterface;
+use Smaily\Connect\Model\Automation\Trigger;
 use Smaily\Connect\Model\Multilingual\LanguageResolver;
 use Smaily\Connect\Model\Queue\EventQueue;
 use Smaily\Connect\Model\Queue\EventType;
@@ -46,10 +47,20 @@ class SyncDispatcher
     }
 
     /**
+     * Stamps the trigger's own run marker onto the address and enqueues it.
+     * The stamp is taken here, where the trigger FIRES, not when the queue row
+     * is POSTed — a retry then resends the moment the store event happened,
+     * which is the moment a merchant means. See Trigger::MARKER_FIELDS.
+     *
      * @param array<string, string|int> $address must contain "email"
      */
     public function dispatchAutomation(string $trigger, int $storeId, array $address): void
     {
+        $marker = Trigger::MARKER_FIELDS[$trigger] ?? null;
+        if ($marker !== null) {
+            $address[$marker] = gmdate('Y-m-d H:i:s');
+        }
+
         $this->eventQueue->enqueue(
             EventType::AUTOMATION_TRIGGER,
             [

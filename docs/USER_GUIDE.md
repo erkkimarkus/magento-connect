@@ -219,6 +219,25 @@ Whether automations may re-subscribe an unsubscribed contact
 checkout-only; under legitimate interest only when the advanced toggle is
 enabled.
 
+### Segmenting on when an automation last ran
+
+Every store event also writes its own contact field recording **when that
+automation last ran** for the contact:
+
+| Event | Contact field |
+|---|---|
+| Welcome | `welcome_automation_at` |
+| First Order | `first_order_automation_at` |
+| Abandoned Cart | `abandoned_cart_automation_at` |
+
+The value is the moment the event fired, as `YYYY-MM-DD HH:MM:SS` in **UTC**,
+rewritten on every run — so it always holds the most recent one. Use it in
+Smaily segments for rules like "has received the welcome letter" or "got the
+abandoned-cart reminder more than 30 days ago". An event that has not fired
+for a contact writes nothing at all, leaving any value Smaily already holds
+untouched. The same field names are used by Smaily's WooCommerce and Shopify
+plugins, so a segment built on them transfers between stores.
+
 ## Abandoned cart
 
 A cart counts as abandoned when it has items and an email address and has
