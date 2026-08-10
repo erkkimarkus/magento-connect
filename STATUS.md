@@ -5,10 +5,83 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-10 (PRO-1761 — every automation trigger stamps its own
-per-trigger last-run marker on the Smaily contact)_
+_Last updated: 2026-08-10 (PRO-1800/PRO-1763 — the Smaily event queue
+classifies refusals instead of retrying every failure identically)_
 
 ## Where we are
+
+- **PRO-1800 / PRO-1763 done — the Smaily event queue adopts the
+  cross-platform retry classification (Woo's PRO-1685 `RetryPolicy`), so a
+  refusal that can never succeed stops on the first attempt.** Until now every
+  `SmailyClientException` took the same road: `MAX_ATTEMPTS = 5` on the
+  `[60,300,900,3600,21600]` ladder, whatever the HTTP status said. A revoked
+  credential, a deleted workflow or a rejected address was therefore re-POSTed
+  five times across six hours before the merchant's failed count noticed it,
+  and a 429 ignored the slow-down Smaily explicitly asked for.
+  Now, in one place — the new `Model\Queue\RetryPolicy`, injected into
+  `Cron\FlushEventQueue`:
+  - **4xx except 429 → permanent.** The row is parked failed on the FIRST
+    refusal via a new `EventQueue::markPermanentlyFailed()`, with the reason
+    `permanent_http_<code>: <message>` — the sibling's exact naming, verified
+    against Woo's shipped `RetryPolicy::apply()`, not just the brief. The
+    attempt that WAS refused is counted (attempts 1 of 5); the other four are
+    never spent. Merchant-visible immediately: the Log grid, the
+    failed-deliveries banner and the dashboard tile all read the failed state
+    they already read.
+  - **429 → parked for exactly the `Retry-After` the response named**, capped
+    at the ladder's own 6 h ceiling so a wild header cannot park a row for
+    days. Delta-seconds only, matching Woo: an HTTP-date is deliberately NOT
+    parsed (Woo's own comment says Smaily sends the delta form) and falls back
+    to the ladder step rather than being mis-read.
+  - **5xx and transport errors → today's ladder and ceiling, untouched.** A
+    Smaily error envelope on HTTP 200 (`ApiException`, e.g. code 203) carries
+    no HTTP status and so also stays retryable exactly as before — the policy
+    is biased toward retrying, like the sibling, because mis-classifying a
+    recoverable failure drops genuine work.
+  **The claim/lease model (`claimBatch` + `requeueStale`) is untouched** — it
+  is ahead of the siblings and deliberately preserved.
+  **Minimal plumbing, because the status was being thrown away twice.**
+  `TransportException` gains a `retryAfter` next to the HTTP status it already
+  carried, and `SmailyClient` parses the `Retry-After` header off the failed
+  response (its `post()` `@throws` gained the `TransportException` it has
+  always been able to raise). The two Smaily handlers
+  (`ContactSyncHandler`/`AutomationHandler`) now hand the exception itself to
+  the flusher instead of flattening it to `getMessage()` — the flusher is
+  where the queue row is, so it is where the classification has to happen;
+  `EventHandlerInterface`'s contract widens to
+  `true|string|SmailyClientException` to say so.
+  **Scope fences honoured:** the engine ingest queue was checked, not touched
+  — `Engine\Client` already treats non-429 4xx as terminal AND already honours
+  429 by raising its retry delay to the contract's own
+  `retry_after_seconds` body field (§2), so there was nothing to align.
+  `IdentityMergeHandler` left alone as instructed.
+  **Log honesty fixed in the same pass, because this change made the old copy
+  wrong:** the Details panel told every failed row "All 5 automatic attempts
+  are used up", which a row stopped after one refusal makes untrue (and which
+  the ingest queue's terminal rows already made untrue today). A failed row
+  with attempts still on the clock now reads "Stopped after 1 of 5 attempts —
+  retrying could not change the outcome…", and the reason itself is already
+  surfaced by the panel's existing "Last error" block. One new translation
+  string in both `i18n/en_US.csv` and `i18n/et_EE.csv` (392 keys each, parity
+  re-verified). `docs/USER_GUIDE.md`'s Log section and
+  `docs/ARCHITECTURE.md`'s "Queue semantics" both updated in the same commit.
+  **Verification — the three failure classes driven through the REAL flush
+  path with only the transport faked, not merely unit tests.** New integration
+  cases in `Test/Integration/Cron/FlushEventQueueTest.php` run the real
+  `Cron\FlushEventQueue` → real `ContactSyncHandler` → real `SmailyClient`
+  against real MySQL, with a Guzzle `MockHandler` standing in for
+  sendsmaily.net, so the status and the `Retry-After` header are parsed by the
+  shipping code: a 404 lands `status=failed, attempts=1, next_retry_at=NULL,
+  last_error LIKE 'permanent_http_404%'`; a 429 with `Retry-After: 90` lands
+  pending at exactly now+90 s; a 429 without the header lands on the ladder's
+  first step; two consecutive 503s climb 60 s → 5 min with attempts 2; a
+  connect timeout (no status at all) stays on the ladder. Gates: 220 unit
+  tests green (17 new — a new `Test/Unit/Model/Queue/RetryPolicyTest`, plus
+  EventQueue's Retry-After/cap/permanent-park cases, two `FlushEventQueue`
+  routing cases and two `SmailyClient` header cases), phpcs 0 errors, phpstan
+  clean, 70 integration tests green (throwaway MySQL, 5 new). Sandbox
+  `setup:upgrade` + `setup:di:compile` both green (`FlushEventQueue` gained a
+  constructor dependency).
 
 - **PRO-1761 done — the automation marker canon is adopted: each trigger
   writes its own per-trigger last-run timestamp.** `welcome_automation_at`,
