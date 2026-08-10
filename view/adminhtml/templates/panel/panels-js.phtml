@@ -407,6 +407,12 @@ window.smailyPanelsInit = function ($) {
             var on = $('#smaily-w-sync-enabled').is(':checked');
             $('#smaily-w-subscribers-body').toggleClass('smaily-muted', !on)
                 .find('input').prop('disabled', !on);
+            // The contacts import obeys the same switch (PRO-1764): with it
+            // off the control says so instead of quoting an estimate. Cancel
+            // stays available so a job already running can still be stopped.
+            $('#smaily-w-backfill').prop('disabled', !on);
+            $('#smaily-w-backfill-estimate').toggle(on);
+            $('#smaily-w-backfill-off').toggle(!on);
         };
         $(document).on('change', '#smaily-w-sync-enabled', apply);
         apply();

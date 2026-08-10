@@ -325,6 +325,7 @@
 "Subdomain and username are required.","Alamdomeen ja kasutajanimi on kohustuslikud."
 "Subscribe to our newsletter","Liitu meie uudiskirjaga"
 "Subscriber Synchronization","Tellijate sünkroonimine"
+"Subscriber synchronization is off for this website, so an import would send nothing. Turn it on and save to import.","Tellijate sünkroonimine on selle veebisaidi jaoks väljas, seega import ei saadaks midagi. Lülita see sisse ja salvesta, et importida."
 "Subscribers","Tellijad"
 "Subscribers only (consent)","Ainult tellijad (nõusolek)"
 "Subscription type","Tellimuse tüüp"

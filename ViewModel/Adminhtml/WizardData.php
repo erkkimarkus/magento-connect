@@ -159,6 +159,16 @@ class WizardData implements ArgumentInterface
     }
 
     /**
+     * The selected website's stored contact-sync answer — the same one the
+     * live paths and the contacts import read, for the server-rendered
+     * import control (PRO-1764).
+     */
+    public function isSyncEnabled(): bool
+    {
+        return $this->config->isSyncEnabled($this->websiteContext->getWebsiteId());
+    }
+
+    /**
      * Saved sync-field selection for the server-rendered step-2 checkboxes.
      *
      * @return string[]

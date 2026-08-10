@@ -325,6 +325,7 @@
 "Subdomain and username are required.","Subdomain and username are required."
 "Subscribe to our newsletter","Subscribe to our newsletter"
 "Subscriber Synchronization","Subscriber Synchronization"
+"Subscriber synchronization is off for this website, so an import would send nothing. Turn it on and save to import.","Subscriber synchronization is off for this website, so an import would send nothing. Turn it on and save to import."
 "Subscribers","Subscribers"
 "Subscribers only (consent)","Subscribers only (consent)"
 "Subscription type","Subscription type"

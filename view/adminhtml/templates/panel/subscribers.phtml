@@ -16,6 +16,10 @@
 $viewModel = $block->getData('view_model');
 $isSettings = $block->getData('context') === 'settings';
 $totals = $viewModel->getStoreTotals();
+// The import obeys this website's subscriber-sync switch exactly like the
+// live paths do (PRO-1764), so with the switch off the control is disabled
+// and says why instead of quoting numbers it will not send.
+$syncEnabled = $viewModel->isSyncEnabled();
 
 // Optional contact fields, server-rendered (same values the system.xml
 // multiselect edits).
@@ -127,8 +131,9 @@ $selectedSyncFields = $viewModel->getSelectedSyncFields();
 
     <div class="smaily-card smaily-backfill-card" style="background:#f8f8f8;">
         <strong><?= $escaper->escapeHtml(__('Import your existing subscribers')) ?></strong>
-        <p class="note"><?= $escaper->escapeHtml(__('Your store has %1 customers, %2 orders and %3 products. The import runs in the background, a chunk per minute, and never slows the storefront down.', $totals['customers'], $totals['orders'], $totals['products'])) ?></p>
-        <button type="button" class="action-secondary" id="smaily-w-backfill">
+        <p class="note" id="smaily-w-backfill-estimate"<?= $syncEnabled ? '' : ' style="display:none;"' ?>><?= $escaper->escapeHtml(__('Your store has %1 customers, %2 orders and %3 products. The import runs in the background, a chunk per minute, and never slows the storefront down.', $totals['customers'], $totals['orders'], $totals['products'])) ?></p>
+        <p class="note" id="smaily-w-backfill-off"<?= $syncEnabled ? ' style="display:none;"' : '' ?>><?= $escaper->escapeHtml(__('Subscriber synchronization is off for this website, so an import would send nothing. Turn it on and save to import.')) ?></p>
+        <button type="button" class="action-secondary" id="smaily-w-backfill"<?= $syncEnabled ? '' : ' disabled' ?>>
             <span><?= $escaper->escapeHtml(__('Import subscribers to Smaily')) ?></span>
         </button>
         <button type="button" class="action-tertiary" id="smaily-w-backfill-cancel" style="display:none;">
