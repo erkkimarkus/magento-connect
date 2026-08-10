@@ -147,6 +147,66 @@ class EventQueueTest extends TestCase
         self::assertNull($captured['next_retry_at']);
     }
 
+    public function testMarkFailedHonoursARequestedRetryDelay(): void
+    {
+        $captured = [];
+        $this->event->method('getAttempts')->willReturn(0);
+        $this->event->method('addData')->willReturnCallback(
+            function (array $data) use (&$captured) {
+                $captured = $data;
+                return $this->event;
+            }
+        );
+
+        $this->queue->markFailed($this->event, 'slow down', null, null, 90);
+
+        self::assertSame(
+            gmdate('Y-m-d H:i:s', self::NOW_TIMESTAMP + 90),
+            $captured['next_retry_at'],
+            'The delay Smaily asked for wins over the ladder step'
+        );
+    }
+
+    public function testMarkFailedCapsARequestedRetryDelayAtTheLadderCeiling(): void
+    {
+        $captured = [];
+        $this->event->method('getAttempts')->willReturn(0);
+        $this->event->method('addData')->willReturnCallback(
+            function (array $data) use (&$captured) {
+                $captured = $data;
+                return $this->event;
+            }
+        );
+
+        $this->queue->markFailed($this->event, 'slow down', null, null, 7 * 86400);
+
+        self::assertSame(
+            gmdate('Y-m-d H:i:s', self::NOW_TIMESTAMP + 21600),
+            $captured['next_retry_at'],
+            'A wild header cannot park a row for days'
+        );
+    }
+
+    public function testMarkPermanentlyFailedParksWithoutSpendingTheRemainingAttempts(): void
+    {
+        $captured = [];
+        $this->event->method('getAttempts')->willReturn(0);
+        $this->event->method('addData')->willReturnCallback(
+            function (array $data) use (&$captured) {
+                $captured = $data;
+                return $this->event;
+            }
+        );
+        $this->eventResource->expects(self::once())->method('save');
+
+        $this->queue->markPermanentlyFailed($this->event, 'permanent_http_404: gone');
+
+        self::assertSame(1, $captured['attempts']);
+        self::assertSame(Event::STATUS_FAILED, $captured['status']);
+        self::assertNull($captured['next_retry_at']);
+        self::assertSame('permanent_http_404: gone', $captured['last_error']);
+    }
+
     public function testMarkSentClearsErrorState(): void
     {
         $captured = [];

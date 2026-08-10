@@ -72,6 +72,7 @@ class SmailyClient
      * @param array<int|string, mixed> $payload
      * @return array<int|string, mixed>
      * @throws ApiException on a non-101 response envelope
+     * @throws TransportException on an HTTP error status or a network failure
      */
     public function post(string $endpoint, array $payload): array
     {

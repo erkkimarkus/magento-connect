@@ -17,6 +17,7 @@ use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Model\Queue\Event;
 use Smaily\Connect\Model\Queue\EventQueue;
 use Smaily\Connect\Model\Queue\HandlerPool;
+use Smaily\Connect\Model\Queue\RetryPolicy;
 
 class FlushEventQueueTest extends TestCase
 {
@@ -80,6 +81,42 @@ class FlushEventQueueTest extends TestCase
         $this->createCron(new HandlerPool(['contact.sync' => $handler]))->execute();
     }
 
+    public function testPermanentRefusalParksTheWholeBatchAtOnce(): void
+    {
+        $first = $this->createEvent(1, 'contact.sync');
+        $second = $this->createEvent(2, 'contact.sync');
+        $this->eventQueue->method('claimBatch')->willReturn([$first, $second]);
+
+        $handler = $this->createMock(EventHandlerInterface::class);
+        $handler->method('handle')->willThrowException(new TransportException('Gone', 404));
+
+        $this->eventQueue->expects(self::never())->method('markFailed');
+        $this->eventQueue->expects(self::exactly(2))->method('markPermanentlyFailed')
+            ->with(self::anything(), self::stringContains('permanent_http_404'));
+
+        $this->createCron(new HandlerPool(['contact.sync' => $handler]))->execute();
+    }
+
+    public function testAPerEventRefusalIsClassifiedByTheRetryPolicy(): void
+    {
+        $refused = $this->createEvent(1, 'contact.sync');
+        $slowedDown = $this->createEvent(2, 'contact.sync');
+        $this->eventQueue->method('claimBatch')->willReturn([$refused, $slowedDown]);
+
+        $handler = $this->createMock(EventHandlerInterface::class);
+        $handler->method('handle')->willReturn([
+            1 => new TransportException('Unprocessable', 422),
+            2 => new TransportException('Slow down', 429, null, 90),
+        ]);
+
+        $this->eventQueue->expects(self::once())->method('markPermanentlyFailed')
+            ->with($refused, self::stringContains('permanent_http_422'));
+        $this->eventQueue->expects(self::once())->method('markFailed')
+            ->with($slowedDown, 'Slow down', null, null, 90);
+
+        $this->createCron(new HandlerPool(['contact.sync' => $handler]))->execute();
+    }
+
     public function testMissingResultIsAFailure(): void
     {
         $event = $this->createEvent(5, 'contact.sync');
@@ -103,7 +140,12 @@ class FlushEventQueueTest extends TestCase
 
     private function createCron(HandlerPool $pool): FlushEventQueue
     {
-        return new FlushEventQueue($this->eventQueue, $pool, $this->createMock(Logger::class));
+        return new FlushEventQueue(
+            $this->eventQueue,
+            $pool,
+            $this->createMock(Logger::class),
+            new RetryPolicy($this->eventQueue)
+        );
     }
 
     private function createEvent(int $id, string $eventType): Event&MockObject

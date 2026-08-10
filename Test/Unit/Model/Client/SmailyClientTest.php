@@ -115,6 +115,35 @@ class SmailyClientTest extends TestCase
         }
     }
 
+    public function testHttp429CarriesTheRequestedRetryDelay(): void
+    {
+        $client = $this->createClient([new Response(429, ['Retry-After' => '90'], 'Slow down')]);
+
+        try {
+            $client->post(SmailyClient::ENDPOINT_CONTACT, []);
+            self::fail('Expected TransportException');
+        } catch (TransportException $exception) {
+            self::assertSame(429, $exception->getHttpStatus());
+            self::assertSame(90, $exception->getRetryAfter());
+        }
+    }
+
+    public function testAnHttpDateRetryAfterIsNotMisparsed(): void
+    {
+        // Smaily sends the delta-seconds form; a date leaves the queue on its
+        // own backoff rather than being read as a number of seconds.
+        $client = $this->createClient([
+            new Response(429, ['Retry-After' => 'Wed, 21 Oct 2026 07:28:00 GMT'], 'Slow down'),
+        ]);
+
+        try {
+            $client->post(SmailyClient::ENDPOINT_CONTACT, []);
+            self::fail('Expected TransportException');
+        } catch (TransportException $exception) {
+            self::assertNull($exception->getRetryAfter());
+        }
+    }
+
     public function testMalformedBodyThrowsTransportException(): void
     {
         $client = $this->createClient([new Response(200, [], 'not json')]);
