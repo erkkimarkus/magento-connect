@@ -1,8 +1,8 @@
-# Smaily Recommendation Engine — API Contract v1.5
+# Smaily Recommendation Engine — API Contract v1.8
 
-**Version**: 1.5.0
+**Version**: 1.8.1
 **Published**: 2026-05-19
-**Last updated**: 2026-07-17 (v1.5.0 — new endpoint §14 `POST /api/v1/notifications/ingest`, the external HTTP ingest path for Notifications 2.0; MINOR bump per the versioning rule: new endpoint, backward-compatible — PRO-1438 / PRO-1444)
+**Last updated**: 2026-08-06 (v1.8.1 — §2's `403 tenant_inactive` now also covers purged/offboarded tenants. PATCH bump: no new endpoint, field or wire shape; a fix to which engine states emit an already-documented response — PRO-1820)
 **Status**: Stable — basis for plugin implementation
 
 ---
@@ -151,10 +151,10 @@ The engine renders Smaily contact-field `product_url` values with these paramete
 ```
 https://shop.example.com/product/widget?
   utm_source=smaily&
-  utm_campaign=welcome_series&
-  smaily_vt=vt_8f3k2a&
-  smaily_rec=rec_abc123&
-  smaily_ctx=cart_abandoned
+  utm_medium=email&
+  smaily_rec=3fa85f64-5717-4562-b3fc-2c963f66afa6&
+  smaily_ctx=cart_abandoned&
+  smaily_vt=vt_8f3k2a
 ```
 
 **Reserved Smaily-prefixed parameters**:
@@ -512,7 +512,7 @@ User-Agent: SmailyRecEngine-WooPlugin/0.1.0
 
 **Response 401** if the API key is invalid (see Authentication).
 
-**Response 403** if the tenant is deactivated:
+**Response 403** if the tenant is deactivated — **suspended or purged/offboarded**:
 ```json
 {
   "error": "tenant_inactive",
@@ -520,6 +520,10 @@ User-Agent: SmailyRecEngine-WooPlugin/0.1.0
   "tenant_status": "suspended"
 }
 ```
+
+> **This response is live as of 2026-08-04** (PRO-1690) and applies to **every** API-key-authenticated endpoint in this contract (§2–§14), not only to ping — a deactivated tenant is refused at the shared authentication step. The body above is exact and identical in all cases: the engine distinguishes deactivation reasons internally, but never on the wire. `401` still means "this key is not valid"; `403 tenant_inactive` means "this key is valid, this account is not". **Sender rule**: treat `403 tenant_inactive` as non-retryable — stop sending and surface an admin notice, exactly as for `401`. Retries will not clear it; only the engine operator can.
+
+> **Covered states** (v1.8.1, PRO-1820): **operator suspension** (billing or abuse — temporary, an operator can lift it) and **purge/offboarding** (the client relationship ended and the tenant's data was deleted under GDPR — permanent). Both answer with the byte-identical body above, including the literal `"tenant_status": "suspended"`; that value is a fixed string, **not** a state discriminator — do not branch on it. A purged tenant's credentials are permanently invalid: no key, setup token or regenerate flow can revive them, and data sent to a purged tenant after the purge is rejected at the gate, never stored.
 
 **Rate limit**: 100 req/sec (default for non-browse endpoints).
 
@@ -549,6 +553,7 @@ Batch upload of the product catalog. The engine UPSERTs each product (same `sku`
       "price": 22.99,
       "compare_price": 25.99,
       "on_sale_until": "2026-06-01T00:00:00Z",
+      "currency": "EUR",
       "in_stock": true,
       "description": "Premium dry food for adult dogs",
       "image_url": "https://erkkipood.ee/wp-content/uploads/aca-dog-3kg.jpg",
@@ -615,12 +620,13 @@ The engine accepts both forms — field type is checked at runtime. Storage beha
 | `price` | number | YES | Customer's current selling price (NOT regular_price) |
 | `compare_price` | number | NO | Pre-sale ("was") price. A sale exists **iff `compare_price > price`** (Shopify convention). Null / equal to / less than `price` → no sale. See [Sale semantics](#sale-semantics) below. |
 | `on_sale_until` | ISO 8601 string | NO | Informational only — stored but does **not** gate sale display (a sale is driven by `compare_price > price` alone). |
+| `currency` | string (ISO 4217) | NO | Default `EUR`. Stored **as sent** — not strictly ISO-validated (loose format check: 3 uppercase letters). One currency per tenant remains the assumed model — mirrors `orders.currency` ([§5](#5-post-apiv1ingestorders)). |
 | `in_stock` | boolean | YES | Whether the product is available |
 | `description` | string \| `{lang: string}` | NO | Short description (max 500 characters) |
 | `image_url` | string (URL) \| `{lang: string}` | NO | Product image URL. **Stored as a representative scalar only** — there is no `image_url_i18n` column, so the `{lang}` form is accepted but not stored per-language. |
 | `product_url` | string (URL) \| `{lang: string}` | YES | Product page URL. **Required, non-empty** — an empty string `""` is rejected (400), mirroring `category_path`. No silent fallback to `product_base_url + sku`. |
 | `external_id` | string | NO | Plugin/platform internal ID (for debugging/traceability). |
-| `tags` | object | NO | Best-effort mapping (engine uses immediately) |
+| `tags` | object | NO | Best-effort mapping (engine uses immediately). Includes the optional `category_defaulted` marker — see [below](#category-defaulted). |
 | `raw_attributes` | object | NO | Raw platform data. **Currently stored verbatim and not processed** — the AI mapping wizard / `unmapped_attributes` flow is planned, not yet implemented. |
 | `product_type` | string | NO | Platform product type — WC `simple`/`variable`/`grouped`/`external` **plus gift-card plugins' custom types** (`pw-gift-card`, `gift-card`, `gift_card`, `wc_gc`, …). The **robust non-product signal**: the engine derives `recommendable` from this (gift-card types → excluded). Send it; do not hard-filter on it yourself. |
 | `is_virtual` | boolean | NO | WC virtual flag. **Stored as signal, not auto-excluding** — a legitimate digital/virtual-goods store sells these. Lets the engine distinguish a digital store from a config artifact. |
@@ -648,6 +654,9 @@ The engine accepts both forms — field type is checked at runtime. Storage beha
 
 <a name="engine-internal"></a>
 **Engine-internal fields** (not part of the request — do not send): the engine derives some columns at ingest that senders never supply. Notably `recommendable` (boolean): the engine's **exclusion decision** (a per-store/business-model call the connector must NOT make). Derived primarily from the **`product_type` signal** (gift-card types → excluded), with `sku`/`category_path`/`name` heuristics as fallback (test artifacts `LIVE-*`/`live-test`, name-matched gift cards/donations). `is_virtual`/`is_downloadable` are **stored but do NOT auto-exclude** (digital-goods stores sell those). Recomputed on every upsert, so a corrected sync self-heals; tunable engine-side without redeploying connectors. Excluded products are never recommended via any path. **Division of labour: the connector sends structural signal; the engine owns the exclusion.**
+
+<a name="category-defaulted"></a>
+**`tags.category_defaulted`** (added v1.6.0, PRO-1500): optional string tag, value `"true"` — **omit-on-false** (send it only when true; there is no `"false"` value, absence means "not defaulted"). Set this when the sender substituted the store's fallback/default category because the product genuinely has none (e.g. WooCommerce's default-category behavior), or on a delete-tombstone row the sender still has to sync with *some* `category_path`. Semantics: on such a row, `category_path` is a **placeholder, not real product taxonomy**. The engine skips every category-**slug**-keyed derivation for it — species-from-category, `category_canonical`, and replenishable-from-category (`lib/ingest/attribute-mapping.ts`) — while **name**-keyed derivations (species/life-stage-from-name, brand lexicon match) are unaffected and still run; an explicit `tags.species` / `tags.replenishable` etc. always wins regardless of this flag. A row left without `category_canonical` this way stays eligible for the nightly AI category sweep (`lib/catalog/category-sweep.ts`), which classifies from the product name when the category axis carries no signal. **Re-sync honesty**: evaluated fresh from each request's own `tags` — omit the flag on a later sync (once a real category is known) and normal slug-derivation resumes for that sync; nothing is "sticky" in the engine's derivation logic.
 
 **Response 200 OK** (all products valid):
 ```json
@@ -852,7 +861,7 @@ Batch upload of orders + line items. **Order natural key is `(tenant_id, externa
       "discount_amount": 5.00,
       "currency": "EUR",
       "status": "completed",
-      "smaily_rec_id": "rec_abc123",
+      "smaily_rec_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "smaily_visitor_token": "vt_8f3k2a",
       "smaily_rec_ctx": "cart_abandoned",
       "session_id": "wp_sess_abc123",
@@ -889,16 +898,34 @@ Batch upload of orders + line items. **Order natural key is `(tenant_id, externa
 | `discount_amount` | number | NO | Total discount (default 0) |
 | `currency` | string (ISO 4217) | NO | Default `EUR`. Stored **as sent** — not strictly ISO-validated. |
 | `status` | enum | YES | `completed` / `processing` / `cancelled` / `refunded`. **Required** — a missing or out-of-enum `status` is a per-item `errors[]` entry. |
-| `smaily_rec_id` | string | NO | Attribution: which recommendation was clicked pre-purchase (from cookie). Stored; consumed by the async attribution cron (see below). |
+| `smaily_rec_id` | UUID v4 string | NO | Attribution: which recommendation was clicked pre-purchase (from cookie). Stored; consumed by the async attribution cron (see below). **UUID-validated — a malformed value rejects the whole order** (see below). |
 | `smaily_visitor_token` | string | NO | Attribution: visitor token (from cookie). Stored; async. |
 | `smaily_rec_ctx` | string | NO | Attribution: context (from cookie). **Stored and available to the attribution flow, but not yet consumed by matching** (future feature). |
-| `session_id` | string | NO | Session ID — used for retroactive attribution |
+| `session_id` | string | NO | Accept-and-ignore (PRO-1544): stored on the order, but no longer read by the attribution matcher — the browse-event/`session_id` matching step it used to feed was removed in PRO-1524. Kept accepting it so senders don't need a plugin update. |
 | `items[]` | array | YES | Order line items |
 | `items[].sku` | string | YES | |
 | `items[].qty` | integer | YES | Quantity |
 | `items[].unit_price` | number | YES | Per-unit price, **gross** (see Amount semantics) |
 | `items[].line_total` | number | YES | Line total, **gross**, after line discounts (see Amount semantics) |
 | `items[].discount_amount` | number | NO | Line-specific discount |
+| `items[].returned_at` | ISO 8601 | NO | When this line came back. See [Return signals](#return-signals). |
+| `items[].return_reason_standardised` | enum | NO | Why it came back, from the engine's 7-value vocabulary. **An unrecognised value is never rejected** — see [Return signals](#return-signals). |
+| `items[].return_reason_raw` | string | NO | The platform's verbatim reason string (Shopify `returnReasonNote` or reason-definition handle, Woo's free-text refund reason). Truncated to 500 chars, never rejected. Diagnostic only. |
+
+<a id="return-signals"></a>
+**Return signals** (v1.8.0) — all three fields are **optional and nullable**, on the line, not the order:
+
+- **`returned_at`** marks this line as returned. It has been accepted since the first release and is documented here for the first time. It drives returned-item suppression (the same SKU is not recommended back to that customer for 180 days), the fit-anxiety learner, and the "was it kept?" preconditions on several triggers. A *different* SKU (a substitute) always stays recommendable — a return suppresses the item, not the recovery.
+- **`return_reason_standardised`** is one of: `size_small`, `size_large`, `not_as_pictured`, `defect`, `wrong_item`, `changed_mind`, `other`. Nothing in the engine consumes it yet; it is stored so the signal accumulates before the rules that need it exist.
+- **Known vocabulary divergence (engine-internal, no sender impact).** The fashion sector source document groups return reasons into five families (fit / expectation / quality / damage / remorse) rather than these seven values; a mapping from this enum onto those families will be defined when the fashion return-recovery consumer lands. Senders keep sending the 7-value enum above — nothing on the wire changes.
+- **Unrecognised reason values are stored as `other` — never rejected.** A value the engine has not deployed does not fail the item, does not fail the order, and does not produce an `errors[]` entry; the original string is preserved in `return_reason_raw` if the sender did not supply its own. This is deliberate: it means the vocabulary can be widened later with an engine deploy alone, with no plugin release and no coordinated rollout. Senders must therefore **not** validate against a closed copy of this list. (Removing or renaming a value would be breaking, so the list starts narrow.)
+- **Do not guess.** Send a standardised value only where the platform's own value maps unambiguously (Shopify's return reasons do; a merchant's free-text RMA note does not). Keyword-guessing free text into `defect` or `size_small` is worse than sending nothing — it feeds invented verdicts into learning. When in doubt: `other` plus the raw string, or omit the reason entirely.
+- **`return_reason_raw` is diagnostic only** — never a ranking or gating input, never rendered into an email. Send the merchant/system-side note (Shopify `returnReasonNote`, the definition handle, Woo's refund reason). **Do not send buyer-written free text** (Shopify's `customerNote`): it carries personal data and no analytical value the enum lacks.
+- **A fully-refunded order is derived engine-side as all lines returned.** When `status: "refunded"` arrives, every line of that order is stamped returned at the order's `ordered_at` — so **senders need not send `returned_at` for a full refund**. An explicitly sent `returned_at` always wins over the derivation. Senders **SHOULD** still send `returned_at` per line for **partial or line-level returns**, which the order status cannot express (on WooCommerce a partial refund does not even change the order status).
+- **A return is whole-line, not per-unit — a partially-refunded quantity stays KEPT.** `returned_at` marks the *line*; there is no per-unit return field. So a line of `qty: 3` with one unit refunded is **not** flagged returned: the customer still owns two of them, and the engine keeps treating that SKU as kept and recommendable. Only send `returned_at` when the line came back in full. This deliberately under-reports returns rather than suppressing a product the customer still has — a wrong suppression costs a real recommendation slot, a missed return costs only a signal the consumers already tolerate as best-effort (above). A `returned_qty` widening is **deferred** until a fashion pilot shows real partial-return volume; nothing on the wire changes until then. (Erkki decision, 2026-08-05, PRO-1597.)
+- **Return signals are best-effort.** Smaller stores routinely process refunds off-platform and will send nothing at all here; WooCommerce has no returns concept in core and no structured reason anywhere in its ecosystem. The engine degrades gracefully on NULL — every consumer treats "no return recorded" as "kept", which is the correct default.
+- **Forward-only.** No historical backfill of returns is expected or required. Both consumers are windowed (180 days / 365 days), so the signal fully matures within ~6 months of switch-on. Do not read a low return rate in the first months as a real one.
+- ⚠️ **Items are fully replaced on order re-ingest** (see below), so a later sync of a returned order that omits these fields **erases the return**. Whoever pushes a return must keep pushing it on every subsequent sync of that order. (The derived full-refund case is self-healing — it is re-derived from `status` on every sync.)
 
 **Amount semantics (tax basis)** (v1.4.0):
 - All money fields on this endpoint are **gross amounts — tax-inclusive, in the order's `currency`**: what the customer actually paid.
@@ -929,13 +956,17 @@ Batch upload of orders + line items. **Order natural key is `(tenant_id, externa
 
 **Attribution is asynchronous.** The orders ingest route only **stores** the attribution signals (`smaily_rec_id` / `smaily_visitor_token` / `session_id` / `smaily_rec_ctx`) on the order. A separate cron (`process-order-attributions`, ~every 30 min) then computes `rec_attribution` rows via the 4-step matching below — **after** ingest, once browse events and recommendations have settled. Attribution counts are therefore **not** in the ingest response.
 
-Matching steps (run by the cron, unchanged):
+Matching steps (run by the cron; PRO-1524, 2026-07-23 — a former 4th-priority
+`browse_events`/`session_id` fallback was removed here, see Appendix E):
 1. If `smaily_rec_id` is present → look up `recommendations`, verify customer match → `rec_attribution` with `attribution_type` `direct` / `exact_later` / `indirect_*` (by SKU match + time gap).
 2. Else if `smaily_visitor_token` is present → `visitor_tokens` → recent recommendations → match.
-3. Else if `session_id` is present → `browse_events` within the last 7 days with a rec_id link → match.
-4. No match → `rec_attribution` with `attribution_type='control_purchase'`, `outcome_score=0.0`.
+3. Else → most recent email `click` for this customer with a `recommendations` link, within the match window (default **30 days**; per-tenant override via `tenant_settings.attribution_match_window_days`) → match.
+4. No match → `rec_attribution` with `attribution_type='control_purchase'`, `outcome_score=0.0` (a softer `assisted_open` tier may also apply here — see `lib/engine/attribution/match-purchase-to-rec.ts`).
 
 `smaily_rec_ctx` is stored and made available to the attribution flow but **not yet consumed by matching** (future feature). Detailed logic lives in `lib/engine/attribution/`.
+
+<a id="rec-id-uuid-validation"></a>
+**`smaily_rec_id` is UUID-validated, and a bad value costs the order — not just the field.** The value is a `recommendations.rec_id`, so the route types it as a UUID (`z.string().uuid()`). A present-but-malformed value (a truncated cookie, a `rec_abc123`-style placeholder, an empty string) fails per-order validation: that order lands in `errors[]` with `field: "smaily_rec_id"` and is **not written** — the order's revenue is lost to the engine, not merely its attribution. This is the standard per-order rejection path described above: the rest of the batch still processes, the rejected order's `event_id` is not registered, and a corrected retry writes it normally. **Sender rule**: omit the field entirely when there is no cookie or the cookie value is not a well-formed UUID. Omitted (or `null`) is always safe — the order then attributes through the visitor-token or email-click mechanism, or as `control_purchase`. Do not send `""`.
 
 **Idempotency**: two layers, as described in [Idempotency](#idempotency):
 - **Layer 1**: `(tenant_id, external_order_id)` natural-key UPSERT (items are fully replaced on update).
@@ -982,7 +1013,7 @@ Browse events batch. The highest-volume endpoint.
       
       "customer_email": "mari@example.com",
       "smaily_visitor_token": "vt_8f3k2a",
-      "smaily_rec_id": "rec_abc123",
+      "smaily_rec_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "smaily_ctx": "cart_abandoned",
       "external_id": "67"
     }
@@ -1003,11 +1034,15 @@ Browse events batch. The highest-volume endpoint.
 | `dwell_seconds` | integer | NO | Time on page (for `product_view`) |
 | `event_ts` | ISO 8601 | YES | Event occurrence timestamp |
 | `source` | string | NO | Defaults to `web` if omitted. Constant: `web`, `plugin_woo`, `plugin_shopify`, `plugin_magento`, `make`, `custom`. The engine stores `source` as an opaque label (not enum-validated); senders must use their listed constant so per-source analytics stay clean. |
-| `customer_email` | string | NO | Identity hint (if user is logged in) |
+| `customer_email` | string | NO | Identity hint (if user is logged in). **Deprecated for client-originated senders — see below.** |
 | `smaily_visitor_token` | string | NO | Identity hint (from cookie) |
-| `smaily_rec_id` | string | NO | Attribution (from cookie) |
-| `smaily_ctx` | string | NO | Attribution (from cookie) |
+| `smaily_rec_id` | UUID v4 string | NO | **Deprecated, accept-and-ignore as of v1.7.0 — see below.** Accepted on the wire; no longer persisted or consulted. Still **UUID-validated** when present — a malformed value rejects that event. Prefer omitting it. |
+| `smaily_ctx` | string | NO | **Deprecated, accept-and-ignore as of v1.7.0 — see below.** Accepted on the wire; no longer persisted or consulted. |
 | `external_id` | string | NO | Platform user_id |
+
+> **Deprecated for client-originated senders (2026-07-21 decision, PRO-1500): `customer_email` as a browse-event identity hint.** No legitimate client-side producer for this field exists — a storefront beacon has no verified email of its own to send, and a value handed to client-side JS is trivially spoofable. The supported identity path for a logged-in shopper is the visitor-token cookie (`smaily_visitor_token`, resolved server-side against `visitor_tokens`) plus the explicit [`POST /api/v1/identity/merge`](#7-post-apiv1identitymerge) call on login ([§7](#7-post-apiv1identitymerge)) — not a client-echoed email. **Server-side senders** (a Make-flow-style integration running on the merchant's own server, which already holds a verified email — typically `source: "make"`) **may continue sending `customer_email` on browse events during the grace period.** This release documents the deprecation only: per this contract's additive-MINOR discipline (nothing existing changes shape or behavior on a MINOR), the engine still accepts and resolves `customer_email` from every sender exactly as in the table above — no accept-and-ignore code change ships in v1.6.0. A future contract change will move client-originated `customer_email` to accept-and-ignore semantics (accepted on the wire, no longer consulted by the identity-resolution steps below); that is not yet implemented and is tracked separately.
+
+> **Deprecated, accept-and-ignore effective this release (2026-07-23 decision, PRO-1524 / PRO-1465): `smaily_rec_id` and `smaily_ctx` as browse-event attribution hints.** Both are client-originated — read from the `smaily_rec_id` / `smaily_rec_ctx` cookies the plugin sets from a personalized product-link's `smaily_rec` / `smaily_ctx` [URL parameters](#url-parameters-on-campaign-links) — and, like `customer_email` above, spoofable client-side with no server-side verification. **Unlike `customer_email`, there is no grace period for a legitimate server-side sender to preserve**: rec-link attribution runs on the order-level cookie→order path (`smaily_rec_id` / `smaily_rec_ctx` on [`POST /api/v1/ingest/orders`](#5-post-apiv1ingestorders), §5) and identity resolution on the visitor-token path; the browse-event echo of these two fields only ever fed the 4th-priority (lowest) fallback in the order-attribution matching (`browse_events` row with a `smaily_rec_id` link within the match window), which had never actually matched a purchase in production. **Effective this release, the engine accepts both fields on the wire without error but no longer persists or consults them** — sending them is a harmless no-op, not a rejection, so no sender needs to change anything before their own next release. Server-side detail: both `browse_events.smaily_rec_id` and `browse_events.smaily_ctx` are dropped from the schema entirely (migrations `0080`/`0081`) — the 4th-priority fallback itself was removed from `lib/engine/attribution/match-purchase-to-rec.ts` in the same change (grep-verified zero remaining readers). §5's matching-steps list now reflects the resulting 3-mechanism ladder.
 
 **Identity resolution flow** (engine-side):
 
@@ -1131,14 +1166,13 @@ At least **one** of `anon_session_id` or `smaily_visitor_token` must be present 
   "customer_id": "550e8400-...",
   "merged": {
     "browse_events_updated": 12,
-    "browse_events_already_bound": 3,
     "visitor_tokens_bound": 1,
     "session_history_days": 22
   }
 }
 ```
 
-`browse_events_updated` = anonymous events bound to customer_id.
+`browse_events_updated` = anonymous events bound to customer_id on this call (already-bound rows are excluded by the `customer_id IS NULL` filter, so a repeat merge reports 0, not a separate already-bound count).
 `session_history_days` = how many days the bound events reach back (gives a sense of how much history the customer recovered).
 
 **Response 404 Not Found**:
@@ -1149,7 +1183,7 @@ At least **one** of `anon_session_id` or `smaily_visitor_token` must be present 
 }
 ```
 
-**Idempotency**: same merge twice = no-op (events already bound; response shows `browse_events_already_bound`).
+**Idempotency**: same merge twice = no-op (events already bound; the second call's `browse_events_updated` reports 0).
 
 ---
 
@@ -1967,7 +2001,50 @@ curl -X POST https://intelligence.smaily.com/api/v1/ingest/browse \
 - **Setup-exchange endpoints map gains `notifications_ingest`** (§1) — existing connections whose exchange-time map predates this key fall back to the plugin's own path constants, same "map age" behavior as every prior additive key.
 - No consumer calls this yet (no plugin/Smaily-core caller exists at lock time) — documented ahead of any integration so the contract, not a specific caller's behavior, is the source of truth from day one.
 
----
+**v1.6.0** (2026-07-21) — **`tags.category_defaulted` on catalog ingest, and a deprecation notice for browse `customer_email`**. MINOR bump per the [Versioning](#versioning) rule (new optional field + a wording-only deprecation notice; nothing existing changes shape or behavior). PRO-1500, Erkki-approved 2026-07-21:
+- **§3 new optional catalog field [`tags.category_defaulted`](#category-defaulted)** — `"true"`, omit-on-false. Marks a row whose `category_path` is a **placeholder** (a store default-category fallback, or a delete-tombstone row synced with *some* category) rather than real taxonomy. Engine behavior: `lib/ingest/attribute-mapping.ts` `mapRawAttributes()` gains a `categoryDefaulted` parameter that skips every category-**slug**-keyed derivation (species-from-category, `category_canonical`, replenishable-from-category) for such a row; **name**-keyed derivations (species/life-stage-from-name, brand) are unaffected, and explicit tenant-sent tags still always win. A row left without `category_canonical` this way stays eligible for the nightly AI category sweep (verified against `lib/catalog/category-sweep.ts` / `lib/catalog/tag-meta.ts` `needsCategorySweep()` — its selection is keyed only on `category_canonical` + `_tag_meta`, so it already includes these rows without any change). Evaluated fresh per upsert from the request's own `tags` — omitting the flag on a later sync (once a real category is known) re-enables normal derivation for that sync, with no stored state to reset.
+- **§6 `customer_email` on browse events marked deprecated for client-originated senders** (documentation only in this release — no code change, no accept-and-ignore yet): no legitimate client-side producer exists, the field is spoofable from browser JS, and the supported logged-in-identity path is the visitor-token cookie + [§7 `identity/merge`](#7-post-apiv1identitymerge). Server-side senders (Make-flow style) may keep sending it during the grace period.
+
+**v1.6.0 — §7 merge response example correction** (documentation-only; no code/schema change). PRO-1533:
+- **Removed the non-existent `browse_events_already_bound` field** from the §7 `identity/merge` response example and idempotency note — the route (`app/api/v1/identity/merge/route.ts`) only ever returns `browse_events_updated` / `visitor_tokens_bound` / `session_history_days`; a repeat merge reports `browse_events_updated: 0` rather than a separate already-bound count.
+
+**v1.7.0** (2026-07-23) — **§3 optional `currency` catalog field, and §6 `smaily_rec_id`/`smaily_ctx` browse-attribution-hint deprecation shipped as accept-and-ignore**. MINOR bump per the [Versioning](#versioning) rule (new optional field; and a behavior change confined to two fields with a verified-zero-effect fallback, wire-compatible — nothing existing changes shape). PRO-1524, PRO-1465, Erkki-approved 2026-07-23:
+- **§3 new optional catalog field `currency`** (ISO 4217, loosely validated — 3 uppercase letters; default `EUR`) — mirrors `orders.currency` (migration `0032`). Stored on `catalog.currency` (migration `0079`, `NOT NULL DEFAULT 'EUR'`, same pattern as orders). One currency per tenant remains the assumed model. `lib/ingest/catalog-schema.ts` `toCatalogInsert()` omits the key entirely when the sender doesn't send it, so the DB default applies and the write stays safe even mid-deploy, before the migration lands.
+- **§6 `smaily_rec_id` / `smaily_ctx` marked deprecated, accept-and-ignore, effective immediately (no grace period needed)** — both are client-originated cookie-echoes and the browse-event fallback they fed (`match-purchase-to-rec.ts` step 4) has never fired in production; real rec-link attribution runs on the order-level cookie→order path (§5) and identity on the visitor-token path. `app/api/v1/ingest/browse/route.ts` still accepts both fields (no validation error) but no longer writes them into `browse_events`. `browse_events.smaily_rec_id` is now always inserted `NULL` (column kept — still read by the same dormant fallback); `browse_events.smaily_ctx` is dropped from the schema (migration `0080`) — grep-verified zero readers anywhere in the engine.
+- Unlike the v1.6.0 `customer_email` precedent (documentation-only, code deferred), this release ships the code change in the same commit as the doc update — there is no working behavior to preserve during a grace period, so accept-and-ignore is effective for every sender immediately.
+
+**v1.7.0 — errata: §5 attribution ladder + example value fixes** (documentation-only; no code/schema change beyond what PRO-1524's follow-up batch also shipped — see below). PRO-1524:
+- **§5 "Matching steps" corrected to match the actual code** — two stale claims fixed: (1) the lookback window was documented as "the last 7 days" but the code (`DEFAULT_MATCH_WINDOW_DAYS`) has been **30 days** since 2026-06-30 (tenant-overridable via `tenant_settings.attribution_match_window_days`); (2) step 3 was mislabeled as a `session_id`-gated `browse_events` lookup — the actual 3rd mechanism is an email **`click`** lookup (`customer_email`/`email_events`), unconditional on `session_id`. The former 4th-priority `browse_events`/`smaily_rec_id` fallback (already documented as permanently dormant in the v1.7.0 entry above) is removed in this same batch (`lib/engine/attribution/match-purchase-to-rec.ts`, migration `0081` — drops `browse_events.smaily_rec_id`); the ladder is now the 3 mechanisms that actually run, plus `control_purchase` / `assisted_open` on no match.
+- **§6 request-body example (`"smaily_rec_id": "rec_abc123"`) and the identical §5 example fixed to a format-valid UUID** — the placeholder value would fail both routes' actual `z.string().uuid()` validation.
+
+**v1.7.0 — errata: dead `session_id` field-reference note + URL-parameters example correction** (documentation-only; small internal-only code cleanup alongside — no wire/schema change). PRO-1544:
+- **§5 `session_id` field-reference row corrected** — was described as "used for retroactive attribution"; the browse-event/`session_id` matching step it fed was already removed in PRO-1524, so it has been accept-and-ignore (stored on the order, not read by the matcher) since then. The internal-only `ProcessOrderInput.session_id` field that carried it into the now-removed matching step is deleted accordingly (`lib/engine/attribution/types.ts`, and its two callers); the wire field is unchanged — orders ingest still accepts and stores `session_id` on the order.
+- **"URL parameters (on campaign links)" example corrected** — showed a stale `utm_campaign=welcome_series` param (removed from `lib/sync/url-builder.ts` before this contract was written) and was missing the real `utm_medium=email` param. Example now matches `buildPersonalizedProductLink()`'s actual output. Also brought the `smaily_rec` placeholder value in line with the same-day §5/§6 fix above (`rec_abc123` → the format-valid UUID `3fa85f64-5717-4562-b3fc-2c963f66afa6`) — the actual field is a `recommendations.rec_id` UUID, and the example should read consistently with every other `smaily_rec_id`/`smaily_rec` example in this document.
+
+**v1.8.0** (2026-07-30) — **§5 return signals: `items[].returned_at` documented, two optional reason fields added, full refunds derived engine-side**. MINOR bump per the [Versioning](#versioning) rule (new optional fields; backward-compatible — nothing existing changes shape). PRO-1597, Erkki-approved 2026-07-30, research `docs/RESEARCH_return_reason_ingest.md`:
+- **`items[].returned_at` is now documented** (§5 field reference + the new "Return signals" block). It is not new — the route has accepted it since the first release and it appeared only inside a GDPR-export example — but no sender has ever sent it, so every `returned_at` in production was NULL and its four consumers (180-day same-SKU suppression, the fit-anxiety learner, the `not_returned` trigger anchors) were inert.
+- **Two new optional line fields: `return_reason_standardised`** (7-value engine-owned enum: `size_small` / `size_large` / `not_as_pictured` / `defect` / `wrong_item` / `changed_mind` / `other`) **and `return_reason_raw`** (verbatim platform string, ≤500 chars, diagnostic-only, merchant/system note only — never the buyer-written `customerNote`). Stored on `order_items` (migration `0082`, both nullable). **No engine consumer exists yet** — the fashion return-recovery family is separate later work; this release is contract + storage so the signal can start accumulating.
+- **Never-reject rule, normative**: an unrecognised `return_reason_standardised` is stored as `other` with the original string preserved in `return_reason_raw` — it does not fail the item, the order, or produce an `errors[]` entry. The wire type is a plain string, not a closed enum, precisely so widening the vocabulary later is an engine deploy with no plugin release. Senders must not validate against a closed copy of the list. An over-long `return_reason_raw` is truncated, not refused.
+- **Engine-side full-refund derivation (behavior change, no wire change)**: an order arriving with `status: "refunded"` now has **every line stamped returned** at the order's own `ordered_at`. Senders need not send `returned_at` for a full refund; an explicitly sent `returned_at` always wins. `ordered_at` rather than ingest time is deliberate — items are fully replaced on re-ingest, so a `now()` derivation would move the date on every re-sync and a full historical re-sync would restamp old refunds as fresh returns. Senders **SHOULD** still send per-line `returned_at` for **partial** returns, which order status cannot express (a WooCommerce partial refund does not change the order status at all).
+- **Expectation-setting, stated in §5**: return signals are best-effort and **forward-only**. Many stores process refunds off-platform and will send nothing; WooCommerce has no returns concept in core. The engine degrades gracefully on NULL (no return recorded = kept). Both consumers are windowed (180 d / 365 d), so no historical backfill is expected — and an early low return rate should not be read as a real one.
+- ⚠️ **Sender obligation**: because items are fully replaced on order re-ingest, a later sync of a returned order that omits these fields erases the return. Only the derived full-refund case is self-healing.
+
+**v1.8.0 — errata: §5/§6 `smaily_rec_id` is a UUID, not a free string** (documentation-only; no code/schema change — the contract is being aligned to validation that has been live since the first release). PRO-1713, raised by the WooCommerce plugin team:
+- **§5 and §6 field-reference rows retyped `string` → `UUID v4 string`.** Both routes have always validated the field with `z.string().uuid()` (`app/api/v1/ingest/orders/route.ts`, `app/api/v1/ingest/browse/route.ts`); the contract's plain-`string` typing invited senders to forward whatever the cookie held. Every example value in this document was already a well-formed UUID (fixed in the v1.7.0 errata batch), so the tables were the last place still saying otherwise.
+- **§5 gains a normative note on the cost of a bad value** ([`smaily_rec_id` is UUID-validated](#rec-id-uuid-validation)): a malformed value fails per-order validation, so the **whole order** is rejected into `errors[]` and not written — the order's revenue is lost to the engine, not merely its attribution. This is the ordinary per-order rejection path (batch continues, `event_id` not registered, corrected retry writes normally), but it is worth stating because senders reasonably assume an optional attribution hint degrades to "no attribution" rather than "no order". **Sender rule stated explicitly**: omit the field when there is no cookie or the cookie is not a well-formed UUID; never send `""`.
+- **§6 row notes that the deprecated field is still validated** — accept-and-ignore (v1.7.0) means the value is never persisted or consulted, but a malformed value still fails that event's validation. Omitting it is the only fully safe option.
+- No semantics change and no code change: this errata documents enforced reality. Widening the validation was considered and **not** done — the field is a `recommendations.rec_id` lookup key, and a loose type would only move the failure to a silent no-match.
+
+**v1.8.0 — errata: §2's `403 tenant_inactive` now actually happens** (documentation-only on the wire — the response shape is unchanged from what this contract has always specified; the engine side gained the tenant state that can produce it). PRO-1690:
+- **The documented response was, until now, unreachable.** No engine code path emitted `tenant_inactive` and `tenants` had no status column: deactivating a tenant meant revoking its API keys one at a time. The engine now has an operator suspension state, so the response is real.
+- **Scope stated explicitly in §2**: it applies to every API-key-authenticated endpoint (§2–§14), because enforcement sits at the shared authentication step rather than per route. The body is byte-identical everywhere.
+- **No new error code, field or status.** Suspension reasons (billing vs. abuse) are an engine/merchant-console distinction and are deliberately NOT exposed on the wire — a sender's correct reaction is the same either way.
+- **Sender obligation restated**: `403 tenant_inactive` is non-retryable, like `401`. A plugin that backs off and retries will simply keep failing.
+
+**v1.8.1** (2026-08-06) — **§2's `403 tenant_inactive` extends to purged/offboarded tenants**. PATCH bump per the [Versioning](#versioning) rule (no new endpoint, no new field, no shape change — a fix to *which engine states* emit a response this contract already specifies). PRO-1820, Erkki-approved 2026-08-06:
+- **The gate read only one of the two deactivation stamps.** A GDPR-purged (offboarded) tenant's API key kept authenticating, so a plugin that outlived its purge re-created customer and order rows inside a tombstoned tenant — observed in production on 2026-08-04 for two tenants purged on 2026-07-30. Both key-resolution paths (per-connection keys and the legacy single-key fallback) now carry the tombstone, and the shared authentication step refuses it.
+- **Deliberately the SAME response, not a new one.** A purged tenant answers byte-identically to a suspended one, `"tenant_status": "suspended"` literal included. That field is a fixed string, never a state discriminator — senders must not branch on it. The plugin contract gains no state: a sender's correct reaction (stop sending, surface an admin notice, do not retry) is already the documented one.
+- **Nothing to implement plugin-side.** A plugin that already handles `403 tenant_inactive` per the §2 sender rule is correct as-is. The semantics are informational: unlike suspension, a purge is permanent — the credentials cannot be revived by any key, setup token or regenerate flow (PRO-1820 closed those mints on 2026-08-05), and data sent after the purge is rejected at the gate and never stored.
 
 ### Appendix F: Migration notes
 
