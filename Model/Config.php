@@ -40,7 +40,6 @@ class Config
     public const XML_PATH_ABANDONED_ENABLED = 'smaily_connect/automations/abandoned_enabled';
     public const XML_PATH_ABANDONED_WORKFLOW = 'smaily_connect/automations/abandoned_workflow';
     public const XML_PATH_ABANDONED_CUTOFF = 'smaily_connect/automations/abandoned_cutoff';
-    public const XML_PATH_ABANDONED_FIELDS = 'smaily_connect/automations/abandoned_fields';
     public const XML_PATH_RSS_ENABLED = 'smaily_connect/rss/enabled';
     public const XML_PATH_LOG_VERBOSITY = 'smaily_connect/logging/verbosity';
 
@@ -218,18 +217,6 @@ class Config
             self::MIN_ABANDONED_CUTOFF_MINUTES,
             (int)$this->websiteValue(self::XML_PATH_ABANDONED_CUTOFF, $websiteId)
         );
-    }
-
-    /**
-     * Get enabled abandoned cart product fields.
-     *
-     * @return string[]
-     */
-    public function getAbandonedFields(?int $websiteId = null): array
-    {
-        $raw = (string)$this->websiteValue(self::XML_PATH_ABANDONED_FIELDS, $websiteId);
-
-        return $raw === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $raw))));
     }
 
     /**

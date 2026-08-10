@@ -29,7 +29,6 @@
                 <first_order_enabled>0</first_order_enabled>
                 <abandoned_enabled>0</abandoned_enabled>
                 <abandoned_cutoff>30</abandoned_cutoff>
-                <abandoned_fields>name,description,image_url,sku,quantity,price,base_price</abandoned_fields>
             </automations>
             <rss>
                 <enabled>1</enabled>

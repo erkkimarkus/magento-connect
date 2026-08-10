@@ -23,7 +23,7 @@ package; `setup:upgrade` runs the migration.
 | API subdomain / username / password (all websites) | API Connection (the previously **plaintext** password is now stored **encrypted**; the subdomain is normalized) |
 | Newsletter opt-in autoresponder (`workflowId`) | Welcome automation (enabled if opt-in triggering was enabled) + a fallback row in the automation mapping table |
 | Subscriber cron sync toggle + field selection | Subscriber Synchronization (same field names) |
-| Abandoned cart toggle / autoresponder / interval / product fields | Automations group (`2:hour` → 120 minutes; `qty` → `quantity`) + a mapping fallback row |
+| Abandoned cart toggle / autoresponder / interval | Automations group (`2:hour` → 120 minutes) + a mapping fallback row |
 
 Legacy `smaily/*` config rows are left in place, so downgrading back to
 2.8.x (composer version constraint) restores the old behavior.
@@ -53,7 +53,11 @@ Legacy `smaily/*` config rows are left in place, so downgrading back to
   listed, variants resolve to their parent. Update feed URLs in your
   Smaily templates if you used category filtering.
 - **Abandoned cart:** `{{abandoned_cart_url}}` is now a working cart
-  recovery link. Prices in product fields remain tax-inclusive.
+  recovery link. Prices in product fields remain tax-inclusive. The product
+  **field selection is gone** — every product field is always sent, and all
+  ten slots ride every reminder (the unused ones empty, which is what clears
+  a previous cart from the contact). A legacy selection is simply not
+  carried over.
 - **Cron:** jobs moved into a dedicated `smaily_connect` cron group running
   in a separate process. Ensure `bin/magento cron:run` executes every
   minute for near-real-time delivery.

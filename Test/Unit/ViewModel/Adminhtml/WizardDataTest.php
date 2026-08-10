@@ -151,12 +151,10 @@ class WizardDataTest extends TestCase
         self::assertSame([1 => 'Main', 2 => 'Second'], $this->viewModel->getWebsiteOptions());
     }
 
-    public function testGetSelectedSyncFieldsAndAbandonedFieldsReadAtTheSelectedWebsiteScope(): void
+    public function testGetSelectedSyncFieldsReadsAtTheSelectedWebsiteScope(): void
     {
         $this->config->expects(self::once())->method('getSyncFields')->with(2)->willReturn(['first_name']);
-        $this->config->expects(self::once())->method('getAbandonedFields')->with(2)->willReturn(['product_name_1']);
 
         self::assertSame(['first_name'], $this->viewModel->getSelectedSyncFields());
-        self::assertSame(['product_name_1'], $this->viewModel->getSelectedAbandonedFields());
     }
 }

@@ -36,7 +36,6 @@ class LegacyConfigMapperTest extends TestCase
             'abandoned/enableAbandonedCart' => '1',
             'abandoned/autoresponderId' => '77',
             'abandoned/syncTime' => '2:hour',
-            'abandoned/productfields' => 'name,qty,price,first_name',
         ]);
 
         $configs = [];
@@ -62,9 +61,6 @@ class LegacyConfigMapperTest extends TestCase
         self::assertSame('1', $configs[Config::XML_PATH_ABANDONED_ENABLED]);
         self::assertSame('77', $configs[Config::XML_PATH_ABANDONED_WORKFLOW]);
         self::assertSame('120', $configs[Config::XML_PATH_ABANDONED_CUTOFF]);
-        // qty renames to quantity; contact-level fields are dropped.
-        self::assertSame('name,quantity,price', $configs[Config::XML_PATH_ABANDONED_FIELDS]);
-
         self::assertNotEmpty($result['notices']); // frequency drop notice
     }
 

@@ -30,16 +30,6 @@ class LegacyConfigMapper
         'first_name', 'last_name', 'gender', 'birthday',
     ];
 
-    private const ABANDONED_FIELD_MAP = [
-        'name' => 'name',
-        'description' => 'description',
-        'image_url' => 'image_url',
-        'sku' => 'sku',
-        'qty' => 'quantity',
-        'price' => 'price',
-        'base_price' => 'base_price',
-    ];
-
     public function __construct(
         private readonly SubdomainNormalizer $subdomainNormalizer
     ) {
@@ -120,18 +110,6 @@ class LegacyConfigMapper
                 (string)$this->intervalToMinutes((string)$legacy['abandoned/syncTime'])
             );
         }
-        if (!empty($legacy['abandoned/productfields'])) {
-            $mapped = [];
-            foreach (array_map('trim', explode(',', (string)$legacy['abandoned/productfields'])) as $field) {
-                if (isset(self::ABANDONED_FIELD_MAP[$field])) {
-                    $mapped[] = self::ABANDONED_FIELD_MAP[$field];
-                }
-            }
-            if ($mapped) {
-                $set(Config::XML_PATH_ABANDONED_FIELDS, implode(',', array_unique($mapped)));
-            }
-        }
-
         // Captcha settings are replaced by Magento's native reCAPTCHA.
         if ($this->flag($legacy, 'subscribe/enableCaptcha')) {
             $notices[] = 'The legacy newsletter captcha settings were not migrated: '

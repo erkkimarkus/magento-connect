@@ -167,14 +167,6 @@
                     <validate>validate-digits digits-range-10-1440</validate>
                     <depends><field id="abandoned_enabled">1</field></depends>
                 </field>
-                <field id="abandoned_fields" translate="label comment" type="multiselect" sortOrder="80"
-                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
-                    <label>Abandoned Cart Product Fields</label>
-                    <comment>Product data included for up to 10 cart items (product_name_1..10 etc.).</comment>
-                    <source_model>Smaily\Connect\Model\Config\Source\AbandonedFields</source_model>
-                    <can_be_empty>1</can_be_empty>
-                    <depends><field id="abandoned_enabled">1</field></depends>
-                </field>
                 <field id="engine_automations" translate="label" type="label" sortOrder="100"
                        showInDefault="1" showInWebsite="0" showInStore="0">
                     <label/>

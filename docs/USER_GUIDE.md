@@ -65,8 +65,8 @@ Everything lives under **Marketing > Smaily Connect**, four pages:
 The Settings page (and the wizard) is the **only** place to configure Smaily
 Connect — there is no separate entry under Stores > Configuration. Every
 field, including the ones that used to live only there (multilingual mode,
-the two Subscribers "advanced" toggles, abandoned-cart product fields), has a
-home on the module's own pages.
+the two Subscribers "advanced" toggles), has a home on the module's own
+pages.
 
 ### Multiple websites
 

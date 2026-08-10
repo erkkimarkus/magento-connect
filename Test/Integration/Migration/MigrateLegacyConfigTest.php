@@ -38,7 +38,6 @@ class MigrateLegacyConfigTest extends IntegrationTestCase
             'smaily/abandoned/enableAbandonedCart' => '1',
             'smaily/abandoned/autoresponderId' => '77',
             'smaily/abandoned/syncTime' => '2:hour',
-            'smaily/abandoned/productfields' => 'name,qty,price',
             self::LEGACY_CRON_PATH => '0 4 * * *',
         ]);
 
@@ -54,7 +53,6 @@ class MigrateLegacyConfigTest extends IntegrationTestCase
         self::assertSame('1', $config[Config::XML_PATH_ABANDONED_ENABLED]);
         self::assertSame('77', $config[Config::XML_PATH_ABANDONED_WORKFLOW]);
         self::assertSame('120', $config[Config::XML_PATH_ABANDONED_CUTOFF], '"2:hour" becomes minutes');
-        self::assertSame('name,quantity,price', $config[Config::XML_PATH_ABANDONED_FIELDS], '"qty" renamed');
     }
 
     public function testLegacyPlaintextPasswordIsEncryptedAndDecryptsBack(): void

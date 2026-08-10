@@ -21,7 +21,6 @@ use Smaily\Connect\Model\Automation\MappingSaver;
 use Smaily\Connect\Model\Client\Exception\SmailyClientException;
 use Smaily\Connect\Model\Client\SmailyClientProvider;
 use Smaily\Connect\Model\Config;
-use Smaily\Connect\Model\Config\Source\AbandonedFields;
 use Smaily\Connect\Model\Config\Source\MultilingualMode;
 use Smaily\Connect\Model\Config\Source\SyncFields;
 use Smaily\Connect\Model\Config\Source\SyncMode;
@@ -277,19 +276,6 @@ class WizardStepSaver
             $this->configWriter->save(
                 Config::XML_PATH_ABANDONED_CUTOFF,
                 (string)max(Config::MIN_ABANDONED_CUTOFF_MINUTES, min(1440, (int)$data['abandoned_cutoff'])),
-                ScopeInterface::SCOPE_WEBSITES,
-                $websiteId
-            );
-        }
-
-        if (isset($data['abandoned_fields']) && is_array($data['abandoned_fields'])) {
-            $fields = array_values(array_intersect(
-                AbandonedFields::SUPPORTED_FIELDS,
-                array_map('strval', $data['abandoned_fields'])
-            ));
-            $this->configWriter->save(
-                Config::XML_PATH_ABANDONED_FIELDS,
-                implode(',', $fields),
                 ScopeInterface::SCOPE_WEBSITES,
                 $websiteId
             );

@@ -169,17 +169,6 @@ class WizardData implements ArgumentInterface
     }
 
     /**
-     * Saved abandoned-cart product-field selection for the server-rendered
-     * checkboxes on the Automations tab.
-     *
-     * @return string[]
-     */
-    public function getSelectedAbandonedFields(): array
-    {
-        return $this->config->getAbandonedFields($this->websiteContext->getWebsiteId());
-    }
-
-    /**
      * @return array{customers: int, orders: int, products: int}
      */
     public function getStoreTotals(): array

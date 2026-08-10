@@ -23,7 +23,6 @@
 
 /** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
 $viewModel = $block->getData('view_model');
-$isSettings = $block->getData('context') === 'settings';
 $isMultilingual = $viewModel->isMultilingual();
 $languages = $viewModel->getDetectedLanguages();
 $mode = $viewModel->getMultilingualMode();
@@ -35,19 +34,6 @@ $triggers = [
     'first_order' => __('First order'),
     'abandoned_cart' => __('Abandoned cart'),
 ];
-
-// Abandoned-cart product fields (automations/abandoned_fields) — real control
-// added on the Settings tab (PRO-1401); native config-only until now.
-$abandonedFieldLabels = [
-    'name' => __('Product Name'),
-    'description' => __('Product Description'),
-    'image_url' => __('Product Image URL'),
-    'sku' => __('Product SKU'),
-    'quantity' => __('Product Quantity'),
-    'price' => __('Product Price'),
-    'base_price' => __('Product Base Price'),
-];
-$selectedAbandonedFields = $viewModel->getSelectedAbandonedFields();
 
 // Store-event trigger cards. The id slug differs from the trigger key
 // (first_order -> firstorder, abandoned_cart -> abandoned) to match the
@@ -92,19 +78,6 @@ $storeTriggers = [
                     <?php endif; ?>
                 </div>
             </div>
-            <?php if (!empty($trigger['abandoned']) && $isSettings): ?>
-            <div class="smaily-store-trigger__fields" id="smaily-w-abandoned-fields">
-                <div class="smaily-store-trigger__fields-label"><?= $escaper->escapeHtml(__('Abandoned Cart Product Fields')) ?></div>
-                <?php foreach ($abandonedFieldLabels as $fieldValue => $fieldLabel): ?>
-                <label>
-                    <input type="checkbox"
-                           value="<?= $escaper->escapeHtmlAttr($fieldValue) ?>"
-                           <?= in_array($fieldValue, $selectedAbandonedFields, true) ? 'checked' : '' ?>/>
-                    <?= $escaper->escapeHtml($fieldLabel) ?>
-                </label>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
         </div>
         <?php endforeach; ?>
     </div>

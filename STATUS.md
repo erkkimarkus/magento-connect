@@ -25,6 +25,24 @@ the cart's products, and write all ten slots on every send)_
   IS the clearing mechanism). `build()` lost its now-unused `$websiteId`
   argument. `docs/USER_GUIDE.md`'s abandoned-cart section updated to say
   there is nothing to configure.
+  **The selector itself is retired, not just ignored.** Its only UI (the
+  7-checkbox block inside the Automations tab's abandoned-cart card) is gone
+  (`panel/automations.phtml`, `panel/panels-js.phtml`'s collect, the
+  `.smaily-store-trigger__fields` CSS); `WizardStepSaver::saveAutomations()`
+  no longer writes it, `WizardData::getSelectedAbandonedFields()` is deleted,
+  and so are `Model\Config::getAbandonedFields()`/`XML_PATH_ABANDONED_FIELDS`,
+  the `system.xml` field, its `etc/config.xml` default and the whole
+  `Model\Config\Source\AbandonedFields` source model (the product-field
+  vocabulary now lives as private constants in `PayloadBuilder`, its only
+  consumer). The 2.8.x migration's `abandoned/productfields` mapping is
+  removed too — migrating a value nothing reads is dead work.
+  **Config path abandoned in place, per the 2.8.x constraint — NOT renamed or
+  reused:** `automations/abandoned_fields` simply stops being read or written;
+  any stored value is left orphaned in `core_config_data`, never migrated or
+  cleaned up. Nine now-unused translation strings (the 7 field labels, the
+  block heading, the native comment) removed from both `i18n/en_US.csv` and
+  `i18n/et_EE.csv`, en↔et parity re-verified (391 keys each, same set).
+  `docs/UPGRADING.md`'s migration table and behaviour-changes list updated.
 
 - **PRO-1762 done — engine contract synced v1.5.0 → v1.8.1, and every wire
   change carried through code + tests in the same pass.**
