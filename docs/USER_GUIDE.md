@@ -345,7 +345,12 @@ the background, a chunk per cron minute, without ever blocking live
 traffic:
 
 - **Subscribers → Smaily** — Settings > **Subscribers** tab (per website;
-  both subscribed and unsubscribed, so suppression state is correct)
+  both subscribed and unsubscribed, so suppression state is correct).
+  The import obeys that website's **Enable subscriber synchronization**
+  switch exactly like the live syncs do: with the switch off the import
+  button is disabled and says so, and an import started any other way
+  (the CLI, or one already queued when you switched it off) sends nothing
+  and finishes at 0.
 - **Catalog / Customers / Orders → Campaign Intelligence** — Settings >
   **Intelligence** tab
 

@@ -5,10 +5,76 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-11 (PRO-1951 simplify — the catalog-ingest funnel
-becomes the only enqueue path)_
+_Last updated: 2026-08-11 (PRO-1764 — the contact-sync switch gates the
+historical contacts import)_
 
 ## Where we are
+
+- **PRO-1764 done — the contact-sync switch now gates the historical
+  contacts import too, so one stored answer owns every outbound contact
+  path.** The switch gated every live path (`Observer\SubscriberSaveAfter`,
+  `Observer\CustomerSaveAfter`, `Observer\OrderPlaced`, the checkout opt-in
+  plugin) and the reconcile tick (`Cron\ContactReconcile`), but
+  `Model\Backfill\ContactsProcessor` never read it: a store with subscriber
+  synchronization switched off still sent its ENTIRE subscriber history the
+  moment anyone pressed Import — and the panel quoted the store's totals
+  above the button, which reads as a promise.
+  **One gate, at the deepest shared seam.** `ContactsProcessor::process()`
+  is where the admin start button, `bin/magento smaily:backfill:start
+  contacts` and `Cron\BackfillTick` all converge — including a job that was
+  already queued when the switch was turned off — so the check lives there
+  and nowhere else. It reads the SAME stored answer through the SAME
+  accessor the live paths use (`Model\Config::isSyncEnabled($websiteId)`),
+  for the job's own website: on a multi-website install each website's job
+  is judged by its own switch, which is what makes the per-website scope
+  honest rather than a global veto. Switched off, the job completes having
+  sent nothing and its `total_count` is **0** rather than a subscriber count
+  that promises a sync that will not happen; an info line records why.
+  **Honest copy above it, in the panel's existing disabled-state idiom.**
+  The Subscribers panel's import button is `disabled` and the store-totals
+  line is replaced by "Subscriber synchronization is off for this website,
+  so an import would send nothing. Turn it on and save to import." — both
+  server-rendered from a new `ViewModel\Adminhtml\WizardData::
+  isSyncEnabled()` (website-scoped through `WebsiteContext`, like every
+  other control on this panel). The Settings toggle drives it live through
+  the EXISTING `reactSubscribersEnabled()` handler that already mutes the
+  panel body, so there is one disabled-state idiom, not a second one.
+  **Cancel deliberately stays enabled** so an import already running can
+  still be stopped. One new translation string in both `i18n/en_US.csv` and
+  `i18n/et_EE.csv` (393 keys each, parity re-verified).
+  **Deliberate scope fences:** the panel's gate is judged against the
+  website the page is rendered for, while the admin start button still
+  starts one job per website (backfill URLs stay installation-wide until
+  RFC Phase 4/5) — the processor gate is what makes that correct per
+  website; and the CLI keeps queueing a job rather than refusing outright,
+  because the processor gate makes that job send nothing and
+  `smaily:backfill:status` then shows it as `completed 0 / 0`.
+  **Verification — the REAL import flow on the sandbox with only the
+  transport faked, driven both ways, not just green units.** Wrote fake
+  connected credentials at website scope, created a real newsletter
+  subscriber through `SubscriptionManagerInterface::subscribe()`, then ran
+  the real `JobManager::start()` → real `Cron\BackfillTick::execute()` →
+  real `ContactsProcessor` with a recording `SmailyClientProvider`/
+  `SmailyClient` subclass in place of sendsmaily.net. **Off:** job
+  `completed`, `processed=0`, `total_count=0`, **0 transport posts** (and
+  the subscribe itself queued no event either — the live gate agreeing).
+  **On:** job `completed`, `processed=1`, `total_count=1`, **1 post** to
+  `contact` carrying the real subscriber payload
+  (`{"email":"pro1764@example.com","is_unsubscribed":0,…}`). The panel was
+  rendered through the real admin block/layout stack in the `settings`
+  context both ways: off → `<button … id="smaily-w-backfill" disabled>`
+  with the reason paragraph visible and the totals line hidden; on → the
+  button enabled and the totals line back. Gates: 243 unit tests green (2
+  new — a new `Test/Unit/Model/Backfill/ContactsProcessorTest` pinning both
+  directions with the transport faked; plus a `SubscriberCollectionFactory`
+  unit stub, since Magento factory classes are generated at runtime), phpcs
+  0 errors, phpstan clean, 70 integration tests green (throwaway MySQL).
+  Sandbox `setup:upgrade` + `setup:di:compile` both green
+  (`ContactsProcessor` gained a constructor dependency). Sandbox restored:
+  the test subscriber, every backfill job row and every `smaily_connect/*`
+  config row except `internal/last_seen_version` deleted, cache flushed —
+  confirmed back to the exact pre-test state (0 subscribers, 0 backfill
+  rows, 0 queue rows, one config row).
 
 - **PRO-1951 simplify done — the accepted review findings applied.
   `Model\Engine\CatalogIngest` is now the ONLY place a product becomes a
