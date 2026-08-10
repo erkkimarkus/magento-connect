@@ -47,6 +47,16 @@
         <plugin name="smaily_connect_suppress_newsletter_emails" type="Smaily\Connect\Plugin\SuppressNewsletterEmails"/>
     </type>
 
+    <!-- MSI stock changes → catalog ingest. Optional dependency: if the
+         Magento_Inventory* modules are absent the interface does not exist,
+         the plugin is never wired and nothing else notices. sortOrder puts us
+         behind MSI's own legacy-stock sync in the after-chain. -->
+    <type name="Magento\InventoryApi\Api\SourceItemsSaveInterface">
+        <plugin name="smaily_connect_engine_source_items_save"
+                type="Smaily\Connect\Plugin\Engine\SourceItemsSaveAfter"
+                sortOrder="100"/>
+    </type>
+
     <!-- Backfill processors, keyed by "{job_type}:{target}". -->
     <type name="Smaily\Connect\Cron\BackfillTick">
         <arguments>

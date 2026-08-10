@@ -20,6 +20,9 @@
     <event name="catalog_product_save_after">
         <observer name="smaily_connect_engine_product_save" instance="Smaily\Connect\Observer\Engine\ProductSaveAfter"/>
     </event>
+    <event name="cataloginventory_stock_item_save_after">
+        <observer name="smaily_connect_engine_stock_item_save" instance="Smaily\Connect\Observer\Engine\StockItemSaveAfter"/>
+    </event>
     <event name="catalog_product_delete_before">
         <observer name="smaily_connect_engine_product_delete" instance="Smaily\Connect\Observer\Engine\ProductDeleteBefore"/>
     </event>
