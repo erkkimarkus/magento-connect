@@ -53,18 +53,23 @@ class RetryPolicyTest extends TestCase
         SmailyClientException $exception,
         int $status
     ): void {
-        $this->eventQueue->expects(self::never())->method('markFailed');
-        $this->eventQueue->expects(self::once())->method('markPermanentlyFailed')
-            ->with($this->event, sprintf('permanent_http_%d: %s', $status, $exception->getMessage()));
+        $this->eventQueue->expects(self::once())->method('markFailed')
+            ->with(
+                $this->event,
+                sprintf('permanent_http_%d: %s', $status, $exception->getMessage()),
+                null,
+                null,
+                null,
+                true
+            );
 
         $this->policy->apply($this->event, $exception);
     }
 
     public function testASlowDownParksTheRowForExactlyTheRequestedTime(): void
     {
-        $this->eventQueue->expects(self::never())->method('markPermanentlyFailed');
         $this->eventQueue->expects(self::once())->method('markFailed')
-            ->with($this->event, 'Slow down', null, null, 120);
+            ->with($this->event, 'Slow down', null, null, 120, false);
 
         $this->policy->apply($this->event, new TransportException('Slow down', 429, null, 120));
     }
@@ -73,25 +78,23 @@ class RetryPolicyTest extends TestCase
     {
         // A null retry-after leaves EventQueue on its own backoff ladder.
         $this->eventQueue->expects(self::once())->method('markFailed')
-            ->with($this->event, 'Slow down', null, null, null);
+            ->with($this->event, 'Slow down', null, null, null, false);
 
         $this->policy->apply($this->event, new TransportException('Slow down', 429));
     }
 
     public function testServerErrorsKeepTheLadder(): void
     {
-        $this->eventQueue->expects(self::never())->method('markPermanentlyFailed');
         $this->eventQueue->expects(self::once())->method('markFailed')
-            ->with($this->event, 'Bad gateway', null, null, null);
+            ->with($this->event, 'Bad gateway', null, null, null, false);
 
         $this->policy->apply($this->event, new TransportException('Bad gateway', 502));
     }
 
     public function testTransportErrorsWithoutAStatusKeepTheLadder(): void
     {
-        $this->eventQueue->expects(self::never())->method('markPermanentlyFailed');
         $this->eventQueue->expects(self::once())->method('markFailed')
-            ->with($this->event, 'Connection timed out', null, null, null);
+            ->with($this->event, 'Connection timed out', null, null, null, false);
 
         $this->policy->apply($this->event, new TransportException('Connection timed out'));
     }
@@ -100,9 +103,8 @@ class RetryPolicyTest extends TestCase
     {
         // HTTP 200 with a non-101 body: no HTTP status to classify on, so the
         // pre-existing retrying behaviour is kept rather than guessed at.
-        $this->eventQueue->expects(self::never())->method('markPermanentlyFailed');
         $this->eventQueue->expects(self::once())->method('markFailed')
-            ->with($this->event, 'Invalid data', null, null, null);
+            ->with($this->event, 'Invalid data', null, null, null, false);
 
         $this->policy->apply($this->event, new ApiException('Invalid data', ApiException::CODE_INVALID_DATA));
     }

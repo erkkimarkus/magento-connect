@@ -187,7 +187,7 @@ class EventQueueTest extends TestCase
         );
     }
 
-    public function testMarkPermanentlyFailedParksWithoutSpendingTheRemainingAttempts(): void
+    public function testATerminalFailureParksWithoutSpendingTheRemainingAttempts(): void
     {
         $captured = [];
         $this->event->method('getAttempts')->willReturn(0);
@@ -199,7 +199,7 @@ class EventQueueTest extends TestCase
         );
         $this->eventResource->expects(self::once())->method('save');
 
-        $this->queue->markPermanentlyFailed($this->event, 'permanent_http_404: gone');
+        $this->queue->markFailed($this->event, 'permanent_http_404: gone', null, null, null, true);
 
         self::assertSame(1, $captured['attempts']);
         self::assertSame(Event::STATUS_FAILED, $captured['status']);

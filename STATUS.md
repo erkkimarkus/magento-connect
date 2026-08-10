@@ -21,7 +21,9 @@ classifies refusals instead of retrying every failure identically)_
   Now, in one place — the new `Model\Queue\RetryPolicy`, injected into
   `Cron\FlushEventQueue`:
   - **4xx except 429 → permanent.** The row is parked failed on the FIRST
-    refusal via a new `EventQueue::markPermanentlyFailed()`, with the reason
+    refusal via `EventQueue::markFailed(…, terminal: true)` — the same writer
+    and the same columns as any other failure (the sibling
+    `Engine\Queue\IngestQueue::markFailed()`'s shape) — with the reason
     `permanent_http_<code>: <message>` — the sibling's exact naming, verified
     against Woo's shipped `RetryPolicy::apply()`, not just the brief. The
     attempt that WAS refused is counted (attempts 1 of 5); the other four are

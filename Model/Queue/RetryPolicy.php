@@ -34,6 +34,13 @@ use Smaily\Connect\Model\Client\Exception\TransportException;
  */
 class RetryPolicy
 {
+    private ?SmailyClientException $lastException = null;
+
+    /**
+     * @var array{reason: string, retryAfter: ?int, terminal: bool}|null
+     */
+    private ?array $lastVerdict = null;
+
     public function __construct(
         private readonly EventQueue $eventQueue
     ) {
@@ -44,31 +51,57 @@ class RetryPolicy
      */
     public function apply(Event $event, SmailyClientException $exception): void
     {
-        $status = $exception instanceof TransportException ? $exception->getHttpStatus() : 0;
-
-        if ($this->isPermanent($status)) {
-            $this->eventQueue->markPermanentlyFailed(
-                $event,
-                sprintf('permanent_http_%d: %s', $status, $exception->getMessage())
-            );
-
-            return;
-        }
+        $verdict = $this->classify($exception);
 
         $this->eventQueue->markFailed(
             $event,
-            $exception->getMessage(),
-            null,
-            null,
-            $exception instanceof TransportException ? $exception->getRetryAfter() : null
+            $verdict['reason'],
+            retryAfter: $verdict['retryAfter'],
+            terminal: $verdict['terminal']
         );
     }
 
     /**
-     * Can this failure ever succeed on a retry? 4xx bar 429 says no — the
-     * request itself is the problem. A transport error carries no status and
-     * is treated as temporary.
+     * Classify one failure. A batch refusal hands the SAME exception object to
+     * every row of the batch (up to 200), so the verdict — including formatting
+     * and truncating a message that can be huge — is computed once and reused.
+     *
+     * @return array{reason: string, retryAfter: ?int, terminal: bool}
      */
+    private function classify(SmailyClientException $exception): array
+    {
+        if ($this->lastException === $exception && $this->lastVerdict !== null) {
+            return $this->lastVerdict;
+        }
+
+        // 4xx bar 429 can never succeed on a retry — the request itself is the
+        // problem. Anything else (429, 5xx, a transport error or a Smaily error
+        // envelope, neither of which carries an HTTP status) stays retryable.
+        if ($exception instanceof TransportException && $this->isPermanent($exception->getHttpStatus())) {
+            $verdict = [
+                'reason' => sprintf(
+                    'permanent_http_%d: %s',
+                    $exception->getHttpStatus(),
+                    $exception->getMessage()
+                ),
+                'retryAfter' => null,
+                'terminal' => true,
+            ];
+        } else {
+            $verdict = [
+                'reason' => $exception->getMessage(),
+                'retryAfter' => $exception instanceof TransportException ? $exception->getRetryAfter() : null,
+                'terminal' => false,
+            ];
+        }
+
+        $verdict['reason'] = mb_substr($verdict['reason'], 0, EventQueue::MAX_ERROR_LENGTH);
+        $this->lastException = $exception;
+        $this->lastVerdict = $verdict;
+
+        return $verdict;
+    }
+
     private function isPermanent(int $status): bool
     {
         return $status >= 400 && $status < 500 && $status !== 429;

@@ -90,9 +90,8 @@ class FlushEventQueueTest extends TestCase
         $handler = $this->createMock(EventHandlerInterface::class);
         $handler->method('handle')->willThrowException(new TransportException('Gone', 404));
 
-        $this->eventQueue->expects(self::never())->method('markFailed');
-        $this->eventQueue->expects(self::exactly(2))->method('markPermanentlyFailed')
-            ->with(self::anything(), self::stringContains('permanent_http_404'));
+        $this->eventQueue->expects(self::exactly(2))->method('markFailed')
+            ->with(self::anything(), self::stringContains('permanent_http_404'), null, null, null, true);
 
         $this->createCron(new HandlerPool(['contact.sync' => $handler]))->execute();
     }
@@ -109,12 +108,25 @@ class FlushEventQueueTest extends TestCase
             2 => new TransportException('Slow down', 429, null, 90),
         ]);
 
-        $this->eventQueue->expects(self::once())->method('markPermanentlyFailed')
-            ->with($refused, self::stringContains('permanent_http_422'));
-        $this->eventQueue->expects(self::once())->method('markFailed')
-            ->with($slowedDown, 'Slow down', null, null, 90);
+        $calls = [];
+        $this->eventQueue->method('markFailed')->willReturnCallback(
+            function (
+                Event $event,
+                string $error,
+                ?string $sentPayload,
+                ?string $response,
+                ?int $retryAfter,
+                bool $terminal
+            ) use (&$calls): void {
+                $calls[(int)$event->getId()] = [$error, $retryAfter, $terminal];
+            }
+        );
 
         $this->createCron(new HandlerPool(['contact.sync' => $handler]))->execute();
+
+        self::assertStringContainsString('permanent_http_422', $calls[1][0]);
+        self::assertTrue($calls[1][2], 'A 422 is parked on the spot');
+        self::assertSame(['Slow down', 90, false], $calls[2]);
     }
 
     public function testMissingResultIsAFailure(): void

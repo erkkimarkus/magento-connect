@@ -29,6 +29,7 @@ class EventQueue
 {
     public const MAX_ATTEMPTS = 5;
     public const BACKOFF_SECONDS = [60, 300, 900, 3600, 21600];
+    public const MAX_ERROR_LENGTH = 60000;
 
     public function __construct(
         private readonly EventFactory $eventFactory,
@@ -185,48 +186,39 @@ class EventQueue
      * Record a failed delivery attempt; reschedules with backoff (or with the
      * delay Smaily itself asked for) or parks the event as failed once
      * attempts are exhausted.
+     *
+     * $terminal parks the row on the spot with its remaining attempts unspent:
+     * a refusal that no amount of retrying can change (RetryPolicy decides
+     * which those are). The attempt that WAS refused is still counted.
      */
     public function markFailed(
         Event $event,
         string $error,
         ?string $sentPayload = null,
         ?string $response = null,
-        ?int $retryAfter = null
+        ?int $retryAfter = null,
+        bool $terminal = false
     ): void {
         $attempts = $event->getAttempts() + 1;
-        $exhausted = $attempts >= self::MAX_ATTEMPTS;
+        $exhausted = $terminal || $attempts >= self::MAX_ATTEMPTS;
 
         $event->addData([
             'attempts' => $attempts,
             'status' => $exhausted ? Event::STATUS_FAILED : Event::STATUS_PENDING,
             'next_retry_at' => $exhausted ? null : $this->nextRetryAt($attempts, $retryAfter),
-            'last_error' => mb_substr($error, 0, 60000),
+            'last_error' => mb_substr($error, 0, self::MAX_ERROR_LENGTH),
             'sent_payload' => $sentPayload,
             'last_response' => $response,
         ]);
         $this->eventResource->save($event);
 
         if ($exhausted) {
-            $this->logPermanentFailure($event, $error);
+            $this->logger->error('Queue event failed permanently', [
+                'id' => $event->getId(),
+                'event_type' => $event->getEventType(),
+                'error' => $error,
+            ]);
         }
-    }
-
-    /**
-     * Park an event as failed on the spot, attempts left unspent: a refusal
-     * that no amount of retrying can change (RetryPolicy decides which those
-     * are). The attempt that WAS refused is still counted.
-     */
-    public function markPermanentlyFailed(Event $event, string $error): void
-    {
-        $event->addData([
-            'attempts' => $event->getAttempts() + 1,
-            'status' => Event::STATUS_FAILED,
-            'next_retry_at' => null,
-            'last_error' => mb_substr($error, 0, 60000),
-        ]);
-        $this->eventResource->save($event);
-
-        $this->logPermanentFailure($event, $error);
     }
 
     /**
@@ -267,15 +259,6 @@ class EventQueue
         $decoded = $this->serializer->unserialize($event->getPayload());
 
         return is_array($decoded) ? $decoded : [];
-    }
-
-    private function logPermanentFailure(Event $event, string $error): void
-    {
-        $this->logger->error('Queue event failed permanently', [
-            'id' => $event->getId(),
-            'event_type' => $event->getEventType(),
-            'error' => $error,
-        ]);
     }
 
     private function nextRetryAt(int $attempts, ?int $retryAfter = null): string
