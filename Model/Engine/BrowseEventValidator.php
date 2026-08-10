@@ -61,8 +61,15 @@ class BrowseEventValidator
         // beacon — a client-asserted identity on an unauthenticated endpoint
         // would let anyone poison another shopper's browse profile. Identity
         // binding happens server-side via the identity-merge flow instead.
+        //
+        // smaily_rec_id / smaily_ctx are not accepted either: the engine
+        // stopped persisting and consulting them in contract v1.7.0
+        // (accept-and-ignore), and a malformed smaily_rec_id still fails that
+        // event's UUID validation — forwarding them can only cost events.
+        // Rec-link attribution runs on the order-level cookie->order path
+        // (§5, Engine\AttributionManager), which is untouched.
         foreach (['sku', 'category_path', 'search_query', 'external_id',
-            'smaily_visitor_token', 'smaily_rec_id', 'smaily_ctx'] as $field) {
+            'smaily_visitor_token'] as $field) {
             $value = trim((string)($event[$field] ?? ''));
             if ($value !== '' && strlen($value) <= 255) {
                 $clean[$field] = $value;

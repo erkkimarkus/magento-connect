@@ -208,8 +208,9 @@ on FPC-cached pages. At order save (`Observer/Engine/OrderSaveAfter`, where
 `entity_id` exists) cookies are stamped into `smaily_order_attribution`;
 `OrderPayloadBuilder` forwards them on the order wire
 (`smaily_rec_id` / `smaily_visitor_token` / `smaily_rec_ctx` /
-`session_id`). NB: orders use `smaily_rec_ctx`, browse events use
-`smaily_ctx` — distinct wire keys by contract.
+`session_id`). The order is the only path these reach the engine on: since
+contract v1.7.0 the engine ignores the rec id/context echo on browse
+events, so the tracker no longer sends it.
 
 ### Browse tracking
 
@@ -219,7 +220,8 @@ vanilla for a future Hyvä path) reads page context from
 events for 5 s, and posts to `smaily/relay`. The relay
 (`Controller/Relay/Index`) is CSRF-exempt (anonymous beacon), strictly
 sanitized (`Engine\BrowseEventValidator` — UUID v4 event ids, event-type
-enum, **no client-asserted `customer_email`**), rate-limited per IP, stamps
+enum, **no client-asserted `customer_email`**, and no `smaily_rec_id` /
+`smaily_ctx` hints the engine has ignored since v1.7.0), rate-limited per IP, stamps
 `source: plugin_magento` server-side, and forwards so the API key never
 reaches the browser. Under Magento cookie restriction mode without cookie
 consent the tracker runs in sender-side anonymous mode (contract §6):

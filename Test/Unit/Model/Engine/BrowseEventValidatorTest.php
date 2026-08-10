@@ -29,7 +29,7 @@ class BrowseEventValidatorTest extends TestCase
             'session_id' => 'sess-123',
             'event_type' => 'product_view',
             'sku' => 'ABC-1',
-            'smaily_ctx' => 'ctx-9',
+            'smaily_visitor_token' => 'vt_8f3k2a',
             'source' => 'spoofed-source',
             'event_ts' => '1999-01-01T00:00:00Z',
             'unknown_key' => 'dropped',
@@ -40,8 +40,31 @@ class BrowseEventValidatorTest extends TestCase
         self::assertSame('plugin_magento', $clean['source']);
         self::assertNotSame('1999-01-01T00:00:00Z', $clean['event_ts']);
         self::assertSame('ABC-1', $clean['sku']);
-        self::assertSame('ctx-9', $clean['smaily_ctx']);
+        self::assertSame('vt_8f3k2a', $clean['smaily_visitor_token']);
         self::assertArrayNotHasKey('unknown_key', $clean);
+    }
+
+    /**
+     * PRO-1762 (contract v1.7.0 §6): the engine no longer persists or
+     * consults the browse-event rec id/context hints, and a malformed
+     * smaily_rec_id still fails that event's validation engine-side — so
+     * neither is forwarded from the anonymous beacon any more.
+     */
+    public function testDeprecatedRecIdAndContextHintsAreNotForwarded(): void
+    {
+        $clean = $this->validator->sanitize([
+            'event_id' => self::UUID,
+            'session_id' => 'sess-123',
+            'event_type' => 'product_view',
+            'sku' => 'ABC-1',
+            'smaily_rec_id' => 'rec_abc123',
+            'smaily_ctx' => 'ctx-9',
+        ]);
+
+        self::assertNotNull($clean);
+        self::assertArrayNotHasKey('smaily_rec_id', $clean);
+        self::assertArrayNotHasKey('smaily_ctx', $clean);
+        self::assertSame('ABC-1', $clean['sku'], 'the rest of the event still passes');
     }
 
     public function testInvalidUuidRejected(): void

@@ -42,22 +42,14 @@ define(['jquery', 'Smaily_Connect/js/attribution'], function ($, attribution) {
                 session_id: sessionId(),
                 event_type: type
             };
-            var visitorToken = helper.getCookie(config.attribution.cookieVisitor),
-                recId = helper.getCookie(config.attribution.cookieRecId),
-                ctx = helper.getCookie(config.attribution.cookieContext);
+            var visitorToken = helper.getCookie(config.attribution.cookieVisitor);
 
-            // Identity hint only with consent (sender-side anonymous mode);
-            // rec id/ctx are campaign-click attribution, not identity, and
-            // stay on par with attribution.js (functional first-party).
+            // Identity hint only with consent (sender-side anonymous mode).
+            // The rec id/ctx cookies are deliberately NOT echoed here — the
+            // engine ignores both on browse events since contract v1.7.0;
+            // they reach the engine on the order instead (§5).
             if (visitorToken && consentGiven()) {
                 event.smaily_visitor_token = visitorToken;
-            }
-            if (recId) {
-                event.smaily_rec_id = recId;
-            }
-            // NB: browse events use smaily_ctx (orders use smaily_rec_ctx).
-            if (ctx) {
-                event.smaily_ctx = ctx;
             }
 
             return event;
