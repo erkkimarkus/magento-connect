@@ -59,7 +59,8 @@ class CatalogIngest
         // the last unit out was queued as still in stock until this drop
         // (caught on the sandbox, not by the unit tests). Re-reading one row is
         // the right price for never publishing a stale in_stock.
-        $this->stockRegistryStorage->removeStockItem((int)$product->getId());
+        $productId = (int)$product->getId();
+        $this->stockRegistryStorage->removeStockItem($productId);
 
         try {
             $item = $this->payloadBuilder->isIngestible($product)
@@ -74,7 +75,6 @@ class CatalogIngest
             return;
         }
 
-        $productId = (int)$product->getId();
         if ($productId === $this->lastProductId && $item === $this->lastPayload) {
             return; // The same hop of the same save, seen through another hook.
         }
@@ -84,7 +84,7 @@ class CatalogIngest
         $this->ingestQueue->enqueue(
             Client::DOMAIN_CATALOG,
             $item,
-            (string)$product->getId(),
+            (string)$productId,
             $this->payloadBuilder->canonicalStoreId()
         );
     }

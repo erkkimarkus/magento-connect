@@ -23,7 +23,7 @@ use Smaily\Connect\Model\Engine\Settings;
  * ever saw product edits.
  *
  * MSI's own writes are covered separately by
- * Plugin\Engine\SourceItemsSaveAfter — MSI syncs the legacy row with direct
+ * Plugin\Engine\MsiStockWriteAfter — MSI syncs the legacy row with direct
  * SQL, so no model save and no event.
  *
  * There is deliberately no "did the stock actually move?" gate here. Magento

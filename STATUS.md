@@ -5,10 +5,122 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-10 (PRO-1800/PRO-1763 — the Smaily event queue
-classifies refusals instead of retrying every failure identically)_
+_Last updated: 2026-08-10 (PRO-1951 — stock changes that bypass product save
+now reach catalog ingest, plus a nightly reconciler)_
 
 ## Where we are
+
+- **PRO-1951 done — catalog ingest hears every stock change, and a nightly
+  re-sync reconciles what no event can see. The latency we can now claim is
+  "~1–2 min for anything the store emits an event for, at most ~24 h for
+  everything else" — the "otherwise unbounded" the engine team was told is
+  gone.** Catalog ingest hooked exactly one event,
+  `catalog_product_save_after`, so the one catalog field the store can move
+  without a product save — `in_stock`, the very field the engine's
+  back-in-stock detection reads — was invisible whenever it moved any other
+  way.
+  1. **Event coverage: two new hooks, both gated on `Settings::isConnected()`
+     like the existing observers, both funnelling through one new
+     `Model\Engine\CatalogIngest` (which `Observer\Engine\ProductSaveAfter`
+     now delegates to as well, instead of keeping a third copy of
+     build-and-queue).**
+     - `Observer\Engine\StockItemSaveAfter` on
+       `cataloginventory_stock_item_save_after` — the legacy path: Advanced
+       Inventory, `PUT /V1/products/{sku}/stockItems/{id}`, and on an install
+       WITHOUT MSI the order decrement and credit-memo restock.
+     - `Plugin\Engine\MsiStockWriteAfter`, declared on **two** MSI seams
+       (both methods are `execute()`, so one `afterExecute` serves both):
+       `InventoryApi\Api\SourceItemsSaveInterface` (Sources grid, product-form
+       quantity, `POST /V1/inventory/source-items`) and
+       `InventorySourceDeductionApi\Model\SourceDeductionServiceInterface`
+       (the shipment deduction and the credit-memo return to stock).
+       **MSI treated as an optional dependency, and deliberately so:** the
+       plugin names no MSI type anywhere (`object`/`mixed` signatures, sku
+       read by duck typing), because a plugin declared on a class that does
+       not exist is simply never wired — an install with the Inventory
+       modules removed still compiles and runs on the legacy observer alone.
+       `sortOrder="100"` keeps it last in the after-chain, behind MSI's own
+       legacy-stock sync.
+  2. **Periodic reconciler: `Cron\CatalogResync`, daily `40 3 * * *` store
+     time** (off-peak, just after the 02:20 queue janitor so the sweep never
+     queues into a table being pruned; cadence + rationale documented in
+     `docs/ARCHITECTURE.md`'s cron table and ingest section). It is **not a
+     walker of its own** — it starts an ordinary catalog backfill job and lets
+     `Cron\BackfillTick` page it in with the same cursor, time budget and
+     flood guard a merchant-started import gets. It never runs disconnected,
+     and it checks `JobManager::findActive` before starting (with the
+     one-active-job lock as the race backstop), so a merchant's own import is
+     never trampled — the sweep skips that night instead. It exists for the
+     one class of change events cannot see: a CSV / `bin/magento import` run
+     writes the catalog tables directly.
+  3. **Decisions recorded (no behaviour changed), in `docs/ARCHITECTURE.md`
+     and `BACKLOG.md`:** `in_stock` stays sourced from the **legacy
+     `is_in_stock` flag**, which MSI keeps synced — MSI's salable-per-website
+     quantity is deliberately deferred to the multi-website tenant work,
+     because a catalog row is keyed on `sku` per tenant and one installation
+     is one tenant, so a per-website answer has nowhere to go until RFC Phase
+     4 (gated on PRO-1459) gives each website its own tenant. The on-exception
+     `default true` in `CatalogPayloadBuilder::isInStock()` is **judged
+     deliberate and left alone**: the engine excludes out-of-stock products
+     from recommendations, so defaulting to false would silently pull a
+     product out of every campaign over a transient read error — the worse
+     failure — and the nightly reconciler now corrects a wrong `true` within a
+     day.
+  **Three things the sandbox caught that the unit tests could not, all fixed
+  before the final commit:**
+  - **On a default 2.4.x install, placing an order decrements nothing.** MSI
+    writes a reservation; `is_in_stock` is untouched, so there is correctly no
+    catalog row. The real "order decrement" is the shipment's source
+    deduction, which goes through `SourceDeductionService`, **not**
+    `SourceItemsSave` — as does the credit-memo return to stock. The first
+    implementation hooked only `SourceItemsSave` and would have missed both.
+  - **A stale `in_stock` on the wire.** The stock registry memoises the stock
+    item per request and MSI mirrors onto the legacy row with direct SQL, so
+    it never invalidates that memo: shipping the last unit queued a row saying
+    `in_stock: true`. `CatalogIngest` now drops the memo for the product
+    before building. Re-verified live in both directions.
+  - **The "did the stock actually move?" gate was dead code.** Magento hands
+    stock items to its writers through `StockRegistryProvider`, which loads
+    through the resource model and never calls `setOrigData()`, so every save
+    looks like a change — a plain product rename tripped it. Removed; and
+    because removing it left one product save queueing three identical rows
+    (product save, the legacy stock item it writes, the MSI source item that
+    mirrors), `CatalogIngest` collapses a **byte-identical row queued twice in
+    a row within one request**. That is NOT queue-wide dedupe (explicitly out
+    of scope): two real stock moves still queue two rows.
+  **Verification — the real flows on the sandbox, not just green units.**
+  Faked a connected engine tenant, created a real product through
+  `ProductRepositoryInterface::save()`, then drove genuinely real flows and
+  read `smaily_ingest_queue` after each: a real guest order placed through
+  quote → `CartManagementInterface::submit()` produced **no** catalog row
+  (correct — reservation only, legacy stock untouched at 7/in-stock); a real
+  offline invoice + `ShipmentFactory` shipment taking the source 7 → 0
+  produced one row with **`in_stock: false`**; a real credit memo
+  (`CreditmemoFactory::createByOrder()` + `CreditmemoManagementInterface::
+  refund()`, back-to-stock) restoring 0 → 7 produced one row with
+  **`in_stock: true`** — the back-in-stock signal itself; a real
+  `PUT /V1/products/PRO1951-TENT/stockItems/8` over HTTP with a real admin
+  token produced exactly **one** row (`in_stock: true`, the two overlapping
+  hooks collapsed); a real `POST /V1/inventory/source-items` with
+  `quantity: 0, status: 0` produced one row with `in_stock: false`. A plain
+  product rename produced exactly **one** row (3 before the collapse). Then
+  the reconciler: a direct-SQL stock write (what a CSV import is, at the table
+  level) produced **zero** rows, `Cron\CatalogResync::execute()` queued exactly
+  one `catalog:engine` job, a **second** run while that job was open queued
+  **nothing** (the no-trample check), and `Cron\BackfillTick::execute()`
+  completed it and emitted the corrected catalog row. Finally, with
+  `intelligence/connected` flipped off, both REST stock calls and the resync
+  cron produced zero rows and zero jobs. Gates: 242 unit tests green (22 new —
+  `CatalogIngestTest` (8), `StockItemSaveAfterTest` (3), `MsiStockWriteAfterTest`
+  (7), `CatalogResyncTest` (4)), phpcs 0 errors, phpstan clean, 70 integration
+  tests green (throwaway MySQL). Sandbox `setup:upgrade` +
+  `setup:di:compile` both green (new observer, plugin, cron job, and
+  `ProductSaveAfter`/`CatalogIngest` constructor changes). Sandbox restored:
+  the fixture product, its stock/source rows, every order/invoice/shipment/
+  credit-memo/quote/reservation and every ingest, backfill and
+  `smaily_connect/intelligence/*` row deleted, reindexed and cache-flushed —
+  confirmed back to the exact pre-test state (0 products/orders/quotes/ingest/
+  backfill rows, one `internal/last_seen_version` config row).
 
 - **PRO-1800 / PRO-1763 done — the Smaily event queue adopts the
   cross-platform retry classification (Woo's PRO-1685 `RetryPolicy`), so a

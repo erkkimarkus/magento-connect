@@ -35,10 +35,17 @@ executed verification matrix (Luma / Hyvä / strict CSP — all pass) in
   fall back to the `quote_address` billing email when
   `quote.customer_email` is still NULL (Magento fills it only at
   payment-info submit). Legacy-parity gap, not a regression.
-- MSI (multi-source inventory) stock-change observers; currently product-save
-  and legacy stock events cover the common paths.
 - Per-store-view catalog i18n uses one representative store per language;
   per-website engine tenants are out of scope (one tenant per installation).
+- MSI salable-quantity-per-website as the catalog `in_stock` source: deferred
+  with the multi-website tenant work (PRO-1951 decision) — a catalog row is
+  keyed on `sku` per tenant, so a per-website answer has nowhere to go until
+  each website has its own tenant (RFC Phase 4, gated on PRO-1459). The legacy
+  `is_in_stock` flag, which MSI keeps synced, is the source until then.
+- Per-product dedupe of PENDING catalog ingest rows: a burst of stock moves on
+  one product inside a flush window queues one row each. `CatalogIngest` only
+  collapses identical rows within a single request; a queue-wide `UPDATE the
+  pending row` would need a read-before-write on the save path. Measure first.
 - Subscriber full-sync safety net (daily) — reconcile + live events cover the
   standing flows; evaluate whether a periodic re-baseline
   (`GET contact.php?list=1`) is needed at scale.
