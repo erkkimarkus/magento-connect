@@ -18,8 +18,12 @@ $isSettings = $block->getData('context') === 'settings';
 $totals = $viewModel->getStoreTotals();
 // The import obeys this website's subscriber-sync switch exactly like the
 // live paths do (PRO-1764), so with the switch off the control is disabled
-// and says why instead of quoting numbers it will not send.
-$syncEnabled = $viewModel->isSyncEnabled();
+// and says why instead of quoting numbers it will not send. Settings renders
+// the switch itself, so panels-js.phtml owns that state live there (boot JSON
+// at init, then every change) and this render must not second-guess it; the
+// wizard renders no switch, its handler early-returns, so the wizard is the
+// only context that answers server-side.
+$syncEnabled = $isSettings || $viewModel->isSyncEnabled();
 
 // Optional contact fields, server-rendered (same values the system.xml
 // multiselect edits).

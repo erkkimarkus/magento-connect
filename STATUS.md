@@ -5,10 +5,58 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-11 (PRO-1764 — the contact-sync switch gates the
-historical contacts import)_
+_Last updated: 2026-08-11 (PRO-1764 simplify — one owner for the import's
+off-state, an honest stop for an in-flight import)_
 
 ## Where we are
+
+- **PRO-1764 simplify done — the accepted review findings applied.** Three
+  things, no new behaviour beyond the one honesty fix:
+  - **One owner per context for the import control's off-state.** It was
+    derived twice on Settings: server-rendered PHP ternaries in
+    `panel/subscribers.phtml` AND `reactSubscribersEnabled()` in
+    `panel/panels-js.phtml` (which already hydrates from the boot JSON's
+    `subscribers.syncEnabled`). Settings carries the switch on the page, so
+    the JS handler owns it there alone and the server render no longer
+    second-guesses it. The **wizard** renders no switch — the handler
+    early-returns there — so the wizard is the one context that still
+    answers server-side, through `WizardData::isSyncEnabled()` (kept for
+    exactly that, with a `WizardDataTest` case of its own).
+  - **`WizardData::getStoreTotals()` memoised** — three unmemoised
+    `getSize()` counts that every render asked for twice (the template and
+    the boot JSON); now counted once per request.
+  - **An in-flight import is stopped honestly, not rewritten.** The gate
+    completed the job with `total_count = 0` unconditionally, so a job that
+    had already discovered a real total and sent hundreds of contacts ended
+    as "completed, 0" and had its total overwritten. Now only a job that
+    never started (`total_count === null`) completes at 0; one switched off
+    mid-import is stopped at the page boundary through a new
+    `JobManager::cancel()` — the SAME terminal `cancelled` status, guard and
+    outcome copy an admin cancel already produces — keeping the total and
+    the processed count it really achieved. `docs/USER_GUIDE.md` says so.
+  **Verification — both halves driven for real, not read.** The panel was
+  rendered through the real admin block/layout stack in both contexts with
+  the stored switch off and on: Settings emits the same neutral markup
+  either way (no `disabled`, no inline `display` decision), the wizard emits
+  `<button … id="smaily-w-backfill" disabled>` + the reason line when off and
+  the estimate when on. The Settings half was then driven in jsdom with real
+  jQuery over the REAL rendered panel + the REAL `panels-js.phtml`: after
+  `initAll()` with `"syncEnabled":false` in the boot JSON the button is
+  disabled, the estimate hidden and the reason line shown; ticking the switch
+  live flips all three back, and untick flips them again — Cancel enabled
+  throughout. The processor was driven through the real
+  `JobManager::start()` → real `Cron\BackfillTick::execute()` → real
+  `ContactsProcessor` on the sandbox: a never-started job ended
+  `completed / total 0`, a job carrying `total 412, processed 150` ended
+  `cancelled / total 412 / processed 150` — the overwrite is gone. Gates:
+  245 unit tests green (2 new — the in-flight stop, and `isSyncEnabled()`'s
+  website scope), phpcs 0 errors, phpstan clean, 70 integration tests green
+  (throwaway MySQL). No `setup:di:compile` needed — no constructor changed
+  and no new injectable class was added; the sandbox ran the new
+  `JobManager::cancel()` through the real DI container instead. Sandbox
+  restored: both job rows and the test `sync_enabled` config row deleted —
+  confirmed back to the exact pre-test state (0 backfill rows, one
+  `internal/last_seen_version` config row).
 
 - **PRO-1764 done — the contact-sync switch now gates the historical
   contacts import too, so one stored answer owns every outbound contact
@@ -27,18 +75,22 @@ historical contacts import)_
   accessor the live paths use (`Model\Config::isSyncEnabled($websiteId)`),
   for the job's own website: on a multi-website install each website's job
   is judged by its own switch, which is what makes the per-website scope
-  honest rather than a global veto. Switched off, the job completes having
-  sent nothing and its `total_count` is **0** rather than a subscriber count
-  that promises a sync that will not happen; an info line records why.
-  **Honest copy above it, in the panel's existing disabled-state idiom.**
-  The Subscribers panel's import button is `disabled` and the store-totals
-  line is replaced by "Subscriber synchronization is off for this website,
-  so an import would send nothing. Turn it on and save to import." — both
-  server-rendered from a new `ViewModel\Adminhtml\WizardData::
-  isSyncEnabled()` (website-scoped through `WebsiteContext`, like every
-  other control on this panel). The Settings toggle drives it live through
-  the EXISTING `reactSubscribersEnabled()` handler that already mutes the
-  panel body, so there is one disabled-state idiom, not a second one.
+  honest rather than a global veto. Switched off, a job that never started
+  completes having sent nothing and its `total_count` is **0** rather than a
+  subscriber count that promises a sync that will not happen; a job switched
+  off mid-import is stopped at the page boundary instead (see the simplify
+  pass above). An info line records why either way.
+  **Honest copy above it, with ONE owner per context.** The Subscribers
+  panel's import button is `disabled` and the store-totals line is replaced
+  by "Subscriber synchronization is off for this website, so an import would
+  send nothing. Turn it on and save to import." On **Settings** the switch is
+  on the page, so the EXISTING `reactSubscribersEnabled()` handler that
+  already mutes the panel body owns this state too — hydrated from the boot
+  JSON's `subscribers.syncEnabled`, then on every change. The **wizard**
+  renders no switch, so that handler early-returns there and the wizard is
+  the one context that answers server-side, through
+  `ViewModel\Adminhtml\WizardData::isSyncEnabled()` (website-scoped through
+  `WebsiteContext`, like every other control on this panel).
   **Cancel deliberately stays enabled** so an import already running can
   still be stopped. One new translation string in both `i18n/en_US.csv` and
   `i18n/et_EE.csv` (393 keys each, parity re-verified).

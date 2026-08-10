@@ -157,4 +157,15 @@ class WizardDataTest extends TestCase
 
         self::assertSame(['first_name'], $this->viewModel->getSelectedSyncFields());
     }
+
+    /**
+     * PRO-1764: the wizard's import control is server-rendered from this
+     * answer, so it must be the selected website's own.
+     */
+    public function testIsSyncEnabledReadsAtTheSelectedWebsiteScope(): void
+    {
+        $this->config->expects(self::once())->method('isSyncEnabled')->with(2)->willReturn(false);
+
+        self::assertFalse($this->viewModel->isSyncEnabled());
+    }
 }

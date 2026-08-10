@@ -59,13 +59,20 @@ class ContactsProcessor implements ProcessorInterface
     public function process(Job $job): void
     {
         // Same stored answer, same website resolution as the live paths
-        // (Observer\SubscriberSaveAfter, Cron\ContactReconcile): with the
-        // switch off nothing is sent, and the total says 0 instead of
-        // promising a sync that will not happen.
+        // (Observer\SubscriberSaveAfter, Cron\ContactReconcile). A job that
+        // never started completes having sent nothing, its total 0 rather
+        // than a subscriber count promising a sync that will not happen; a
+        // job switched off mid-import stops at this page boundary like an
+        // admin cancel, so the total it discovered and the contacts it has
+        // already sent are reported as they really are.
         if (!$this->config->isSyncEnabled($job->getWebsiteId())) {
-            $job->setData('total_count', 0);
-            $this->jobManager->complete($job);
-            $this->logger->info('Contacts backfill sent nothing — subscriber synchronization is off', [
+            if ($job->getData('total_count') === null) {
+                $job->setData('total_count', 0);
+                $this->jobManager->complete($job);
+            } else {
+                $this->jobManager->cancel($job);
+            }
+            $this->logger->info('Contacts backfill stopped — subscriber synchronization is off', [
                 'website_id' => $job->getWebsiteId(),
             ]);
 

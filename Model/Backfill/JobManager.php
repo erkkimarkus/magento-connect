@@ -141,6 +141,19 @@ class JobManager
         }
     }
 
+    /**
+     * Stop one job the way an admin cancel does, leaving the progress and
+     * total it has already recorded untouched — for a worker that finds its
+     * own reason to stop at a page boundary (PRO-1764: the contact-sync
+     * switch turned off mid-import).
+     */
+    public function cancel(Job $job): void
+    {
+        if ($this->finish($job, Job::STATUS_CANCELLED)) {
+            $job->setData('status', Job::STATUS_CANCELLED);
+        }
+    }
+
     public function fail(Job $job, string $error): void
     {
         if ($this->finish($job, Job::STATUS_FAILED, ['error_message' => mb_substr($error, 0, 60000)])) {

@@ -29,7 +29,9 @@ use Smaily\Connect\Model\Logger\Logger;
 /**
  * PRO-1764: the website's stored contact-sync answer gates the historical
  * import exactly as it gates the live paths — with the switch off nothing
- * reaches the transport and the total says 0 rather than promising a sync.
+ * reaches the transport, a job that never started reports a total of 0
+ * rather than promising a sync, and one already in flight is stopped with
+ * the counts it really achieved.
  */
 class ContactsProcessorTest extends TestCase
 {
@@ -59,6 +61,26 @@ class ContactsProcessorTest extends TestCase
         $jobManager = $this->createMock(JobManager::class);
         $jobManager->expects(self::once())->method('complete')->with($job);
         $jobManager->expects(self::never())->method('recordProgress');
+
+        $this->createProcessor($jobManager, $collectionFactory, $clientProvider, false)->process($job);
+    }
+
+    public function testSyncSwitchedOffMidImportStopsTheJobWithoutRewritingItsTotal(): void
+    {
+        $clientProvider = $this->createMock(SmailyClientProvider::class);
+        $clientProvider->expects(self::never())->method('forStore');
+
+        $collectionFactory = $this->createMock(SubscriberCollectionFactory::class);
+        $collectionFactory->expects(self::never())->method('create');
+
+        // 400 already counted, some of them already sent: the outcome must
+        // stay truthful about that, not read "completed, 0".
+        $job = $this->createJob(400);
+        $job->expects(self::never())->method('setData');
+
+        $jobManager = $this->createMock(JobManager::class);
+        $jobManager->expects(self::once())->method('cancel')->with($job);
+        $jobManager->expects(self::never())->method('complete');
 
         $this->createProcessor($jobManager, $collectionFactory, $clientProvider, false)->process($job);
     }
@@ -115,11 +137,11 @@ class ContactsProcessorTest extends TestCase
         return $collection;
     }
 
-    private function createJob(): Job&MockObject
+    private function createJob(?int $totalCount = null): Job&MockObject
     {
         $job = $this->createMock(Job::class);
         $job->method('getWebsiteId')->willReturn(self::WEBSITE_ID);
-        $job->method('getData')->willReturn(null);
+        $job->method('getData')->willReturn($totalCount);
         $job->method('getCursorValue')->willReturn('0');
 
         return $job;

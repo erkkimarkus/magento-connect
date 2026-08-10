@@ -33,6 +33,9 @@ use Smaily\Connect\Model\ResourceModel\Automation\Mapping\CollectionFactory as M
  */
 class WizardData implements ArgumentInterface
 {
+    /** @var array{customers: int, orders: int, products: int}|null */
+    private ?array $storeTotals = null;
+
     public function __construct(
         private readonly Config $config,
         private readonly Mode $mode,
@@ -160,8 +163,9 @@ class WizardData implements ArgumentInterface
 
     /**
      * The selected website's stored contact-sync answer — the same one the
-     * live paths and the contacts import read, for the server-rendered
-     * import control (PRO-1764).
+     * live paths and the contacts import read (PRO-1764). Read by the WIZARD
+     * only: Settings carries the switch itself, so panel/panels-js.phtml owns
+     * the import control's state there, from `subscribers.syncEnabled` above.
      */
     public function isSyncEnabled(): bool
     {
@@ -179,11 +183,14 @@ class WizardData implements ArgumentInterface
     }
 
     /**
+     * Three collection counts, asked for twice per render (the template and
+     * the boot JSON), so they are counted once per request.
+     *
      * @return array{customers: int, orders: int, products: int}
      */
     public function getStoreTotals(): array
     {
-        return [
+        return $this->storeTotals ??= [
             'customers' => $this->customerCollectionFactory->create()->getSize(),
             'orders' => $this->orderCollectionFactory->create()->getSize(),
             'products' => $this->productCollectionFactory->create()->getSize(),
