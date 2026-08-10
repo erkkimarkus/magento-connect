@@ -110,6 +110,7 @@ class LegacyConfigMapper
                 (string)$this->intervalToMinutes((string)$legacy['abandoned/syncTime'])
             );
         }
+
         // Captcha settings are replaced by Magento's native reCAPTCHA.
         if ($this->flag($legacy, 'subscribe/enableCaptcha')) {
             $notices[] = 'The legacy newsletter captcha settings were not migrated: '

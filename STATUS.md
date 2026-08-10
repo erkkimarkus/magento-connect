@@ -10,7 +10,7 @@ the cart's products, and write all ten slots on every send)_
 
 ## Where we are
 
-- **PRO-1760 in progress — abandoned-cart product details are no longer gated
+- **PRO-1760 done — abandoned-cart product details are no longer gated
   on a merchant field selection, and every slot is written on every send.**
   `Model\AbandonedCart\PayloadBuilder` no longer reads
   `automations/abandoned_fields`: all seven product fields ride every
@@ -54,6 +54,36 @@ the cart's products, and write all ten slots on every send)_
   caught by any test because the cron's collection query is only exercised
   against a real `quote` table, which neither the unit nor the integration
   suite has — flagged as a coverage gap.
+  **Verification — the real cron flow on the sandbox, transport faked, not
+  just green units.** Faked a connected Smaily account, enabled the
+  abandoned-cart trigger (cutoff 10 min), created two real simple products
+  through `ProductRepositoryInterface::save()`, then built two genuinely real
+  guest quotes for ONE contact through `Quote::addProduct()` +
+  `CartRepositoryInterface::save()` and ran `Cron\AbandonedCart::execute()`
+  after each. The queue rows (the exact payload the flusher would POST —
+  nothing was flushed, the account is fake) show: cart 1 (2 × Tent, 3 × Mug)
+  → **70 `product_*` keys, 14 filled, 56 empty**; cart 2 (1 × Mug) → **70
+  keys, 7 filled, 63 empty**, with `product_name_2`/`product_sku_2` etc.
+  explicitly `''` — i.e. the second reminder carries ONLY the second cart and
+  actively clears the first. A third run with a stale
+  `automations/abandoned_fields = 'sku'` written into `core_config_data`
+  produced the identical full 70-key matrix, proving a stored selection is
+  ignored rather than honoured or migrated (the row was left in place, then
+  removed with the rest of the test config). The Automations panel template
+  was rendered through the real admin block/layout stack in the `settings`
+  context: `smaily-w-abandoned-fields`, the "Abandoned Cart Product Fields"
+  heading and `smaily-store-trigger__fields` are all absent while the rest of
+  the abandoned-cart card (enable toggle, workflow select, cutoff input) still
+  renders. Gates: 198 unit tests green (2 new pinning the always-full matrix
+  and the empty unused slots; 4 selector-save tests deleted with the feature),
+  phpcs 0 errors, phpstan clean, 65 integration tests green (throwaway MySQL),
+  sandbox `setup:upgrade` + `setup:di:compile` both green (`PayloadBuilder`
+  lost a constructor dependency). Sandbox restored: every fixture product,
+  quote, ingest/event-queue row, abandoned-cart state row and
+  `smaily_connect/*` config row created for the test deleted, reindexed and
+  cache-flushed — confirmed back to the exact pre-test state (0 products, 0
+  quotes, 0 event-queue rows, the one pre-existing `smaily_abandoned_cart`
+  row, and one `internal/last_seen_version` config row).
 
 - **PRO-1762 done — engine contract synced v1.5.0 → v1.8.1, and every wire
   change carried through code + tests in the same pass.**
