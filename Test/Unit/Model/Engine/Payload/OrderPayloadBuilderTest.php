@@ -8,7 +8,15 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Test\Unit\Model\Engine\Payload;
 
+use Magento\Framework\Api\SearchCriteria;
+use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Framework\DB\Select;
+use Magento\Sales\Api\CreditmemoRepositoryInterface;
+use Magento\Sales\Api\Data\CreditmemoInterface;
+use Magento\Sales\Api\Data\CreditmemoItemInterface;
+use Magento\Sales\Api\Data\CreditmemoSearchResultInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderItemInterface;
 use Magento\Sales\Model\Order;
@@ -21,9 +29,7 @@ class OrderPayloadBuilderTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->builder = new OrderPayloadBuilder(
-            $this->createMock(ResourceConnection::class)
-        );
+        $this->builder = $this->builderWithCreditmemos([]);
     }
 
     /**
@@ -126,11 +132,144 @@ class OrderPayloadBuilderTest extends TestCase
     }
 
     /**
+     * Contract §5 (v1.8.0) return signals: a Magento PARTIAL refund never
+     * changes the order state, so the credit memos are the only record — and
+     * they are re-read on every build, because the engine replaces an order's
+     * items wholesale and a sync that omits returned_at erases the return.
+     */
+    public function testAFullyCreditedLineCarriesReturnedAtWhileTheRestStaysKept(): void
+    {
+        $returned = $this->item('POC-CAT', 1, 22.99, 0.0);
+        $returned->method('getItemId')->willReturn(11);
+        $kept = $this->item('POC-DENT', 2, 44.51, 0.0);
+        $kept->method('getItemId')->willReturn(12);
+
+        $order = $this->order([], 67.50, Order::STATE_COMPLETE, 5);
+        $order->method('getItems')->willReturn([$returned, $kept]);
+
+        $builder = $this->builderWithCreditmemos([
+            ['2026-07-02 09:00:00', [[11, 1.0]]],
+        ]);
+
+        $items = $builder->build($order)['items'];
+
+        self::assertSame('2026-07-02T09:00:00Z', $items[0]['returned_at']);
+        self::assertArrayNotHasKey('returned_at', $items[1], 'a partial refund is per line');
+        // §5: neither reason field is guessed — Magento has no return taxonomy.
+        self::assertArrayNotHasKey('return_reason_standardised', $items[0]);
+        self::assertArrayNotHasKey('return_reason_raw', $items[0]);
+    }
+
+    /**
+     * §5: a return is whole-line, not per-unit — 1 of 3 credited stays KEPT,
+     * and the memo that COMPLETES the line dates the return.
+     */
+    public function testAPartiallyCreditedQuantityStaysKeptUntilTheLineIsWhole(): void
+    {
+        $item = $this->item('POC-CAT', 3, 60.00, 0.0);
+        $item->method('getItemId')->willReturn(11);
+
+        $order = $this->order([], 60.00, Order::STATE_COMPLETE, 5);
+        $order->method('getItems')->willReturn([$item]);
+
+        $partial = $this->builderWithCreditmemos([
+            ['2026-07-02 09:00:00', [[11, 1.0]]],
+        ])->build($order);
+        self::assertArrayNotHasKey('returned_at', $partial['items'][0]);
+
+        $whole = $this->builderWithCreditmemos([
+            ['2026-07-02 09:00:00', [[11, 1.0]]],
+            ['2026-07-09 15:30:00', [[11, 2.0]]],
+        ])->build($order);
+        self::assertSame('2026-07-09T15:30:00Z', $whole['items'][0]['returned_at']);
+    }
+
+    /**
+     * A credit memo with no usable date falls back to the order date — the
+     * same basis the engine's own full-refund derivation uses, and stable
+     * across re-syncs where a now() fallback would move on every send.
+     */
+    public function testADatelessCreditMemoFallsBackToTheOrderDate(): void
+    {
+        $item = $this->item('POC-CAT', 1, 22.99, 0.0);
+        $item->method('getItemId')->willReturn(11);
+
+        $order = $this->order([], 22.99, Order::STATE_COMPLETE, 5);
+        $order->method('getItems')->willReturn([$item]);
+
+        $builder = $this->builderWithCreditmemos([['', [[11, 1.0]]]]);
+
+        self::assertSame('2026-07-01T10:00:00Z', $builder->build($order)['items'][0]['returned_at']);
+    }
+
+    /**
+     * @param array<int, array{0: string, 1: array<int, array{0: int, 1: float}>}> $creditmemos
+     *     [created_at, [[order_item_id, qty], ...]]
+     */
+    private function builderWithCreditmemos(array $creditmemos): OrderPayloadBuilder
+    {
+        $memos = [];
+        foreach ($creditmemos as [$createdAt, $lines]) {
+            $memoItems = [];
+            foreach ($lines as [$orderItemId, $qty]) {
+                $memoItem = $this->createMock(CreditmemoItemInterface::class);
+                $memoItem->method('getOrderItemId')->willReturn($orderItemId);
+                $memoItem->method('getQty')->willReturn($qty);
+                $memoItems[] = $memoItem;
+            }
+            $memo = $this->createMock(CreditmemoInterface::class);
+            $memo->method('getCreatedAt')->willReturn($createdAt);
+            $memo->method('getItems')->willReturn($memoItems);
+            $memos[] = $memo;
+        }
+
+        $result = $this->createMock(CreditmemoSearchResultInterface::class);
+        $result->method('getItems')->willReturn($memos);
+        $repository = $this->createMock(CreditmemoRepositoryInterface::class);
+        $repository->method('getList')->willReturn($result);
+
+        $criteriaBuilder = $this->createMock(SearchCriteriaBuilder::class);
+        $criteriaBuilder->method('addFilter')->willReturnSelf();
+        $criteriaBuilder->method('create')->willReturn($this->createMock(SearchCriteria::class));
+
+        return new OrderPayloadBuilder(
+            $this->resourceConnectionWithoutAttribution(),
+            $repository,
+            $criteriaBuilder
+        );
+    }
+
+    /**
+     * An order with a real entity id reaches the attribution side table; no
+     * row there means no attribution keys, which is all these cases need.
+     */
+    private function resourceConnectionWithoutAttribution(): ResourceConnection
+    {
+        $select = $this->createMock(Select::class);
+        $select->method('from')->willReturnSelf();
+        $select->method('where')->willReturnSelf();
+
+        $connection = $this->createMock(AdapterInterface::class);
+        $connection->method('select')->willReturn($select);
+        $connection->method('fetchRow')->willReturn(false);
+
+        $resourceConnection = $this->createMock(ResourceConnection::class);
+        $resourceConnection->method('getConnection')->willReturn($connection);
+        $resourceConnection->method('getTableName')->willReturn('smaily_order_attribution');
+
+        return $resourceConnection;
+    }
+
+    /**
      * @param array<int, array{0: string, 1: int, 2: float, 3: float}> $items
      * @return \PHPUnit\Framework\MockObject\MockObject&OrderInterface
      */
-    private function order(array $items, float $grandTotal, string $state = Order::STATE_COMPLETE)
-    {
+    private function order(
+        array $items,
+        float $grandTotal,
+        string $state = Order::STATE_COMPLETE,
+        int $entityId = 0
+    ) {
         $order = $this->createMock(OrderInterface::class);
         $order->method('getState')->willReturn($state);
         $order->method('getCustomerEmail')->willReturn('Mari@Example.com ');
@@ -141,8 +280,8 @@ class OrderPayloadBuilderTest extends TestCase
         $order->method('getDiscountAmount')->willReturn(
             -array_sum(array_column($items, 3))
         );
-        // entity_id 0 short-circuits the attribution side-table lookup.
-        $order->method('getEntityId')->willReturn(0);
+        // entity_id 0 short-circuits the attribution + credit-memo lookups.
+        $order->method('getEntityId')->willReturn($entityId);
 
         if ($items !== []) {
             $order->method('getItems')->willReturn(array_map(

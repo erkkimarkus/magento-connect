@@ -18,9 +18,10 @@ use Smaily\Connect\Model\Engine\Queue\IngestQueue;
 use Smaily\Connect\Model\Engine\Settings;
 
 /**
- * Order ingest on every order save whose state maps onto the engine enum.
- * Natural-key upsert engine-side (external_order_id) makes repeated status
- * saves safe; transient states (hold, payment review) are skipped.
+ * Order ingest on every order save whose state maps onto the engine enum, or
+ * whose refunded total moved. Natural-key upsert engine-side
+ * (external_order_id) makes repeated status saves safe; transient states
+ * (hold, payment review) are skipped.
  *
  * Recommendation attribution is captured here (not at place_after) because
  * the order entity_id only exists after the save; on the placement request
@@ -60,9 +61,14 @@ class OrderSaveAfter implements ObserverInterface
             return;
         }
 
-        // Only enqueue when the state actually changed (or the order is new)
-        // to avoid a queue row for every invoice/shipment/comment save.
-        if (!$isNewOrder && $order->getOrigData('state') === $order->getState()) {
+        // Only enqueue when something the engine cares about actually changed
+        // (or the order is new) — otherwise every invoice/shipment/comment
+        // save would cost a queue row. A refund counts as such a change even
+        // when the state does not move: a PARTIAL credit memo leaves the order
+        // processing/complete, and its per-line return signal (contract §5)
+        // would never reach the engine on a state-only gate.
+        $refunded = (float)$order->getTotalRefunded() !== (float)$order->getOrigData('total_refunded');
+        if (!$isNewOrder && !$refunded && $order->getOrigData('state') === $order->getState()) {
             return;
         }
 

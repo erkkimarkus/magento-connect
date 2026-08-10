@@ -106,12 +106,23 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   and would tombstone the surviving parent/siblings. A merely
   disabled/hidden product flows through `ProductSaveAfter`'s soft
   tombstone, never §3b.
+- **Order return signals (contract §5, v1.8.0):** `items[].returned_at` is
+  derived from the order's own credit memos on every build
+  (`OrderPayloadBuilder`), never from a one-shot event — the engine replaces
+  an order's items wholesale on re-ingest, so a later sync that omitted the
+  field would erase the return. A line is marked returned only once its FULL
+  quantity has been credited (a partly credited quantity stays kept, §5);
+  neither reason field is sent, because Magento has no structured return
+  taxonomy to map from. A partial credit memo leaves the order state alone,
+  so `OrderSaveAfter`'s enqueue gate treats a moved `total_refunded` as a
+  change worth re-sending.
 - Browse events are the exception: loss-tolerant by design, they are relayed
   synchronously (`Controller/Relay/Index`) and never queued.
-- **Catalog price/URL/language scope (PRO-1352/1353):** the wire contract
-  carries no currency field, so one Magento installation is one engine
-  tenant with one base currency — the plugin, not the engine, is
-  responsible for always sending one consistent scope's price. Both catalog
+- **Catalog price/URL/language scope (PRO-1352/1353):** one Magento
+  installation is one engine tenant with one base currency (which every
+  catalog row now names, contract §3 `currency`, v1.7.0) — the plugin, not
+  the engine, is responsible for always sending one consistent scope's
+  price. Both catalog
   ingest paths resolve through the SAME single canonical store
   (`CatalogPayloadBuilder::canonicalStoreId()` — the default store view of
   the default website, the same "default scope" concept as `Engine\Client`'s

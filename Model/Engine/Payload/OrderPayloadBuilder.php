@@ -8,7 +8,9 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Model\Engine\Payload;
 
+use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\App\ResourceConnection;
+use Magento\Sales\Api\CreditmemoRepositoryInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderItemInterface;
 use Magento\Sales\Model\Order;
@@ -22,8 +24,13 @@ use Magento\Sales\Model\Order;
  * values per contract v1.4.0 amount semantics: row_total_incl_tax for
  * lines, grand_total for total_amount; items carry pre-discount unit
  * prices and post-discount line totals. Attribution fields come
- * from the smaily_order_attribution side table. NB: the order wire key is
- * smaily_rec_ctx while browse events use smaily_ctx — never unify them.
+ * from the smaily_order_attribution side table.
+ *
+ * Return signals (contract §5, v1.8.0) are derived from the order's OWN
+ * credit memos on every build, never from a one-shot event payload: the
+ * engine fully replaces an order's items on re-ingest, so a later sync that
+ * omits returned_at ERASES the return. Deriving here means the live observer,
+ * a flusher retry and the order backfill all re-send it for free.
  */
 class OrderPayloadBuilder
 {
@@ -38,7 +45,9 @@ class OrderPayloadBuilder
     private const ATTRIBUTION_TABLE = 'smaily_order_attribution';
 
     public function __construct(
-        private readonly ResourceConnection $resourceConnection
+        private readonly ResourceConnection $resourceConnection,
+        private readonly CreditmemoRepositoryInterface $creditmemoRepository,
+        private readonly SearchCriteriaBuilder $searchCriteriaBuilder
     ) {
     }
 
@@ -63,7 +72,7 @@ class OrderPayloadBuilder
             'total_amount' => round((float)$order->getGrandTotal(), 4),
             'currency' => (string)$order->getOrderCurrencyCode() ?: 'EUR',
             'status' => $status,
-            'items' => $this->items($order),
+            'items' => $this->items($order, $orderedAt),
         ];
 
         $discount = abs((float)$order->getDiscountAmount());
@@ -77,8 +86,9 @@ class OrderPayloadBuilder
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function items(OrderInterface $order): array
+    private function items(OrderInterface $order, int $orderedAt): array
     {
+        $returns = $this->returnsByOrderItem((int)$order->getEntityId());
         $items = [];
         foreach ($order->getItems() as $orderItem) {
             // Product rows only: children of configurables carry the price on
@@ -106,10 +116,71 @@ class OrderPayloadBuilder
             if ($itemDiscount > 0) {
                 $row['discount_amount'] = round($itemDiscount, 4);
             }
+
+            // §5: returned_at marks the whole LINE — a partially refunded
+            // quantity stays KEPT, because the customer still owns the rest.
+            // Neither reason field is sent: Magento has no structured return
+            // taxonomy anywhere, and §5 says guessing one is worse than
+            // sending nothing.
+            $returned = $returns[(int)$orderItem->getItemId()] ?? null;
+            if ($returned !== null && $returned['qty'] >= $qty) {
+                $row['returned_at'] = gmdate('Y-m-d\TH:i:s\Z', $returned['timestamp'] ?: $orderedAt);
+            }
+
             $items[] = $row;
         }
 
         return $items;
+    }
+
+    /**
+     * The order's credit memos, collapsed per order line.
+     *
+     * A Magento PARTIAL refund leaves the order state alone (only a full
+     * refund closes it, which the engine already derives from
+     * `status: refunded`), so the credit memos are the only record of a
+     * line-level return — and they are read fresh on every build so a
+     * re-sync can never erase a return the engine already has.
+     *
+     * Quantities accumulate across several credit memos for the same line;
+     * the latest contributing memo dates the return, because that is the one
+     * that completed it. A memo with no usable date falls back to the order
+     * date — the same basis the engine's own full-refund derivation uses, and
+     * stable across re-syncs where a now() fallback would not be.
+     *
+     * @return array<int, array{qty: float, timestamp: int}> keyed by order-item id
+     */
+    private function returnsByOrderItem(int $orderId): array
+    {
+        if ($orderId <= 0) {
+            return [];
+        }
+
+        $criteria = $this->searchCriteriaBuilder->addFilter('order_id', $orderId)->create();
+        try {
+            $creditmemos = $this->creditmemoRepository->getList($criteria)->getItems();
+        } catch (\Exception) {
+            return [];
+        }
+
+        $returns = [];
+        foreach ($creditmemos as $creditmemo) {
+            $timestamp = strtotime((string)$creditmemo->getCreatedAt()) ?: 0;
+            foreach ((array)$creditmemo->getItems() as $memoItem) {
+                $orderItemId = (int)$memoItem->getOrderItemId();
+                $qty = (float)$memoItem->getQty();
+                if ($orderItemId <= 0 || $qty <= 0) {
+                    continue;
+                }
+                $known = $returns[$orderItemId] ?? ['qty' => 0.0, 'timestamp' => 0];
+                $returns[$orderItemId] = [
+                    'qty' => $known['qty'] + $qty,
+                    'timestamp' => max($known['timestamp'], $timestamp),
+                ];
+            }
+        }
+
+        return $returns;
     }
 
     /**
