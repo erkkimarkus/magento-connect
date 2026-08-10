@@ -181,9 +181,12 @@ if Smaily is briefly unreachable — deliveries retry with backoff).
 Additional options:
 
 - **Synchronized Fields** — which optional fields ride along (first/last
-  name, prefix, gender, date of birth, customer ID, customer group,
-  subscription type). Empty values are omitted so existing Smaily values
-  are never wiped.
+  name, prefix, phone, gender, date of birth, customer ID, customer group,
+  subscription type). Phone is the customer's default billing telephone;
+  phone and gender reach Smaily under the field names `user_phone` and
+  `user_gender` — the names Smaily's WooCommerce plugin uses, so a shopper
+  syncing from two stores lands in one field. Empty values are omitted so
+  existing Smaily values are never wiped.
 - **Include Guest Order Emails** — also sync guest-order emails (always on
   in checkout opt-in mode).
 - **Show Newsletter Checkbox At Checkout** — adds an opt-in checkbox to the

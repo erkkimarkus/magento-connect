@@ -22,7 +22,7 @@ package; `setup:upgrade` runs the migration.
 |---|---|
 | API subdomain / username / password (all websites) | API Connection (the previously **plaintext** password is now stored **encrypted**; the subdomain is normalized) |
 | Newsletter opt-in autoresponder (`workflowId`) | Welcome automation (enabled if opt-in triggering was enabled) + a fallback row in the automation mapping table |
-| Subscriber cron sync toggle + field selection | Subscriber Synchronization (same field names) |
+| Subscriber cron sync toggle + field selection | Subscriber Synchronization (every tick carries over) |
 | Abandoned cart toggle / autoresponder / interval | Automations group (`2:hour` → 120 minutes) + a mapping fallback row |
 
 Legacy `smaily/*` config rows are left in place, so downgrading back to
@@ -44,6 +44,12 @@ Legacy `smaily/*` config rows are left in place, so downgrading back to
 - **Contact sync mode** defaults to *Subscribers only (consent)* — exactly
   the audience the legacy cron synced, so the upgrade never broadens your
   audience. Review the new modes if you want a different lawful basis.
+- **Gender is sent as `user_gender`** (2.8.x sent it as `gender`), matching
+  the field name Smaily's WooCommerce plugin uses so the same shopper never
+  lands in two different fields. Your Synchronized Fields tick
+  carries over automatically; if a Smaily segment or template references
+  `gender`, repoint it to `user_gender` after the first sync. The values are
+  unchanged (`Male` / `Female`).
 - **Captcha:** the legacy custom captcha integration is replaced by
   Magento's native reCAPTCHA (Stores > Configuration > Security >
   Google reCAPTCHA Storefront). Enable it there if you used the old

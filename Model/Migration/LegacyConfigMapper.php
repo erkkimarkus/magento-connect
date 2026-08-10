@@ -25,9 +25,22 @@ class LegacyConfigMapper
 {
     public const FLAG_ENCRYPT = 'encrypt';
 
-    private const VALID_SYNC_FIELDS = [
-        'subscription_type', 'customer_group', 'customer_id', 'prefix',
-        'first_name', 'last_name', 'gender', 'birthday',
+    /**
+     * Legacy 2.8.x sync-field name => the v3 field id (which is also the
+     * Smaily wire key). Only `gender` moved: v3 sends it under the
+     * cross-platform canon `user_gender` (see Config\Source\SyncFields).
+     *
+     * @var array<string, string>
+     */
+    private const SYNC_FIELD_MAP = [
+        'subscription_type' => 'subscription_type',
+        'customer_group' => 'customer_group',
+        'customer_id' => 'customer_id',
+        'prefix' => 'prefix',
+        'first_name' => 'first_name',
+        'last_name' => 'last_name',
+        'gender' => 'user_gender',
+        'birthday' => 'birthday',
     ];
 
     public function __construct(
@@ -80,9 +93,10 @@ class LegacyConfigMapper
             $set(Config::XML_PATH_SYNC_ENABLED, $this->flag($legacy, 'sync/enableCronSync') ? '1' : '0');
         }
         if (!empty($legacy['sync/fields'])) {
-            $fields = array_values(array_intersect(
-                self::VALID_SYNC_FIELDS,
-                array_map('trim', explode(',', (string)$legacy['sync/fields']))
+            $legacyFields = array_map('trim', explode(',', (string)$legacy['sync/fields']));
+            $fields = array_values(array_intersect_key(
+                self::SYNC_FIELD_MAP,
+                array_flip($legacyFields)
             ));
             if ($fields) {
                 $set(Config::XML_PATH_SYNC_FIELDS, implode(',', $fields));

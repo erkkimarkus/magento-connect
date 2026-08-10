@@ -5,10 +5,69 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-11 (PRO-1764 simplify — one owner for the import's
-off-state, an honest stop for an in-flight import)_
+_Last updated: 2026-08-11 (PRO-1765 — contact field wire canon: `user_gender`
++ `user_phone`)_
 
 ## Where we are
+
+- **PRO-1765 done — the contact payload speaks the cross-platform field
+  canon: gender ships as `user_gender`, and phone ships at all.** Two
+  changes to one wire shape:
+  - **`gender` → `user_gender`.** Verified byte-for-byte against the Woo
+    plugin's shipped code (`includes/Smaily/SubscriberPayloadBuilder.php`
+    `SUPPORTED_FIELDS`, `spec/FIELD_MAPPING.md` §2, decision F2-7): the
+    standard is `user_gender` / `user_phone` (Shopify's app carries neither
+    field yet, but F2-7 binds it to the same names), so one shopper syncing
+    from two stores lands in ONE Smaily field instead of two. The values (`Male` / `Female`) are unchanged.
+  - **`user_phone`, new.** The customer's DEFAULT BILLING address
+    telephone — the same source the engine's `CustomerPayloadBuilder`
+    already quotes, so both wires carry one phone number. Merchant-
+    selectable like every sibling field (Woo ships it as a sync-field
+    toggle too, not an always-on), on by default for fresh installs.
+    Omitted entirely when the customer has none: absent keeps whatever
+    Smaily holds, empty would wipe it.
+  **The field id IS the wire key here** (`$payload[$field]`), so the rename
+  moves the stored selection value too. The only writer of the old `gender`
+  value in the wild is the 2.8.x migration, so it maps at the source —
+  `Model\Migration\LegacyConfigMapper` now carries a legacy→v3 map and an
+  upgraded store's Gender tick lands on `user_gender`. No read-time alias
+  exists or is needed: v3 is unreleased, so no v3 store has ever stored a
+  selection.
+  **One-way-door check, recorded honestly.** v3 (3.0.0, unreleased) has no
+  installed base, so nothing that has synced UNDER v3 depends on `gender`.
+  But 2.8.x — the released line these stores upgrade FROM via a plain
+  `composer update` — did send `gender` on the wire
+  (`master:Cron/SubscribersSync.php:191`), so an upgraded store's existing
+  Smaily segments and templates that reference `gender` keep matching the
+  values last synced by 2.8.x and go stale rather than break. The trade is
+  deliberate: cross-platform canon (F2-7's "the same contact from different
+  sources must not produce duplicated fields") over one platform's legacy
+  name, with the repoint spelled out for merchants in `docs/UPGRADING.md`
+  and `CHANGELOG.md`. **Erkki's sign-off on that trade is queued below
+  before 3.0.0 ships** — the code change itself is reversible until then.
+  **Verification — the REAL import path on the sandbox with only the
+  transport faked.** Two real customers created through the real
+  `AccountManagementInterface` (one with a default billing telephone and
+  gender Female, one with neither address nor phone and gender Male), both
+  subscribed through `SubscriptionManagerInterface::subscribeCustomer()`,
+  then the real `JobManager::start()` → real
+  `Model\Backfill\ContactsProcessor` with a recording `SmailyClient` in
+  place of sendsmaily.net. Job `completed 2/2`, one POST to `contact`
+  carrying `"user_phone":"+372 555 12345","user_gender":"Female"` and the
+  other carrying `"user_gender":"Male"` with **no `user_phone` key at all**
+  — and neither payload carries a bare `gender`. The real Settings >
+  Subscribers panel was rendered through the real admin block/layout stack:
+  its nine checkboxes read `first_name, last_name, prefix, user_phone,
+  user_gender, birthday, customer_id, customer_group, subscription_type` —
+  the exact list `Config::getSyncFields()` hands the payload builder, so the
+  merchant's tick and the sync reader cannot disagree. Gates: 254 unit tests
+  green (9 new — the payload builder had NO unit test of its own until now),
+  phpcs 0 errors, phpstan clean, 70 integration tests green (throwaway
+  MySQL; the legacy-config migration test now seeds `gender` and proves it
+  lands as `user_gender` through the real data patch). No
+  `setup:di:compile` needed — no constructor changed, no new injectable
+  class. Sandbox restored: both customers and their subscriber rows deleted,
+  backfill table empty, the single pre-existing config row untouched.
 
 - **PRO-1764 simplify done — the accepted review findings applied.** Three
   things, no new behaviour beyond the one honesty fix:
@@ -2358,3 +2417,13 @@ PRO-1267 (engine: Magento product-identity contract note).
    and the observer gates are all deleted — ingest now gates purely on
    `Settings::isConnected()`. (b) and (c) are both covered by the STATUS
    entries above.
+5. PRO-1765 — sign off the `gender` → `user_gender` wire rename before
+   3.0.0 ships (Medium; reversible until release). v3 has no installed
+   base, but **2.8.x did send `gender`** and those stores upgrade in place,
+   so an upgraded merchant's Smaily segments/templates on `gender` freeze
+   at their last 2.8.x value until repointed. Implemented per PRO-1765 on
+   the cross-platform-canon argument (Woo decision F2-7 — one shopper must
+   not produce two fields), with the repoint documented in
+   `docs/UPGRADING.md` and `CHANGELOG.md`. If you would rather keep
+   Magento's legacy `gender` on the wire, say so and it reverts to a
+   one-constant change.

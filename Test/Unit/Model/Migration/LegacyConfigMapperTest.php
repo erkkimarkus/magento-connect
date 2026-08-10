@@ -56,7 +56,9 @@ class LegacyConfigMapperTest extends TestCase
         self::assertSame('1', $configs[Config::XML_PATH_WELCOME_ENABLED]);
 
         self::assertSame('1', $configs[Config::XML_PATH_SYNC_ENABLED]);
-        self::assertSame('first_name,last_name,gender', $configs[Config::XML_PATH_SYNC_FIELDS]);
+        // The legacy `gender` selection lands on the v3 field id, which is also
+        // the cross-platform wire key — an upgraded store keeps its tick.
+        self::assertSame('first_name,last_name,user_gender', $configs[Config::XML_PATH_SYNC_FIELDS]);
 
         self::assertSame('1', $configs[Config::XML_PATH_ABANDONED_ENABLED]);
         self::assertSame('77', $configs[Config::XML_PATH_ABANDONED_WORKFLOW]);

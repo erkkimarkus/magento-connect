@@ -33,7 +33,7 @@ class MigrateLegacyConfigTest extends IntegrationTestCase
             'smaily/subscribe/enableNewsletterSubscriptions' => '1',
             'smaily/subscribe/workflowId' => '55',
             'smaily/sync/enableCronSync' => '1',
-            'smaily/sync/fields' => 'first_name,last_name,bogus_field',
+            'smaily/sync/fields' => 'first_name,last_name,gender,bogus_field',
             'smaily/sync/frequency' => '0 */4 * * *',
             'smaily/abandoned/enableAbandonedCart' => '1',
             'smaily/abandoned/autoresponderId' => '77',
@@ -49,7 +49,11 @@ class MigrateLegacyConfigTest extends IntegrationTestCase
         self::assertSame('1', $config[Config::XML_PATH_WELCOME_ENABLED]);
         self::assertSame('55', $config[Config::XML_PATH_WELCOME_WORKFLOW]);
         self::assertSame('1', $config[Config::XML_PATH_SYNC_ENABLED]);
-        self::assertSame('first_name,last_name', $config[Config::XML_PATH_SYNC_FIELDS], 'Unknown fields dropped');
+        self::assertSame(
+            'first_name,last_name,user_gender',
+            $config[Config::XML_PATH_SYNC_FIELDS],
+            'Unknown fields dropped; the legacy gender tick lands on the v3 field id'
+        );
         self::assertSame('1', $config[Config::XML_PATH_ABANDONED_ENABLED]);
         self::assertSame('77', $config[Config::XML_PATH_ABANDONED_WORKFLOW]);
         self::assertSame('120', $config[Config::XML_PATH_ABANDONED_CUTOFF], '"2:hour" becomes minutes');

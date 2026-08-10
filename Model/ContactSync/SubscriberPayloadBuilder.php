@@ -106,6 +106,8 @@ class SubscriberPayloadBuilder
                 return $this->trimOrNull((string)$customer->getLastname());
             case SyncFields::FIELD_PREFIX:
                 return $this->trimOrNull((string)$customer->getPrefix());
+            case SyncFields::FIELD_PHONE:
+                return $this->billingPhone($customer);
             case SyncFields::FIELD_GENDER:
                 // Magento gender attribute: 1 = Male, 2 = Female (legacy
                 // data-handler convention; other options are omitted).
@@ -129,6 +131,21 @@ class SubscriberPayloadBuilder
             default:
                 return null;
         }
+    }
+
+    /**
+     * The customer's default billing telephone — the same source the engine's
+     * customer payload uses, so both wires quote one phone number.
+     */
+    private function billingPhone(CustomerInterface $customer): ?string
+    {
+        foreach ((array)$customer->getAddresses() as $address) {
+            if ($address->isDefaultBilling()) {
+                return $this->trimOrNull((string)$address->getTelephone());
+            }
+        }
+
+        return null;
     }
 
     private function groupCode(int $groupId): ?string
