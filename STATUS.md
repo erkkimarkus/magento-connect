@@ -5,10 +5,73 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-10 (PRO-1760 — abandoned-cart reminders always carry
-the cart's products, and write all ten slots on every send)_
+_Last updated: 2026-08-10 (PRO-1761 — every automation trigger stamps its own
+per-trigger last-run marker on the Smaily contact)_
 
 ## Where we are
+
+- **PRO-1761 done — the automation marker canon is adopted: each trigger
+  writes its own per-trigger last-run timestamp.** `welcome_automation_at`,
+  `first_order_automation_at`, `abandoned_cart_automation_at`, value = that
+  run's own clock as `Y-m-d H:i:s` in **UTC** (NOT the engine wire's Z-suffix
+  rule — this is the Smaily contact-field canon), written on every run,
+  last-writer-wins. The names are **verified byte-for-byte against Woo's
+  shipped implementation** (`../connect/includes/Smaily/AutomationMarker.php`),
+  not just against the brief; the trigger slugs already matched
+  (`Model\Automation\Trigger`'s vocabulary is the same `welcome` /
+  `first_order` / `abandoned_cart`).
+  The canon lives as `Trigger::MARKER_FIELDS` — next to the trigger vocabulary
+  it belongs to, with the "merchant-visible and permanent, add a name, never
+  repurpose one" rationale in its docblock — and the stamp is taken in
+  `Model\ContactSync\SyncDispatcher::dispatchAutomation()`, the ONE funnel all
+  three triggers (`Observer\SubscriberSaveAfter`, `Observer\OrderPlaced`,
+  `Cron\AbandonedCart`) already dispatch through. No new class, no new
+  dependency, no DI change: 1 const + 3 lines. Stamping there is also the
+  correct MOMENT — it is where the trigger fires, so a queue retry resends the
+  moment the store event happened rather than the moment it was delivered.
+  Existing template fields are untouched: `is_abandoned_cart`, `is_first_order`
+  and the 70-key `product_*` matrix keep their exact names and meanings — the
+  markers ride alongside. A trigger writes only its own field; an automation
+  that did not fire sends no marker at all (absent leaves whatever Smaily
+  already holds intact, `''` would wipe it), and the contact-sync payload
+  carries none.
+  **Verification — the real trigger paths on the sandbox with the transport
+  faked, not just green units.** Faked a connected Smaily account, enabled all
+  three triggers with config-default workflows (101/102/103, multilingual mode
+  `single`), then drove genuinely real flows: a real newsletter subscription
+  through `SubscriptionManagerInterface::subscribe()` (firing the real
+  `newsletter_subscriber_save_after`), a real first order for a brand-new
+  customer through the quote → `CartManagementInterface::submit()` path, and a
+  real idle guest quote picked up by `Cron\AbandonedCart::execute()`. The four
+  resulting `smaily_event_queue` rows show exactly one marker each on the three
+  automation rows and **NONE** on the `contact.sync` row. Then the last hop:
+  the REAL `Model\Queue\Handler\AutomationHandler` was run over those events
+  with only the transport faked (a `SmailyClientProvider`/`SmailyClient`
+  subclass recording `post()` instead of reaching sendsmaily.net) — the three
+  captured `/api/autoresponder.php` bodies carry
+  `{"welcome_automation_at":"2026-08-10 19:02:59"}`,
+  `{"first_order_automation_at":"2026-08-10 19:05:37"}` and
+  `{"abandoned_cart_automation_at":"2026-08-10 19:05:37"}` respectively,
+  alongside the untouched `is_first_order`/`order_id`/`order_total` and
+  `is_abandoned_cart` + 70 `product_*` keys. Gates: 203 unit tests green (5 new
+  — a new `Test/Unit/Model/ContactSync/SyncDispatcherTest`: a data-provided
+  case per trigger asserting the name, the `Y-m-d H:i:s` shape, that the value
+  falls between the clock readings either side of the call and that no OTHER
+  trigger's marker appears; one that existing address fields survive; one that
+  contact sync carries no marker), phpcs 0 errors, phpstan clean, 65
+  integration tests green (throwaway MySQL). No `setup:di:compile` needed — no
+  constructor signature changed and no new injectable class was added; the
+  sandbox ran the real observers/cron/handler against the bind-mounted module
+  instead, which is the stronger check. `docs/USER_GUIDE.md` gained a
+  "Segmenting on when an automation last ran" section (the field table, the
+  UTC format, the "an event that has not fired writes nothing" rule and the
+  cross-platform promise) and `CHANGELOG.md` a matching 3.0.0 feature line.
+  Sandbox restored: the fixture product, customer, subscriber, order, quotes,
+  event-queue rows, the abandoned-cart state row the run created and every
+  `smaily_connect/*` config row deleted — confirmed back to the exact pre-test
+  state (0 products/customers/orders/quotes/subscribers/queue rows, the one
+  pre-existing `smaily_abandoned_cart` row, and one
+  `internal/last_seen_version` config row).
 
 - **PRO-1760 done — abandoned-cart product details are no longer gated
   on a merchant field selection, and every slot is written on every send.**
