@@ -96,8 +96,7 @@ INSERT INTO core_config_data (scope, scope_id, path, value) VALUES
 ('default',0,'smaily/general/password','plain-secret'),
 ('default',0,'smaily/subscribe/workflowId','55'),
 ('default',0,'smaily/abandoned/autoresponderId','77'),
-('default',0,'smaily/abandoned/syncTime','2:hour'),
-('default',0,'smaily/abandoned/productfields','name,qty,price');
+('default',0,'smaily/abandoned/syncTime','2:hour');
 ALTER TABLE quote ADD COLUMN reminder_date TIMESTAMP NULL, ADD COLUMN is_sent SMALLINT NULL;
 CREATE TABLE IF NOT EXISTS smaily_customer_sync (id INT PRIMARY KEY);
 DELETE FROM patch_list WHERE patch_name LIKE '%Smaily%';

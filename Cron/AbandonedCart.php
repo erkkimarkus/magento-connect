@@ -84,11 +84,13 @@ class AbandonedCart
         $maxAge = $this->dateTime->gmtDate('Y-m-d H:i:s', $now - self::MAX_AGE_SECONDS);
 
         $collection = $this->quoteCollectionFactory->create();
-        $collection->addFieldToFilter('is_active', ['eq' => 1])
-            ->addFieldToFilter('items_count', ['gt' => 0])
-            ->addFieldToFilter('store_id', ['in' => $storeIds])
-            // Qualified: requireAnyEmail() joins quote_address, which has an
-            // updated_at of its own — an unqualified filter is ambiguous SQL.
+        // Every filter column is qualified: requireAnyEmail() joins
+        // quote_address, which shares column names with quote (updated_at,
+        // created_at, customer_id, ...) — an unqualified filter is ambiguous
+        // SQL and MySQL rejects the whole SELECT.
+        $collection->addFieldToFilter('main_table.is_active', ['eq' => 1])
+            ->addFieldToFilter('main_table.items_count', ['gt' => 0])
+            ->addFieldToFilter('main_table.store_id', ['in' => $storeIds])
             ->addFieldToFilter('main_table.updated_at', ['from' => $maxAge, 'to' => $idleSince])
             ->setOrder('entity_id', 'ASC')
             ->setPageSize(self::BATCH_SIZE);

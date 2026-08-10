@@ -13,6 +13,7 @@ use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Quote\Model\Quote;
+use Magento\Quote\Model\Quote\Item;
 use Magento\Store\Model\StoreManagerInterface;
 use Smaily\Connect\Model\Logger\Logger;
 
@@ -35,24 +36,8 @@ class PayloadBuilder
 {
     private const MAX_PRODUCTS = 10;
 
-    private const FIELD_NAME = 'name';
-    private const FIELD_DESCRIPTION = 'description';
-    private const FIELD_IMAGE_URL = 'image_url';
-    private const FIELD_SKU = 'sku';
-    private const FIELD_QUANTITY = 'quantity';
-    private const FIELD_PRICE = 'price';
-    private const FIELD_BASE_PRICE = 'base_price';
-
-    /** Field keys map 1:1 onto payload keys ("name" -> product_name_N). */
-    private const PRODUCT_FIELDS = [
-        self::FIELD_NAME,
-        self::FIELD_DESCRIPTION,
-        self::FIELD_IMAGE_URL,
-        self::FIELD_SKU,
-        self::FIELD_QUANTITY,
-        self::FIELD_PRICE,
-        self::FIELD_BASE_PRICE,
-    ];
+    /** @var array<string, string> The ten empty slots, keyed off productRow(). */
+    private static array $blankSlots = [];
 
     public function __construct(
         private readonly StoreManagerInterface $storeManager,
@@ -138,12 +123,7 @@ class PayloadBuilder
      */
     private function productFields(Quote $quote): array
     {
-        $fields = [];
-        foreach (self::PRODUCT_FIELDS as $field) {
-            for ($i = 1; $i <= self::MAX_PRODUCTS; $i++) {
-                $fields[sprintf('product_%s_%d', $field, $i)] = '';
-            }
-        }
+        $fields = $this->blankSlots();
 
         $items = $quote->getAllVisibleItems();
         $products = $this->loadProducts($items, (int)$quote->getStoreId());
@@ -157,12 +137,8 @@ class PayloadBuilder
             $slot++;
             $product = $products[(int)$item->getProduct()->getId()] ?? null;
 
-            foreach (self::PRODUCT_FIELDS as $field) {
-                $value = $this->resolveField($field, $item, $product);
-                // A value we can't resolve keeps its empty prefill.
-                if ($value !== null && $value !== '') {
-                    $fields[sprintf('product_%s_%d', $field, $slot)] = $value;
-                }
+            foreach ($this->productRow($item, $product) as $field => $value) {
+                $fields[sprintf('product_%s_%d', $field, $slot)] = $value;
             }
         }
 
@@ -170,46 +146,54 @@ class PayloadBuilder
     }
 
     /**
-     * @param \Magento\Quote\Model\Quote\Item $item
+     * The product half of one slot: payload key suffix => value. A null item
+     * yields the blank row every unused slot is prefilled with.
+     *
+     * @return array<string, string>
      */
-    private function resolveField(string $field, $item, ?Product $product): ?string
+    private function productRow(?Item $item, ?Product $product): array
     {
-        switch ($field) {
-            case self::FIELD_NAME:
-                return (string)$item->getName();
-            case self::FIELD_SKU:
-                return (string)$item->getSku();
-            case self::FIELD_QUANTITY:
-                return (string)(float)$item->getQty();
-            case self::FIELD_PRICE:
-                $price = (float)($item->getPriceInclTax() ?: $item->getPrice());
+        $description = $product === null ? '' : trim(strip_tags(
+            (string)($product->getData('short_description') ?: $product->getData('description'))
+        ));
+        $regular = $product === null
+            ? 0.0
+            : (float)$product->getPriceInfo()->getPrice('regular_price')->getAmount()->getValue();
 
-                return number_format($price, 2, '.', '');
-            case self::FIELD_BASE_PRICE:
-                if ($product === null) {
-                    return null;
-                }
-                $regular = (float)$product->getPriceInfo()->getPrice('regular_price')->getAmount()->getValue();
-
-                return $regular > 0 ? number_format($regular, 2, '.', '') : null;
-            case self::FIELD_DESCRIPTION:
-                if ($product === null) {
-                    return null;
-                }
-                $description = (string)($product->getData('short_description')
-                    ?: $product->getData('description'));
-                $description = trim(strip_tags($description));
-
-                return $description !== '' ? $description : null;
-            case self::FIELD_IMAGE_URL:
-                return $product === null ? null : $this->imageUrl($product);
-            default:
-                return null;
-        }
+        return [
+            'name' => (string)$item?->getName(),
+            'description' => $description,
+            'image_url' => $product === null ? '' : (string)$this->imageUrl($product),
+            'sku' => (string)$item?->getSku(),
+            'quantity' => $item === null ? '' : (string)(float)$item->getQty(),
+            'price' => $item === null
+                ? ''
+                : number_format((float)($item->getPriceInclTax() ?: $item->getPrice()), 2, '.', ''),
+            'base_price' => $regular > 0 ? number_format($regular, 2, '.', '') : '',
+        ];
     }
 
     /**
-     * @param \Magento\Quote\Model\Quote\Item[] $items
+     * Every slot of every product key, empty — see the class docblock for why
+     * a send writes them all. Same for every cart, so built once per class.
+     *
+     * @return array<string, string>
+     */
+    private function blankSlots(): array
+    {
+        if (self::$blankSlots === []) {
+            foreach (array_keys($this->productRow(null, null)) as $field) {
+                for ($i = 1; $i <= self::MAX_PRODUCTS; $i++) {
+                    self::$blankSlots[sprintf('product_%s_%d', $field, $i)] = '';
+                }
+            }
+        }
+
+        return self::$blankSlots;
+    }
+
+    /**
+     * @param Item[] $items
      * @return array<int, Product>
      */
     private function loadProducts(array $items, int $storeId): array

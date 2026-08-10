@@ -383,11 +383,11 @@ sub-systems on this tab):
 | Abandoned cart | enable toggle + workflow select + cutoff minutes (10–1440, default 30) |
 | Per-language workflow mapping table (modes A/B only) | language / workflow select / default-fallback radio, per trigger |
 
-**Resolved (Erkki, 2026-07-14, §4.2):** Abandoned Cart Product Fields (7
-checkboxes, `automations/abandoned_fields`) — currently native-config-only,
-same dead-`saveFlag()` shape as the two Subscribers-tab orphans above — is a
-real feature and gets a real control added to this tab (part of the
-abandoned-cart automation card). Native config is removed once built.
+**Resolved (Erkki, 2026-07-14, §4.2) — retired in PRO-1760:** Abandoned Cart
+Product Fields (7 checkboxes, `automations/abandoned_fields`) was resolved to
+get a real control on this tab, and one was built. It is gone again: product
+details always send, so there is nothing left to select. No control on this
+tab, and the native field is removed.
 
 *Engine-run (Campaign Intelligence) automations* — dynamic list from the
 engine catalog, each row: Enabled + Test mode toggles, Smaily Workflow
@@ -743,7 +743,8 @@ Smaily` disappears entirely.** The four fields that were the only candidates
 for a residual native/advanced surface — the three native-only orphans
 (`include_guests`, `automation_force_opt_in`, `abandoned_fields`) and the
 RSS `enabled` per-store-view scope — are all resolved to move fully onto the
-module's own pages (§4.2). No field keeps a native-only or native-advanced
+module's own pages (§4.2; `abandoned_fields` has since been retired
+altogether, PRO-1760). No field keeps a native-only or native-advanced
 home; full sibling parity (Woo/Shopify both have no native config surface)
 is the outcome, not a "shrinks to advanced" compromise.
 
@@ -779,7 +780,7 @@ on a wizard/Settings panel today; **both** = duplicated right now.
 | `automations/welcome_enabled` / `welcome_workflow` | Welcome automation | both | **ours.** |
 | `automations/first_order_enabled` / `first_order_workflow` | First-order automation | both | **ours.** |
 | `automations/abandoned_enabled` / `abandoned_workflow` / `abandoned_cutoff` | Abandoned-cart automation | both | **ours.** |
-| `automations/abandoned_fields` | Abandoned-cart product fields (7 checkboxes) | **native only**, same dead-`saveFlag()` shape as `include_guests` | **ours** — resolved (Erkki, 2026-07-14): real control built on the Automations tab; see §2.3.C. |
+| `automations/abandoned_fields` | Abandoned-cart product fields (7 checkboxes) | **native only**, same dead-`saveFlag()` shape as `include_guests` | **RETIRED** (PRO-1760) — the control resolved here was built on the Automations tab and then removed: product details always send, so there is nothing to select. Native field and source model deleted; the stored path is abandoned in place, never migrated. |
 | `automations/engine_automations` | Embedded engine-automations block (no stored value of its own) | both (native `frontend_model`; ours: Automations tab) | **ours.** Pure UI duplication. |
 | `rss/enabled` | RSS feed on/off | both (native: default+website+store scope; ours: RSS tab, default scope only) | **ours** — resolved (Erkki, 2026-07-14): per-store-view granularity is dropped by product decision (the field had a confirmed, exercised per-store-view read via `Controller\Rss\Feed::execute()` → `isRssEnabled()`, but the resolution trades that granularity for a single store-wide toggle); see §2.3.E. |
 | `rss/url_builder` | Feed URL builder (no stored value) | both (native `frontend_model`; ours: RSS tab) | **ours.** Pure UI duplication — and, per the investigation below, native's RSS group has *no* field beyond this and `enabled`, so there is nothing genuinely "advanced" left there to point at. |
@@ -801,7 +802,10 @@ on a wizard/Settings panel today; **both** = duplicated right now.
   features, currently hidden — build proper UI for all three on the
   module's own pages** (`include_guests` and `automation_force_opt_in` on
   Subscribers, §2.3.B; `abandoned_fields` on Automations, §2.3.C). Native
-  config for all three is removed once built.
+  config for all three is removed once built. *`abandoned_fields` has since
+  been retired (PRO-1760): the control was built, then removed — product
+  details always send, so nothing is selectable. Only the two
+  Subscribers-tab controls remain to build.*
 - **`connection/multilingual_mode`'s website scope** — native config lets an
   admin set a *different* multilingual mode per website; nothing in our own
   UI offers or exercises that. **Decision: dropped.** One multilingual mode
@@ -839,8 +843,9 @@ path before and after any admin-surface reshuffle.
 
 - **§4.2 config-field decisions — resolved (Erkki, 2026-07-14), not yet
   implemented.** All four: `include_guests`/`automation_force_opt_in` get
-  built onto the Subscribers tab and `abandoned_fields` onto the Automations
-  tab; `multilingual_mode`'s native per-website scope is dropped (one mode
+  built onto the Subscribers tab (`abandoned_fields` was built onto the
+  Automations tab and then retired in PRO-1760 — product details always
+  send); `multilingual_mode`'s native per-website scope is dropped (one mode
   per Magento instance); `rss/enabled` drops its per-store-view granularity
   for one store-wide toggle on the RSS tab; `logging/verbosity` gets a home
   on the Log page. Net effect: native `Stores > Configuration > Smaily`

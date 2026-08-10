@@ -33,8 +33,8 @@ the cart's products, and write all ten slots on every send)_
   and so are `Model\Config::getAbandonedFields()`/`XML_PATH_ABANDONED_FIELDS`,
   the `system.xml` field, its `etc/config.xml` default and the whole
   `Model\Config\Source\AbandonedFields` source model (the product-field
-  vocabulary now lives as private constants in `PayloadBuilder`, its only
-  consumer). The 2.8.x migration's `abandoned/productfields` mapping is
+  vocabulary now lives in one literal row map inside `PayloadBuilder`, its
+  only consumer). The 2.8.x migration's `abandoned/productfields` mapping is
   removed too — migrating a value nothing reads is dead work.
   **Config path abandoned in place, per the 2.8.x constraint — NOT renamed or
   reused:** `automations/abandoned_fields` simply stops being read or written;
@@ -49,8 +49,10 @@ the cart's products, and write all ten slots on every send)_
   `updated_at` while `requireAnyEmail()` (PRO-1275) LEFT JOINs
   `quote_address`, which has an `updated_at` of its own — MySQL rejects the
   SELECT outright with "Column 'updated_at' in where clause is ambiguous",
-  before any row is read, on every install. Fixed by qualifying the filter as
-  `main_table.updated_at`; nothing else about the selection changed. Not
+  before any row is read, on every install. Fixed by qualifying every filter
+  column with `main_table.` (not just `updated_at`, so the next filter on a
+  shared column name can't reintroduce it); nothing else about the selection
+  changed. Not
   caught by any test because the cron's collection query is only exercised
   against a real `quote` table, which neither the unit nor the integration
   suite has — flagged as a coverage gap.

@@ -79,10 +79,7 @@ class PayloadBuilderTest extends TestCase
         }
     }
 
-    /**
-     * A second, smaller cart must clear the first one from the contact: the
-     * slots the new cart does not use are sent empty, not omitted.
-     */
+    /** Why the unused slots are sent empty rather than omitted: PayloadBuilder's class docblock. */
     public function testUnusedSlotsAreSentEmptyAlongsideTheCartsOwnProducts(): void
     {
         $quote = $this->quote('mari@example.com', null, null, [
