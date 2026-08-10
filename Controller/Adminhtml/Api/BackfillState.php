@@ -60,7 +60,7 @@ class BackfillState extends AbstractJsonAction implements HttpPostActionInterfac
         $action = (string)($body['action'] ?? 'status');
         if ($action === 'start') {
             $websiteIds = $target === Job::TARGET_ENGINE
-                ? [0]
+                ? [Job::ENGINE_WEBSITE_ID]
                 : array_map(static fn ($website) => (int)$website->getId(), $this->storeManager->getWebsites());
             foreach ($websiteIds as $websiteId) {
                 try {

@@ -12,17 +12,15 @@ use Magento\Catalog\Model\Product;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Smaily\Connect\Model\Engine\CatalogIngest;
-use Smaily\Connect\Model\Engine\Settings;
 
 /**
  * Catalog ingest on product save. Products that leave the sellable set
  * (disabled, hidden) are tombstoned via an in_stock=false upsert — the
- * engine never deletes.
+ * engine never deletes. The engine-connected gate lives in CatalogIngest.
  */
 class ProductSaveAfter implements ObserverInterface
 {
     public function __construct(
-        private readonly Settings $settings,
         private readonly CatalogIngest $catalogIngest
     ) {
     }
@@ -32,10 +30,6 @@ class ProductSaveAfter implements ObserverInterface
      */
     public function execute(Observer $observer): void
     {
-        if (!$this->settings->isConnected()) {
-            return;
-        }
-
         $product = $observer->getEvent()->getData('product');
         if (!$product instanceof Product) {
             return;

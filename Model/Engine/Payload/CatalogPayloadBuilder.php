@@ -16,6 +16,7 @@ use Magento\Catalog\Model\Product\Attribute\Source\Status;
 use Magento\Catalog\Model\Product\Type;
 use Magento\Catalog\Model\Product\Visibility;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
+use Magento\CatalogInventory\Model\StockRegistryStorage;
 use Magento\Framework\App\Area;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Store\Api\Data\StoreInterface;
@@ -52,6 +53,7 @@ class CatalogPayloadBuilder
         private readonly ProductRepositoryInterface $productRepository,
         private readonly CategoryRepositoryInterface $categoryRepository,
         private readonly StockRegistryInterface $stockRegistry,
+        private readonly StockRegistryStorage $stockRegistryStorage,
         private readonly ImageHelperFactory $imageHelperFactory,
         private readonly LanguageResolver $languageResolver,
         private readonly ParentProductResolver $parentProductResolver,
@@ -374,8 +376,18 @@ class CatalogPayloadBuilder
 
     private function isInStock(Product $product): bool
     {
+        // The stock registry memoises the item per request, and MSI mirrors
+        // its quantities onto the legacy row with direct SQL and so never
+        // invalidates that memo — a shipment that sold the last unit out was
+        // published as still in stock until this drop (caught on the sandbox,
+        // not by the unit tests). Dropping it here, at the only read, keeps
+        // every caller correct by construction: live hooks, the delete
+        // tombstone and the backfill/nightly-resync pages alike.
+        $productId = (int)$product->getId();
+        $this->stockRegistryStorage->removeStockItem($productId);
+
         try {
-            return (bool)$this->stockRegistry->getStockItem((int)$product->getId())->getIsInStock();
+            return (bool)$this->stockRegistry->getStockItem($productId)->getIsInStock();
         } catch (\Exception) {
             return true;
         }

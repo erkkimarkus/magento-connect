@@ -14,7 +14,6 @@ use Magento\Framework\Event\Observer;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Smaily\Connect\Model\Engine\CatalogIngest;
-use Smaily\Connect\Model\Engine\Settings;
 use Smaily\Connect\Observer\Engine\StockItemSaveAfter;
 
 /**
@@ -23,13 +22,10 @@ use Smaily\Connect\Observer\Engine\StockItemSaveAfter;
  */
 class StockItemSaveAfterTest extends TestCase
 {
-    private Settings&MockObject $settings;
     private CatalogIngest&MockObject $catalogIngest;
 
     protected function setUp(): void
     {
-        $this->settings = $this->createMock(Settings::class);
-        $this->settings->method('isConnected')->willReturn(true);
         $this->catalogIngest = $this->createMock(CatalogIngest::class);
     }
 
@@ -38,16 +34,6 @@ class StockItemSaveAfterTest extends TestCase
         $this->catalogIngest->expects(self::once())->method('enqueueProductId')->with(42);
 
         $this->observer()->execute($this->eventFor($this->stockItem(42)));
-    }
-
-    public function testDisconnectedEngineIsANoOp(): void
-    {
-        $settings = $this->createMock(Settings::class);
-        $settings->method('isConnected')->willReturn(false);
-        $this->catalogIngest->expects(self::never())->method('enqueueProductId');
-
-        (new StockItemSaveAfter($settings, $this->catalogIngest))
-            ->execute($this->eventFor($this->stockItem(42)));
     }
 
     public function testAnEventWithoutAStockItemIsANoOp(): void
@@ -59,7 +45,7 @@ class StockItemSaveAfterTest extends TestCase
 
     private function observer(): StockItemSaveAfter
     {
-        return new StockItemSaveAfter($this->settings, $this->catalogIngest);
+        return new StockItemSaveAfter($this->catalogIngest);
     }
 
     private function stockItem(int $productId): StockItem&MockObject

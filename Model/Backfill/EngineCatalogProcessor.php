@@ -10,14 +10,16 @@ namespace Smaily\Connect\Model\Backfill;
 
 use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
+use Smaily\Connect\Model\Engine\CatalogIngest;
 use Smaily\Connect\Model\Engine\Client;
 use Smaily\Connect\Model\Engine\Payload\CatalogPayloadBuilder;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
-use Smaily\Connect\Model\Logger\Logger;
 
 /**
- * Historical catalog import: pages products into the ingest queue; the
- * flusher delivers at the engine's batch pace. A flood guard pauses the
+ * Historical catalog import (and the nightly re-sync, which is just a job of
+ * this type): pages products through Engine\CatalogIngest — the same funnel
+ * the live hooks use, so a paged row can never disagree with a live one — and
+ * the flusher delivers at the engine's batch pace. A flood guard pauses the
  * job while the queue backlog is high, so live events are never starved.
  */
 class EngineCatalogProcessor implements ProcessorInterface
@@ -31,7 +33,7 @@ class EngineCatalogProcessor implements ProcessorInterface
         private readonly ProductCollectionFactory $productCollectionFactory,
         private readonly CatalogPayloadBuilder $payloadBuilder,
         private readonly IngestQueue $ingestQueue,
-        private readonly Logger $logger
+        private readonly CatalogIngest $catalogIngest
     ) {
     }
 
@@ -64,22 +66,10 @@ class EngineCatalogProcessor implements ProcessorInterface
             $newCursor = $cursor;
             foreach ($products as $product) {
                 $newCursor = max($newCursor, (int)$product->getId());
-                try {
-                    if ($this->payloadBuilder->isIngestible($product)) {
-                        $this->ingestQueue->enqueue(
-                            Client::DOMAIN_CATALOG,
-                            $this->payloadBuilder->build($product),
-                            (string)$product->getId(),
-                            $this->payloadBuilder->canonicalStoreId()
-                        );
-                    }
+                if ($this->catalogIngest->enqueueProduct($product)) {
                     $processed++;
-                } catch (\Throwable $exception) {
+                } else {
                     $failed++;
-                    $this->logger->debug('Catalog backfill item failed', [
-                        'product_id' => $product->getId(),
-                        'error' => $exception->getMessage(),
-                    ]);
                 }
             }
             $this->jobManager->recordProgress($job, $processed, $failed, (string)$newCursor);

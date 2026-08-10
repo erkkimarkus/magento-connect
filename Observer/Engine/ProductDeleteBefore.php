@@ -11,11 +11,10 @@ namespace Smaily\Connect\Observer\Engine;
 use Magento\Catalog\Model\Product;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
+use Smaily\Connect\Model\Engine\CatalogIngest;
 use Smaily\Connect\Model\Engine\Client;
-use Smaily\Connect\Model\Engine\Payload\CatalogPayloadBuilder;
 use Smaily\Connect\Model\Engine\Payload\ParentProductResolver;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
-use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Model\Engine\Settings;
 
 /**
@@ -41,10 +40,9 @@ class ProductDeleteBefore implements ObserverInterface
 {
     public function __construct(
         private readonly Settings $settings,
-        private readonly CatalogPayloadBuilder $payloadBuilder,
         private readonly ParentProductResolver $parentProductResolver,
         private readonly IngestQueue $ingestQueue,
-        private readonly Logger $logger
+        private readonly CatalogIngest $catalogIngest
     ) {
     }
 
@@ -67,7 +65,9 @@ class ProductDeleteBefore implements ObserverInterface
         }
 
         if ($this->parentProductResolver->isConfigurableChild($productId)) {
-            $this->enqueueSoftTombstone($product);
+            // Forced: at delete_before the product is still perfectly
+            // ingestible, so the funnel cannot infer the tombstone itself.
+            $this->catalogIngest->enqueueTombstone($product);
 
             return;
         }
@@ -76,27 +76,6 @@ class ProductDeleteBefore implements ObserverInterface
             Client::DOMAIN_CATALOG_REMOVE,
             ['product_id' => (string)$productId],
             (string)$productId
-        );
-    }
-
-    private function enqueueSoftTombstone(Product $product): void
-    {
-        try {
-            $item = $this->payloadBuilder->buildTombstone($product);
-        } catch (\Throwable $exception) {
-            $this->logger->error('Catalog tombstone build failed', [
-                'product_id' => $product->getId(),
-                'error' => $exception->getMessage(),
-            ]);
-
-            return;
-        }
-
-        $this->ingestQueue->enqueue(
-            Client::DOMAIN_CATALOG,
-            $item,
-            (string)$product->getId(),
-            $this->payloadBuilder->canonicalStoreId()
         );
     }
 }

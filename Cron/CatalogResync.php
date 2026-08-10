@@ -27,9 +27,6 @@ use Smaily\Connect\Model\Logger\Logger;
  */
 class CatalogResync
 {
-    /** Engine ingest is one tenant per installation, so backfill jobs for it are website 0. */
-    private const WEBSITE_ID = 0;
-
     public function __construct(
         private readonly Settings $settings,
         private readonly JobManager $jobManager,
@@ -43,17 +40,14 @@ class CatalogResync
             return;
         }
 
-        if ($this->jobManager->findActive(Job::TYPE_CATALOG, Job::TARGET_ENGINE, self::WEBSITE_ID) !== null) {
+        try {
+            $this->jobManager->start(Job::TYPE_CATALOG, Job::TARGET_ENGINE, Job::ENGINE_WEBSITE_ID);
+        } catch (\RuntimeException) {
+            // The one-active-job lock: a merchant's own import (or last
+            // night's) is still open, so theirs wins and ours waits for
+            // tomorrow.
             $this->logger->debug('Periodic catalog re-sync skipped — a catalog import is still active');
 
-            return;
-        }
-
-        try {
-            $this->jobManager->start(Job::TYPE_CATALOG, Job::TARGET_ENGINE, self::WEBSITE_ID);
-        } catch (\RuntimeException) {
-            // Raced with a merchant-started import between the check and the
-            // insert — theirs wins, ours waits for tomorrow.
             return;
         }
 

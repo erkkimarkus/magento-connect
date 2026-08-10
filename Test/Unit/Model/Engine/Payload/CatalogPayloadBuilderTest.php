@@ -14,6 +14,7 @@ use Magento\Catalog\Helper\ImageFactory as ImageHelperFactory;
 use Magento\Catalog\Model\Product;
 use Magento\CatalogInventory\Api\Data\StockItemInterface;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
+use Magento\CatalogInventory\Model\StockRegistryStorage;
 use Magento\Framework\App\Area;
 use Magento\Framework\Pricing\Amount\AmountInterface;
 use Magento\Framework\Pricing\Price\PriceInterface;
@@ -133,6 +134,7 @@ class CatalogPayloadBuilderTest extends TestCase
             $productRepository,
             $this->createMock(CategoryRepositoryInterface::class),
             $stockRegistry,
+            $this->createMock(StockRegistryStorage::class),
             new ImageHelperFactory(),
             $this->createMock(LanguageResolver::class),
             $parentResolver,
@@ -178,6 +180,7 @@ class CatalogPayloadBuilderTest extends TestCase
             $productRepository,
             $this->createMock(CategoryRepositoryInterface::class),
             $stockRegistry,
+            $this->createMock(StockRegistryStorage::class),
             new ImageHelperFactory(),
             $this->createMock(LanguageResolver::class),
             $parentResolver,
@@ -230,10 +233,28 @@ class CatalogPayloadBuilderTest extends TestCase
         self::assertSame('EUR', $item['currency']);
     }
 
+    /**
+     * PRO-1951: the stock registry memoises the item per request and MSI
+     * mirrors onto the legacy row with direct SQL, so the memo is dropped
+     * here — at the only read — rather than in one caller. Every path (live
+     * hooks, the delete tombstone, backfill and the nightly re-sync) is then
+     * correct by construction.
+     */
+    public function testTheStockRegistryMemoIsDroppedAtTheOnlyStockRead(): void
+    {
+        $storage = $this->createMock(StockRegistryStorage::class);
+        $storage->expects(self::once())->method('removeStockItem')->with(42);
+
+        $item = $this->createBuilder('42', null, null, $storage)->build($this->product(42, 'SHIRT'));
+
+        self::assertTrue($item['in_stock']);
+    }
+
     private function createBuilder(
         string $resolvedProductId,
         ?Emulation $emulation = null,
-        ?StoreManagerInterface $storeManager = null
+        ?StoreManagerInterface $storeManager = null,
+        ?StockRegistryStorage $stockRegistryStorage = null
     ): CatalogPayloadBuilder {
         $parentResolver = $this->createMock(ParentProductResolver::class);
         $parentResolver->method('productIdOf')->with(42)->willReturn($resolvedProductId);
@@ -253,6 +274,7 @@ class CatalogPayloadBuilderTest extends TestCase
             $this->createMock(ProductRepositoryInterface::class),
             $this->createMock(CategoryRepositoryInterface::class),
             $stockRegistry,
+            $stockRegistryStorage ?? $this->createMock(StockRegistryStorage::class),
             new ImageHelperFactory(),
             $this->createMock(LanguageResolver::class),
             $parentResolver,

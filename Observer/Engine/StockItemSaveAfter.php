@@ -12,7 +12,6 @@ use Magento\CatalogInventory\Model\Stock\Item as StockItem;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Smaily\Connect\Model\Engine\CatalogIngest;
-use Smaily\Connect\Model\Engine\Settings;
 
 /**
  * Catalog ingest on a legacy stock-item save — every stock write that does
@@ -22,8 +21,8 @@ use Smaily\Connect\Model\Engine\Settings;
  * back-in-stock detection, which reads our catalog rows' `in_stock`, only
  * ever saw product edits.
  *
- * MSI's own writes are covered separately by
- * Plugin\Engine\MsiStockWriteAfter — MSI syncs the legacy row with direct
+ * MSI's own writes are covered separately by Plugin\Engine\SourceItemsSave
+ * and Plugin\Engine\SourceDeduction — MSI syncs the legacy row with direct
  * SQL, so no model save and no event.
  *
  * There is deliberately no "did the stock actually move?" gate here. Magento
@@ -36,7 +35,6 @@ use Smaily\Connect\Model\Engine\Settings;
 class StockItemSaveAfter implements ObserverInterface
 {
     public function __construct(
-        private readonly Settings $settings,
         private readonly CatalogIngest $catalogIngest
     ) {
     }
@@ -46,10 +44,6 @@ class StockItemSaveAfter implements ObserverInterface
      */
     public function execute(Observer $observer): void
     {
-        if (!$this->settings->isConnected()) {
-            return;
-        }
-
         $item = $observer->getEvent()->getData('item');
         if (!$item instanceof StockItem) {
             return;

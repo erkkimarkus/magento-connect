@@ -108,37 +108,43 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   tombstone, never §3b.
 - **Stock changes (PRO-1951).** `in_stock` is the one catalog field the store
   can move without a product save, and the engine's back-in-stock feature
-  reads it, so three hooks feed catalog ingest, all funnelling through
+  reads it, so four hooks feed catalog ingest, all funnelling through
   `Engine\CatalogIngest`:
   `Observer/Engine/ProductSaveAfter` (`catalog_product_save_after`),
   `Observer/Engine/StockItemSaveAfter`
   (`cataloginventory_stock_item_save_after` — Advanced Inventory, the
   `products/{sku}/stockItems` endpoint, the non-MSI order decrement and
-  restock) and `Plugin/Engine/MsiStockWriteAfter`, declared on
-  `InventoryApi\Api\SourceItemsSaveInterface` **and**
+  restock) and one thin plugin per MSI seam:
+  `Plugin/Engine/SourceItemsSave` on
+  `InventoryApi\Api\SourceItemsSaveInterface` and
+  `Plugin/Engine/SourceDeduction` on
   `InventorySourceDeductionApi\Model\SourceDeductionServiceInterface`. On a
   default 2.4.x install MSI owns inventory and *placing* an order decrements
   nothing — it writes a reservation, leaving `is_in_stock` untouched; the real
   decrement is the shipment's source deduction, and the credit-memo return to
   stock is its mirror. Both go through `SourceDeductionService`, neither
-  through `SourceItemsSave`, hence the two declarations. MSI is treated as an
-  optional dependency: the plugin names no MSI type at all, so on an install
-  without the Inventory modules it is simply never wired and the legacy
-  observer covers everything.
-  Two properties of that path are load-bearing and easy to lose: the stock
-  registry memoises the stock item per request while MSI mirrors onto the
-  legacy row with direct SQL (so `CatalogIngest` drops the memo before
-  building — otherwise selling out publishes `in_stock: true`), and one
-  product save legitimately reaches all three hooks (so `CatalogIngest`
-  collapses a byte-identical row queued twice in a row within one request —
-  this is NOT queue-wide dedupe; two real stock moves still queue two rows).
+  through `SourceItemsSave`, hence the two seams. MSI is treated as an
+  optional dependency: neither plugin names an MSI type at all, so on an
+  install without the Inventory modules they are simply never wired and the
+  legacy observer covers everything.
+  `CatalogIngest` is also where the engine-connected gate is checked — once,
+  for every path including the delete tombstone and the backfill pages — and
+  where one product save's duplicate rows are collapsed: it legitimately
+  reaches three of the hooks, so a byte-identical row queued twice in a row
+  within one request is dropped. This is NOT queue-wide dedupe; two real stock
+  moves still queue two rows.
 - **`in_stock` source, deliberately the legacy flag (PRO-1951).** It is read
   from `CatalogInventory`'s `is_in_stock`, which MSI keeps synced, not from
   MSI's salable-per-website quantity. A catalog row is keyed on `sku` per
   tenant and one installation is one tenant, so a per-website salable answer
   has nowhere to go until the multi-website tenant work (RFC Phase 4, gated on
   PRO-1459) gives each website its own tenant. `CatalogPayloadBuilder::
-  isInStock()` falls back to **true** if the stock read throws: the fallback is
+  isInStock()` drops the stock registry's per-request memo immediately before
+  it reads (MSI mirrors onto the legacy row with direct SQL and so never
+  invalidates that memo — otherwise selling out publishes `in_stock: true`).
+  It lives at the read, not in a caller, so live hooks, the delete tombstone
+  and the backfill/nightly-resync pages are all correct by construction. It
+  falls back to **true** if the stock read throws: the fallback is
   deliberate — the engine's recommender excludes out-of-stock products, so
   defaulting to false would silently pull a product out of every campaign over
   a transient read error, which is the worse failure. The nightly reconciler
@@ -147,10 +153,10 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   `40 3 * * *` store time — off-peak, just after the queue janitor) starts an
   ordinary catalog backfill job rather than walking the catalog itself, so
   `Cron/BackfillTick` pages it in with the same cursor, time budget and flood
-  guard a merchant-started import gets. It never runs disconnected and never
-  starts while a catalog import is already active (`JobManager::findActive`,
-  and the one-active-job lock as the race backstop), so a merchant's own
-  import is never trampled — the sweep skips that night instead. It exists for
+  guard a merchant-started import gets. It never runs disconnected, and the
+  one-active-job lock refuses the start while a catalog import is already
+  open, so a merchant's own import is never trampled — the sweep skips that
+  night instead. It exists for
   the one class of change events cannot see: a CSV / `bin/magento import` run
   writes the catalog tables directly. Latency: event-driven changes ~1–2 min,
   everything else at most ~24 h.

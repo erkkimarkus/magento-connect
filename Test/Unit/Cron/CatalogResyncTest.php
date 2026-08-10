@@ -34,24 +34,19 @@ class CatalogResyncTest extends TestCase
 
     public function testQueuesACatalogBackfillJobForTheEngineTenant(): void
     {
-        $this->jobManager->method('findActive')->willReturn(null);
         $this->jobManager->expects(self::once())->method('start')
-            ->with(Job::TYPE_CATALOG, Job::TARGET_ENGINE, 0);
+            ->with(Job::TYPE_CATALOG, Job::TARGET_ENGINE, Job::ENGINE_WEBSITE_ID);
 
         $this->cron()->execute();
     }
 
-    public function testAMerchantStartedImportIsNeverTrampled(): void
+    /**
+     * The one-active-job lock is the whole no-trample mechanism: start()
+     * refuses while a merchant's own import is open, and the sweep skips
+     * that night instead of erroring.
+     */
+    public function testAnActiveImportIsNeverTrampled(): void
     {
-        $this->jobManager->method('findActive')->willReturn($this->createMock(Job::class));
-        $this->jobManager->expects(self::never())->method('start');
-
-        $this->cron()->execute();
-    }
-
-    public function testLosingTheRaceToAManualStartIsNotAnError(): void
-    {
-        $this->jobManager->method('findActive')->willReturn(null);
         $this->jobManager->method('start')->willThrowException(new \RuntimeException('already running'));
 
         $this->cron()->execute();
@@ -63,7 +58,6 @@ class CatalogResyncTest extends TestCase
     {
         $settings = $this->createMock(Settings::class);
         $settings->method('isConnected')->willReturn(false);
-        $this->jobManager->expects(self::never())->method('findActive');
         $this->jobManager->expects(self::never())->method('start');
 
         (new CatalogResync($settings, $this->jobManager, $this->createMock(Logger::class)))->execute();

@@ -16,9 +16,9 @@ use PHPUnit\Framework\TestCase;
 use Smaily\Connect\Model\Backfill\EngineCatalogProcessor;
 use Smaily\Connect\Model\Backfill\Job;
 use Smaily\Connect\Model\Backfill\JobManager;
+use Smaily\Connect\Model\Engine\CatalogIngest;
 use Smaily\Connect\Model\Engine\Payload\CatalogPayloadBuilder;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
-use Smaily\Connect\Model\Logger\Logger;
 
 /**
  * PRO-1352/1353: the backfill collection must be scoped to the SAME
@@ -53,8 +53,6 @@ class EngineCatalogProcessorTest extends TestCase
 
         $payloadBuilder = $this->createMock(CatalogPayloadBuilder::class);
         $payloadBuilder->method('canonicalStoreId')->willReturn(7);
-        $payloadBuilder->method('isIngestible')->willReturn(true);
-        $payloadBuilder->method('build')->willReturn(['sku' => 'X']);
 
         $ingestQueue = $this->createMock(IngestQueue::class);
         $ingestQueue->method('countPending')->willReturn(0);
@@ -66,7 +64,7 @@ class EngineCatalogProcessorTest extends TestCase
             $collectionFactory,
             $payloadBuilder,
             $ingestQueue,
-            $this->createMock(Logger::class)
+            $this->createMock(CatalogIngest::class)
         );
 
         $processor->process($job);
@@ -105,7 +103,7 @@ class EngineCatalogProcessorTest extends TestCase
             $collectionFactory,
             $payloadBuilder,
             $ingestQueue,
-            $this->createMock(Logger::class)
+            $this->createMock(CatalogIngest::class)
         );
 
         $processor->process($job);

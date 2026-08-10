@@ -30,6 +30,9 @@ class Job extends AbstractModel
     public const TARGET_SMAILY = 'smaily';
     public const TARGET_ENGINE = 'engine';
 
+    /** Engine ingest is one tenant per installation, so its jobs are website 0. */
+    public const ENGINE_WEBSITE_ID = 0;
+
     /** Job type -> delivery target. */
     public const TYPE_TARGETS = [
         self::TYPE_CONTACTS => self::TARGET_SMAILY,

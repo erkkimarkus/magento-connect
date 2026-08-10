@@ -13,12 +13,11 @@ use Magento\Framework\Event;
 use Magento\Framework\Event\Observer;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Smaily\Connect\Model\Engine\CatalogIngest;
 use Smaily\Connect\Model\Engine\Client;
-use Smaily\Connect\Model\Engine\Payload\CatalogPayloadBuilder;
 use Smaily\Connect\Model\Engine\Payload\ParentProductResolver;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
 use Smaily\Connect\Model\Engine\Settings;
-use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Observer\Engine\ProductDeleteBefore;
 
 /**
@@ -30,23 +29,23 @@ use Smaily\Connect\Observer\Engine\ProductDeleteBefore;
 class ProductDeleteBeforeTest extends TestCase
 {
     private Settings&MockObject $settings;
-    private CatalogPayloadBuilder&MockObject $payloadBuilder;
     private ParentProductResolver&MockObject $parentResolver;
     private IngestQueue&MockObject $queue;
+    private CatalogIngest&MockObject $catalogIngest;
 
     protected function setUp(): void
     {
         $this->settings = $this->createMock(Settings::class);
         $this->settings->method('isConnected')->willReturn(true);
-        $this->payloadBuilder = $this->createMock(CatalogPayloadBuilder::class);
         $this->parentResolver = $this->createMock(ParentProductResolver::class);
         $this->queue = $this->createMock(IngestQueue::class);
+        $this->catalogIngest = $this->createMock(CatalogIngest::class);
     }
 
     public function testParentHardDeleteEnqueuesSection3bRemoveNotASoftTombstone(): void
     {
         $this->parentResolver->method('isConfigurableChild')->with(42)->willReturn(false);
-        $this->payloadBuilder->expects(self::never())->method('buildTombstone');
+        $this->catalogIngest->expects(self::never())->method('enqueueTombstone');
         $this->queue->expects(self::once())->method('enqueue')
             ->with(Client::DOMAIN_CATALOG_REMOVE, ['product_id' => '42'], '42');
 
@@ -57,23 +56,10 @@ class ProductDeleteBeforeTest extends TestCase
     {
         $product = $this->product(7);
         $this->parentResolver->method('isConfigurableChild')->with(7)->willReturn(true);
-        $tombstone = ['sku' => 'CHILD-7', 'in_stock' => false, 'tags' => ['product_id' => '42']];
-        $this->payloadBuilder->method('buildTombstone')->with($product)->willReturn($tombstone);
-
-        $this->queue->expects(self::once())->method('enqueue')
-            ->with(Client::DOMAIN_CATALOG, $tombstone, '7');
-
-        $this->createObserver()->execute($this->observerFor($product));
-    }
-
-    public function testChildTombstoneBuildFailureIsLoggedAndNothingIsQueued(): void
-    {
-        $this->parentResolver->method('isConfigurableChild')->willReturn(true);
-        $this->payloadBuilder->method('buildTombstone')
-            ->willThrowException(new \RuntimeException('boom'));
+        $this->catalogIngest->expects(self::once())->method('enqueueTombstone')->with($product);
         $this->queue->expects(self::never())->method('enqueue');
 
-        $this->createObserver()->execute($this->observerFor($this->product(7)));
+        $this->createObserver()->execute($this->observerFor($product));
     }
 
     public function testEngineNotConnectedIsANoOp(): void
@@ -84,10 +70,9 @@ class ProductDeleteBeforeTest extends TestCase
 
         $observer = new ProductDeleteBefore(
             $settings,
-            $this->payloadBuilder,
             $this->parentResolver,
             $this->queue,
-            $this->createMock(Logger::class)
+            $this->catalogIngest
         );
         $observer->execute($this->observerFor($this->product(42)));
     }
@@ -105,10 +90,9 @@ class ProductDeleteBeforeTest extends TestCase
     {
         return new ProductDeleteBefore(
             $this->settings,
-            $this->payloadBuilder,
             $this->parentResolver,
             $this->queue,
-            $this->createMock(Logger::class)
+            $this->catalogIngest
         );
     }
 

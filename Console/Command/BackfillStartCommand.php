@@ -67,8 +67,7 @@ class BackfillStartCommand extends Command
         }
 
         if ($target === Job::TARGET_ENGINE) {
-            // Engine jobs cover the whole installation (one tenant).
-            $websiteIds = [0];
+            $websiteIds = [Job::ENGINE_WEBSITE_ID];
         } else {
             $websiteOption = $input->getOption('website');
             $websiteIds = $websiteOption !== null

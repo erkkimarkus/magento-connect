@@ -10,7 +10,6 @@ namespace Smaily\Connect\Test\Unit\Model\Engine;
 
 use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\Catalog\Model\Product;
-use Magento\CatalogInventory\Model\StockRegistryStorage;
 use Magento\Framework\Exception\NoSuchEntityException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -18,13 +17,15 @@ use Smaily\Connect\Model\Engine\CatalogIngest;
 use Smaily\Connect\Model\Engine\Client;
 use Smaily\Connect\Model\Engine\Payload\CatalogPayloadBuilder;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
+use Smaily\Connect\Model\Engine\Settings;
 use Smaily\Connect\Model\Logger\Logger;
 
 /**
  * PRO-1951: one Magento product save reaches three catalog hooks (product
  * save, the legacy stock item it writes on the way, and the MSI source item
  * that mirrors) — the row must be queued once, not three times, while a
- * genuinely different payload still gets its own row.
+ * genuinely different payload still gets its own row. This is also the one
+ * place the engine-connected gate is checked for every catalog ingest path.
  */
 class CatalogIngestTest extends TestCase
 {
@@ -77,13 +78,21 @@ class CatalogIngestTest extends TestCase
         $this->queue->expects(self::once())->method('enqueue')
             ->with(Client::DOMAIN_CATALOG, ['sku' => 'TENT', 'in_stock' => false], '8', 1);
 
-        (new CatalogIngest(
-            $this->productRepository,
-            $payloadBuilder,
-            $this->queue,
-            $this->createMock(StockRegistryStorage::class),
-            $this->createMock(Logger::class)
-        ))->enqueueProduct($this->product(8));
+        $this->ingest($payloadBuilder)->enqueueProduct($this->product(8));
+    }
+
+    /**
+     * The hard-delete path fires before the row is gone, so the product still
+     * looks ingestible — the tombstone has to be forced.
+     */
+    public function testAForcedTombstoneIgnoresThatTheProductIsStillIngestible(): void
+    {
+        $this->payloadBuilder->expects(self::never())->method('build');
+        $this->payloadBuilder->method('buildTombstone')->willReturn(['sku' => 'TENT', 'in_stock' => false]);
+        $this->queue->expects(self::once())->method('enqueue')
+            ->with(Client::DOMAIN_CATALOG, ['sku' => 'TENT', 'in_stock' => false], '8', 1);
+
+        $this->ingest()->enqueueTombstone($this->product(8));
     }
 
     public function testAFailedBuildIsLoggedAndQueuesNothing(): void
@@ -93,13 +102,7 @@ class CatalogIngestTest extends TestCase
         $logger->expects(self::once())->method('error');
         $this->queue->expects(self::never())->method('enqueue');
 
-        (new CatalogIngest(
-            $this->productRepository,
-            $this->payloadBuilder,
-            $this->queue,
-            $this->createMock(StockRegistryStorage::class),
-            $logger
-        ))->enqueueProduct($this->product(8));
+        self::assertFalse($this->ingest(null, $logger)->enqueueProduct($this->product(8)));
     }
 
     public function testAProductIdIsLoadedAtTheCanonicalScope(): void
@@ -113,19 +116,22 @@ class CatalogIngestTest extends TestCase
         $this->ingest()->enqueueProductId(8);
     }
 
-    public function testTheStockRegistryMemoIsDroppedBeforeTheRowIsBuilt(): void
+    /**
+     * The gate every catalog hook used to repeat now lives here, once — and
+     * it short-circuits before the repository is touched.
+     */
+    public function testADisconnectedEngineNeverBuildsLoadsOrQueues(): void
     {
-        $storage = $this->createMock(StockRegistryStorage::class);
-        $storage->expects(self::once())->method('removeStockItem')->with(8);
-        $this->payloadBuilder->method('build')->willReturn(['sku' => 'TENT']);
+        $settings = $this->createMock(Settings::class);
+        $settings->method('isConnected')->willReturn(false);
+        $this->productRepository->expects(self::never())->method('get');
+        $this->payloadBuilder->expects(self::never())->method('build');
+        $this->queue->expects(self::never())->method('enqueue');
 
-        (new CatalogIngest(
-            $this->productRepository,
-            $this->payloadBuilder,
-            $this->queue,
-            $storage,
-            $this->createMock(Logger::class)
-        ))->enqueueProduct($this->product(8));
+        $ingest = $this->ingest(null, null, $settings);
+        self::assertFalse($ingest->enqueueProduct($this->product(8)));
+        self::assertFalse($ingest->enqueueTombstone($this->product(8)));
+        self::assertFalse($ingest->enqueueSku('TENT'));
     }
 
     public function testAnUnknownSkuIsSilentlySkipped(): void
@@ -133,24 +139,32 @@ class CatalogIngestTest extends TestCase
         $this->productRepository->method('get')->willThrowException(new NoSuchEntityException());
         $this->queue->expects(self::never())->method('enqueue');
 
-        $this->ingest()->enqueueSku('GONE');
+        self::assertFalse($this->ingest()->enqueueSku('GONE'));
     }
 
     public function testABlankSkuNeverHitsTheRepository(): void
     {
         $this->productRepository->expects(self::never())->method('get');
 
-        $this->ingest()->enqueueSku('  ');
+        self::assertFalse($this->ingest()->enqueueSku('  '));
     }
 
-    private function ingest(): CatalogIngest
-    {
+    private function ingest(
+        ?CatalogPayloadBuilder $payloadBuilder = null,
+        ?Logger $logger = null,
+        ?Settings $settings = null
+    ): CatalogIngest {
+        if ($settings === null) {
+            $settings = $this->createMock(Settings::class);
+            $settings->method('isConnected')->willReturn(true);
+        }
+
         return new CatalogIngest(
+            $settings,
             $this->productRepository,
-            $this->payloadBuilder,
+            $payloadBuilder ?? $this->payloadBuilder,
             $this->queue,
-            $this->createMock(StockRegistryStorage::class),
-            $this->createMock(Logger::class)
+            $logger ?? $this->createMock(Logger::class)
         );
     }
 

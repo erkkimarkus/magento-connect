@@ -5,10 +5,74 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-10 (PRO-1951 — stock changes that bypass product save
-now reach catalog ingest, plus a nightly reconciler)_
+_Last updated: 2026-08-11 (PRO-1951 simplify — the catalog-ingest funnel
+becomes the only enqueue path)_
 
 ## Where we are
+
+- **PRO-1951 simplify done — the accepted review findings applied.
+  `Model\Engine\CatalogIngest` is now the ONLY place a product becomes a
+  catalog row**, and the three copies of build-log-enqueue that survived the
+  first pass are gone. Behaviour is unchanged except for two deliberate
+  strengthenings, both of which close real holes:
+  - **The stock-memo drop moved into `CatalogPayloadBuilder::isInStock()`**,
+    immediately before its own stock read, instead of living in one caller.
+    The builder is the only reader, so every path is now correct by
+    construction — including the backfill/nightly-resync pages, which
+    previously read the stale per-request memo and could have re-published
+    the very `in_stock` PRO-1951 fixed. `CatalogIngest` dropped its
+    `StockRegistryStorage` dependency with it.
+  - **`Model\Backfill\EngineCatalogProcessor` and
+    `Observer\Engine\ProductDeleteBefore` now go through the funnel too.**
+    The processor calls `CatalogIngest::enqueueProduct()` (which gained a
+    `bool` return so its per-item processed/failed counting is unchanged);
+    the delete observer calls a new explicit
+    `CatalogIngest::enqueueTombstone()` — forced, because at
+    `catalog_product_delete_before` the product is still perfectly
+    ingestible, so the funnel cannot infer the tombstone. Both therefore
+    gain the collapse and the fresh stock read they silently skipped. One
+    visible consequence, accepted: a backfill/resync page now tombstones a
+    disabled or hidden product instead of skipping it silently — which is
+    what a reconciler is for (a product disabled by a CSV import was
+    otherwise never tombstoned).
+  Everything else is like-for-like: the engine-connected gate moved out of
+  `ProductSaveAfter`/`StockItemSaveAfter`/the MSI plugins into
+  `CatalogIngest` (one gate, one test, three fewer `Settings` dependencies);
+  `Plugin\Engine\MsiStockWriteAfter` split into
+  `Plugin\Engine\SourceItemsSave` and `Plugin\Engine\SourceDeduction`, one
+  thin class per DI seam, so the array-vs-object payload sniffing disappears
+  and duck typing survives only at `getSku()` (the no-MSI-types-named
+  constraint is kept — `mixed` signatures, so an install without the
+  Inventory modules still compiles); `Cron\CatalogResync` dropped its
+  `findActive` pre-check in favour of the `start()` exception the
+  one-active-job lock already throws; `Job::ENGINE_WEBSITE_ID` replaces the
+  third literal copy of "engine jobs run as website 0"
+  (`Cron\CatalogResync` + `Controller\Adminhtml\Api\BackfillState` +
+  `Console\Command\BackfillStartCommand`); and the collapse memo is one
+  `crc32(json_encode($item))` instead of a product id plus a resident
+  full-payload deep compare.
+  **Verification — the real REST flow on the sandbox again, not just green
+  units.** Faked a connected engine tenant, created a real product through
+  `ProductRepositoryInterface::save()`, then drove real
+  `PUT /V1/products/PRO1951-REFACTOR/stockItems/9` calls over HTTP with a
+  real admin token: selling out (`qty 0, is_in_stock false`) produced exactly
+  **one** row with `in_stock: false` (the legacy observer and the MSI plugin
+  still collapse into one), restocking produced exactly **one** row with
+  `in_stock: true` — the back-in-stock signal itself, proving the memo drop
+  still happens now that it lives in the builder — and with
+  `intelligence/connected` flipped off the same PUT produced **zero** rows,
+  proving the gate that moved into `CatalogIngest` still fires end-to-end
+  through the real hooks. Gates: 241 unit tests green, phpcs 0 errors,
+  phpstan clean, 70 integration tests green (throwaway MySQL). Sandbox
+  `setup:upgrade` + `setup:di:compile` both green (new plugin classes, and
+  `CatalogIngest`/`CatalogPayloadBuilder`/`ProductDeleteBefore`/
+  `EngineCatalogProcessor` constructor changes). Sandbox restored: the
+  fixture product, its stock/source rows, every ingest row and every
+  `smaily_connect/intelligence/*` config row deleted, reindexed and
+  cache-flushed — confirmed back to the exact pre-test state (0 products,
+  0 ingest/backfill rows, one `internal/last_seen_version` config row).
+  Deferred-build/batching (PRO-1967) and drift-proportional resync
+  (PRO-1968) were explicitly out of scope and not started.
 
 - **PRO-1951 done — catalog ingest hears every stock change, and a nightly
   re-sync reconciles what no event can see. The latency we can now claim is
@@ -28,14 +92,15 @@ now reach catalog ingest, plus a nightly reconciler)_
        `cataloginventory_stock_item_save_after` — the legacy path: Advanced
        Inventory, `PUT /V1/products/{sku}/stockItems/{id}`, and on an install
        WITHOUT MSI the order decrement and credit-memo restock.
-     - `Plugin\Engine\MsiStockWriteAfter`, declared on **two** MSI seams
-       (both methods are `execute()`, so one `afterExecute` serves both):
+     - Two MSI plugins, one per seam (since the simplify pass above:
+       `Plugin\Engine\SourceItemsSave` and `Plugin\Engine\SourceDeduction`;
+       originally one `MsiStockWriteAfter` on both):
        `InventoryApi\Api\SourceItemsSaveInterface` (Sources grid, product-form
        quantity, `POST /V1/inventory/source-items`) and
        `InventorySourceDeductionApi\Model\SourceDeductionServiceInterface`
        (the shipment deduction and the credit-memo return to stock).
        **MSI treated as an optional dependency, and deliberately so:** the
-       plugin names no MSI type anywhere (`object`/`mixed` signatures, sku
+       plugins name no MSI type anywhere (`object`/`mixed` signatures, sku
        read by duck typing), because a plugin declared on a class that does
        not exist is simply never wired — an install with the Inventory
        modules removed still compiles and runs on the legacy observer alone.
@@ -48,9 +113,10 @@ now reach catalog ingest, plus a nightly reconciler)_
      walker of its own** — it starts an ordinary catalog backfill job and lets
      `Cron\BackfillTick` page it in with the same cursor, time budget and
      flood guard a merchant-started import gets. It never runs disconnected,
-     and it checks `JobManager::findActive` before starting (with the
-     one-active-job lock as the race backstop), so a merchant's own import is
-     never trampled — the sweep skips that night instead. It exists for the
+     and the one-active-job lock refuses the start outright, so a merchant's own import is
+     never trampled — the sweep skips that night instead (the explicit
+     `findActive` pre-check was dropped in the simplify pass above; the lock
+     alone carries it). It exists for the
      one class of change events cannot see: a CSV / `bin/magento import` run
      writes the catalog tables directly.
   3. **Decisions recorded (no behaviour changed), in `docs/ARCHITECTURE.md`
@@ -77,8 +143,10 @@ now reach catalog ingest, plus a nightly reconciler)_
   - **A stale `in_stock` on the wire.** The stock registry memoises the stock
     item per request and MSI mirrors onto the legacy row with direct SQL, so
     it never invalidates that memo: shipping the last unit queued a row saying
-    `in_stock: true`. `CatalogIngest` now drops the memo for the product
-    before building. Re-verified live in both directions.
+    `in_stock: true`. The memo is now dropped for the product before the
+    stock is read (in `CatalogIngest` originally; moved into
+    `CatalogPayloadBuilder::isInStock()` by the simplify pass above).
+    Re-verified live in both directions.
   - **The "did the stock actually move?" gate was dead code.** Magento hands
     stock items to its writers through `StockRegistryProvider`, which loads
     through the resource model and never calls `setOrigData()`, so every save
