@@ -14,8 +14,6 @@ use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductColl
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Quote\Model\Quote;
 use Magento\Store\Model\StoreManagerInterface;
-use Smaily\Connect\Model\Config;
-use Smaily\Connect\Model\Config\Source\AbandonedFields;
 use Smaily\Connect\Model\Logger\Logger;
 
 /**
@@ -26,13 +24,37 @@ use Smaily\Connect\Model\Logger\Logger;
  * product_quantity_N, product_price_N (incl. tax), product_base_price_N,
  * product_description_N, product_image_url_N, plus over_10_products,
  * is_abandoned_cart and abandoned_cart_url.
+ *
+ * Product details are NOT selectable: every product field rides every
+ * reminder, and every one of the ten slots is written on every send (unused
+ * ones empty). Smaily leaves an absent field intact and overwrites an empty
+ * one, so writing the full matrix is what clears the previous, larger cart
+ * from the contact. Templates decide what to render.
  */
 class PayloadBuilder
 {
     private const MAX_PRODUCTS = 10;
 
+    private const FIELD_NAME = 'name';
+    private const FIELD_DESCRIPTION = 'description';
+    private const FIELD_IMAGE_URL = 'image_url';
+    private const FIELD_SKU = 'sku';
+    private const FIELD_QUANTITY = 'quantity';
+    private const FIELD_PRICE = 'price';
+    private const FIELD_BASE_PRICE = 'base_price';
+
+    /** Field keys map 1:1 onto payload keys ("name" -> product_name_N). */
+    private const PRODUCT_FIELDS = [
+        self::FIELD_NAME,
+        self::FIELD_DESCRIPTION,
+        self::FIELD_IMAGE_URL,
+        self::FIELD_SKU,
+        self::FIELD_QUANTITY,
+        self::FIELD_PRICE,
+        self::FIELD_BASE_PRICE,
+    ];
+
     public function __construct(
-        private readonly Config $config,
         private readonly StoreManagerInterface $storeManager,
         private readonly ProductCollectionFactory $productCollectionFactory,
         private readonly ImageHelperFactory $imageHelperFactory,
@@ -44,7 +66,7 @@ class PayloadBuilder
     /**
      * @return array<string, string>
      */
-    public function build(Quote $quote, int $websiteId): array
+    public function build(Quote $quote): array
     {
         $address = [
             'email' => $this->resolveEmail($quote),
@@ -82,7 +104,7 @@ class PayloadBuilder
             // Store context is decorative; the address stays valid without it.
         }
 
-        return array_merge($address, $this->productFields($quote, $websiteId));
+        return array_merge($address, $this->productFields($quote));
     }
 
     /**
@@ -114,20 +136,18 @@ class PayloadBuilder
     /**
      * @return array<string, string>
      */
-    private function productFields(Quote $quote, int $websiteId): array
+    private function productFields(Quote $quote): array
     {
-        $enabled = array_values(array_intersect(
-            AbandonedFields::SUPPORTED_FIELDS,
-            $this->config->getAbandonedFields($websiteId)
-        ));
-        if (!$enabled) {
-            return [];
+        $fields = [];
+        foreach (self::PRODUCT_FIELDS as $field) {
+            for ($i = 1; $i <= self::MAX_PRODUCTS; $i++) {
+                $fields[sprintf('product_%s_%d', $field, $i)] = '';
+            }
         }
 
         $items = $quote->getAllVisibleItems();
         $products = $this->loadProducts($items, (int)$quote->getStoreId());
 
-        $fields = [];
         $slot = 0;
         foreach ($items as $item) {
             if ($slot >= self::MAX_PRODUCTS) {
@@ -137,10 +157,11 @@ class PayloadBuilder
             $slot++;
             $product = $products[(int)$item->getProduct()->getId()] ?? null;
 
-            foreach ($enabled as $field) {
+            foreach (self::PRODUCT_FIELDS as $field) {
                 $value = $this->resolveField($field, $item, $product);
+                // A value we can't resolve keeps its empty prefill.
                 if ($value !== null && $value !== '') {
-                    $fields[sprintf('product_%s_%d', $this->fieldKey($field), $slot)] = $value;
+                    $fields[sprintf('product_%s_%d', $field, $slot)] = $value;
                 }
             }
         }
@@ -154,24 +175,24 @@ class PayloadBuilder
     private function resolveField(string $field, $item, ?Product $product): ?string
     {
         switch ($field) {
-            case AbandonedFields::FIELD_NAME:
+            case self::FIELD_NAME:
                 return (string)$item->getName();
-            case AbandonedFields::FIELD_SKU:
+            case self::FIELD_SKU:
                 return (string)$item->getSku();
-            case AbandonedFields::FIELD_QUANTITY:
+            case self::FIELD_QUANTITY:
                 return (string)(float)$item->getQty();
-            case AbandonedFields::FIELD_PRICE:
+            case self::FIELD_PRICE:
                 $price = (float)($item->getPriceInclTax() ?: $item->getPrice());
 
                 return number_format($price, 2, '.', '');
-            case AbandonedFields::FIELD_BASE_PRICE:
+            case self::FIELD_BASE_PRICE:
                 if ($product === null) {
                     return null;
                 }
                 $regular = (float)$product->getPriceInfo()->getPrice('regular_price')->getAmount()->getValue();
 
                 return $regular > 0 ? number_format($regular, 2, '.', '') : null;
-            case AbandonedFields::FIELD_DESCRIPTION:
+            case self::FIELD_DESCRIPTION:
                 if ($product === null) {
                     return null;
                 }
@@ -180,7 +201,7 @@ class PayloadBuilder
                 $description = trim(strip_tags($description));
 
                 return $description !== '' ? $description : null;
-            case AbandonedFields::FIELD_IMAGE_URL:
+            case self::FIELD_IMAGE_URL:
                 return $product === null ? null : $this->imageUrl($product);
             default:
                 return null;
@@ -234,11 +255,5 @@ class PayloadBuilder
 
             return null;
         }
-    }
-
-    private function fieldKey(string $field): string
-    {
-        // Config keys map 1:1 onto payload keys ("name" -> product_name_N).
-        return $field;
     }
 }

@@ -5,11 +5,26 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-10 (PRO-1762 — engine contract synced v1.5.0 → v1.8.1
-and carried through code: catalog `currency`, browse-hint deprecation, order
-return signals)_
+_Last updated: 2026-08-10 (PRO-1760 — abandoned-cart reminders always carry
+the cart's products, and write all ten slots on every send)_
 
 ## Where we are
+
+- **PRO-1760 in progress — abandoned-cart product details are no longer gated
+  on a merchant field selection, and every slot is written on every send.**
+  `Model\AbandonedCart\PayloadBuilder` no longer reads
+  `automations/abandoned_fields`: all seven product fields ride every
+  reminder, and `product_<field>_1..10` is prefilled `''` for all ten slots
+  before the cart's own items overwrite theirs. Two real defects fixed at
+  once (the same shape Woo fixed in PRO-1680): an empty stored selection —
+  which is what a fresh install got the moment the merchant unticked every
+  box — sent a reminder with NO product data at all; and, because slots were
+  only written when non-empty, a second, smaller cart left the previous
+  larger cart's products lingering on the Smaily contact (Smaily leaves an
+  absent field intact and overwrites an empty one, so writing the full matrix
+  IS the clearing mechanism). `build()` lost its now-unused `$websiteId`
+  argument. `docs/USER_GUIDE.md`'s abandoned-cart section updated to say
+  there is nothing to configure.
 
 - **PRO-1762 done — engine contract synced v1.5.0 → v1.8.1, and every wire
   change carried through code + tests in the same pass.**

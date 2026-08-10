@@ -117,7 +117,7 @@ class AbandonedCart
             $storeId = (int)$quote->getStoreId();
             $this->emulation->startEnvironmentEmulation($storeId, Area::AREA_FRONTEND, true);
             try {
-                $address = $this->payloadBuilder->build($quote, $websiteId);
+                $address = $this->payloadBuilder->build($quote);
             } finally {
                 $this->emulation->stopEnvironmentEmulation();
             }

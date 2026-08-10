@@ -232,8 +232,11 @@ reminders. Each cart is mailed **once**.
 The automation receives up to 10 products as numbered fields
 (`product_name_1`, `product_sku_1`, `product_quantity_1`, `product_price_1`
 (incl. tax), `product_base_price_1`, `product_description_1`,
-`product_image_url_1`, … plus `over_10_products` when the cart is bigger) —
-select which under **Abandoned Cart Product Fields**.
+`product_image_url_1`, … plus `over_10_products` when the cart is bigger).
+There is nothing to configure: every product field is always sent, and all
+ten slots are sent on every reminder — the ones the cart does not use are
+sent empty, which is what clears a previous, larger cart from the contact.
+Your Smaily template decides which of them to show.
 
 `{{abandoned_cart_url}}` is a secure recovery link that restores the exact
 cart when clicked (a signed link; carts belonging to a registered customer
