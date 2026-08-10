@@ -43,6 +43,17 @@ the cart's products, and write all ten slots on every send)_
   block heading, the native comment) removed from both `i18n/en_US.csv` and
   `i18n/et_EE.csv`, en↔et parity re-verified (391 keys each, same set).
   `docs/UPGRADING.md`'s migration table and behaviour-changes list updated.
+  **Separate, pre-existing defect found while verifying live — the whole
+  abandoned-cart cron was fataling on every run, so no reminder has ever been
+  sent by v3.** `Cron\AbandonedCart`'s quote query filtered on an unqualified
+  `updated_at` while `requireAnyEmail()` (PRO-1275) LEFT JOINs
+  `quote_address`, which has an `updated_at` of its own — MySQL rejects the
+  SELECT outright with "Column 'updated_at' in where clause is ambiguous",
+  before any row is read, on every install. Fixed by qualifying the filter as
+  `main_table.updated_at`; nothing else about the selection changed. Not
+  caught by any test because the cron's collection query is only exercised
+  against a real `quote` table, which neither the unit nor the integration
+  suite has — flagged as a coverage gap.
 
 - **PRO-1762 done — engine contract synced v1.5.0 → v1.8.1, and every wire
   change carried through code + tests in the same pass.**

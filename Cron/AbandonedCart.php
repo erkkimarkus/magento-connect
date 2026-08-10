@@ -87,7 +87,9 @@ class AbandonedCart
         $collection->addFieldToFilter('is_active', ['eq' => 1])
             ->addFieldToFilter('items_count', ['gt' => 0])
             ->addFieldToFilter('store_id', ['in' => $storeIds])
-            ->addFieldToFilter('updated_at', ['from' => $maxAge, 'to' => $idleSince])
+            // Qualified: requireAnyEmail() joins quote_address, which has an
+            // updated_at of its own — an unqualified filter is ambiguous SQL.
+            ->addFieldToFilter('main_table.updated_at', ['from' => $maxAge, 'to' => $idleSince])
             ->setOrder('entity_id', 'ASC')
             ->setPageSize(self::BATCH_SIZE);
 
