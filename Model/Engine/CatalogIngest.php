@@ -10,6 +10,7 @@ namespace Smaily\Connect\Model\Engine;
 
 use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\Catalog\Model\Product;
+use Magento\CatalogInventory\Model\StockRegistryStorage;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Smaily\Connect\Model\Engine\Payload\CatalogPayloadBuilder;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
@@ -21,17 +22,27 @@ use Smaily\Connect\Model\Logger\Logger;
  * product id (legacy stock item) or a sku (MSI source item), so they load it
  * at the canonical scope first.
  *
- * No per-product dedupe: two stock moves on one product inside a minute queue
- * two rows. Deliberate — rows are cheap, the flusher batches 100 at a time and
- * the engine dedupes on event_id, so a read-before-write on the hot save path
- * would buy nothing.
+ * One Magento product save legitimately reaches three of those hooks — the
+ * legacy stock item is written during the save, and MSI mirrors that onto its
+ * source items — so a byte-identical row queued twice in a row within the same
+ * request is collapsed (see $lastPayload). That is not queue-wide dedupe:
+ * two stock moves on one product inside a minute still queue two rows, which
+ * is fine — rows are cheap, the flusher batches 100 at a time and the engine
+ * dedupes on event_id.
  */
 class CatalogIngest
 {
+    /** The product id and payload of the row queued most recently in this request. */
+    private int $lastProductId = 0;
+
+    /** @var array<string, mixed> */
+    private array $lastPayload = [];
+
     public function __construct(
         private readonly ProductRepositoryInterface $productRepository,
         private readonly CatalogPayloadBuilder $payloadBuilder,
         private readonly IngestQueue $ingestQueue,
+        private readonly StockRegistryStorage $stockRegistryStorage,
         private readonly Logger $logger
     ) {
     }
@@ -42,6 +53,14 @@ class CatalogIngest
      */
     public function enqueueProduct(Product $product): void
     {
+        // in_stock is read through the stock registry, which memoises the item
+        // per request. MSI mirrors its quantities onto the legacy row with
+        // direct SQL and so never invalidates that memo — a shipment that sold
+        // the last unit out was queued as still in stock until this drop
+        // (caught on the sandbox, not by the unit tests). Re-reading one row is
+        // the right price for never publishing a stale in_stock.
+        $this->stockRegistryStorage->removeStockItem((int)$product->getId());
+
         try {
             $item = $this->payloadBuilder->isIngestible($product)
                 ? $this->payloadBuilder->build($product)
@@ -54,6 +73,13 @@ class CatalogIngest
 
             return;
         }
+
+        $productId = (int)$product->getId();
+        if ($productId === $this->lastProductId && $item === $this->lastPayload) {
+            return; // The same hop of the same save, seen through another hook.
+        }
+        $this->lastProductId = $productId;
+        $this->lastPayload = $item;
 
         $this->ingestQueue->enqueue(
             Client::DOMAIN_CATALOG,

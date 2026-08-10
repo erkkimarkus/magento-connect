@@ -25,6 +25,13 @@ use Smaily\Connect\Model\Engine\Settings;
  * MSI's own writes are covered separately by
  * Plugin\Engine\SourceItemsSaveAfter — MSI syncs the legacy row with direct
  * SQL, so no model save and no event.
+ *
+ * There is deliberately no "did the stock actually move?" gate here. Magento
+ * hands the stock item to its writers through StockRegistryProvider, which
+ * loads it through the resource model directly and so never calls
+ * setOrigData(): every save looks like a change, gate or not (verified on the
+ * sandbox — a plain product rename tripped it). The rows a product save
+ * duplicates are collapsed one level down instead, in CatalogIngest.
  */
 class StockItemSaveAfter implements ObserverInterface
 {
@@ -45,17 +52,6 @@ class StockItemSaveAfter implements ObserverInterface
 
         $item = $observer->getEvent()->getData('item');
         if (!$item instanceof StockItem) {
-            return;
-        }
-
-        // A product save writes its stock item too, so queue again only when
-        // the stock itself moved — an ordinary product edit is already
-        // covered by ProductSaveAfter. A row with no loaded original (a
-        // brand-new stock item) always counts as a change.
-        if ($item->getOrigData('item_id') !== null
-            && !$item->dataHasChangedFor('is_in_stock')
-            && !$item->dataHasChangedFor('qty')
-        ) {
             return;
         }
 

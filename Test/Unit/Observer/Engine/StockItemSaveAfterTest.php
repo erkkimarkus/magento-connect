@@ -19,8 +19,7 @@ use Smaily\Connect\Observer\Engine\StockItemSaveAfter;
 
 /**
  * PRO-1951: a stock change that bypasses product save must still reach
- * catalog ingest — but a product save, which writes its stock item along the
- * way without moving the stock, must not queue the row twice.
+ * catalog ingest.
  */
 class StockItemSaveAfterTest extends TestCase
 {
@@ -34,33 +33,11 @@ class StockItemSaveAfterTest extends TestCase
         $this->catalogIngest = $this->createMock(CatalogIngest::class);
     }
 
-    public function testIsInStockChangeEnqueuesTheProduct(): void
+    public function testAStockItemSaveEnqueuesItsProduct(): void
     {
         $this->catalogIngest->expects(self::once())->method('enqueueProductId')->with(42);
 
-        $this->observer()->execute($this->eventFor($this->stockItem(42, ['is_in_stock' => 0], ['is_in_stock' => 1])));
-    }
-
-    public function testQtyChangeEnqueuesTheProduct(): void
-    {
-        $this->catalogIngest->expects(self::once())->method('enqueueProductId')->with(42);
-
-        $this->observer()->execute($this->eventFor($this->stockItem(42, ['qty' => 5.0], ['qty' => 4.0])));
-    }
-
-    public function testASaveThatMovedNeitherQtyNorStatusIsIgnored(): void
-    {
-        $this->catalogIngest->expects(self::never())->method('enqueueProductId');
-
-        $item = $this->stockItem(42, ['qty' => 5.0, 'is_in_stock' => 1], ['qty' => 5.0, 'is_in_stock' => 1]);
-        $this->observer()->execute($this->eventFor($item));
-    }
-
-    public function testABrandNewStockItemAlwaysCounts(): void
-    {
-        $this->catalogIngest->expects(self::once())->method('enqueueProductId')->with(42);
-
-        $this->observer()->execute($this->eventFor($this->stockItem(42, ['qty' => 5.0], null)));
+        $this->observer()->execute($this->eventFor($this->stockItem(42)));
     }
 
     public function testDisconnectedEngineIsANoOp(): void
@@ -70,7 +47,7 @@ class StockItemSaveAfterTest extends TestCase
         $this->catalogIngest->expects(self::never())->method('enqueueProductId');
 
         (new StockItemSaveAfter($settings, $this->catalogIngest))
-            ->execute($this->eventFor($this->stockItem(42, ['is_in_stock' => 0], ['is_in_stock' => 1])));
+            ->execute($this->eventFor($this->stockItem(42)));
     }
 
     public function testAnEventWithoutAStockItemIsANoOp(): void
@@ -85,23 +62,10 @@ class StockItemSaveAfterTest extends TestCase
         return new StockItemSaveAfter($this->settings, $this->catalogIngest);
     }
 
-    /**
-     * @param array<string, mixed> $data
-     * @param array<string, mixed>|null $origData null = never loaded (a new row)
-     */
-    private function stockItem(int $productId, array $data, ?array $origData): StockItem&MockObject
+    private function stockItem(int $productId): StockItem&MockObject
     {
-        if ($origData !== null) {
-            $origData += ['item_id' => 1]; // a loaded row always has its own id
-        }
         $item = $this->createMock(StockItem::class);
         $item->method('getProductId')->willReturn($productId);
-        $item->method('getOrigData')->willReturnCallback(
-            static fn (?string $key = null) => $origData === null ? null : ($origData[$key] ?? null)
-        );
-        $item->method('dataHasChangedFor')->willReturnCallback(
-            static fn (string $key): bool => ($origData[$key] ?? null) !== ($data[$key] ?? null)
-        );
 
         return $item;
     }

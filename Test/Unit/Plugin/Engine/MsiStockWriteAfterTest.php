@@ -12,15 +12,16 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Smaily\Connect\Model\Engine\CatalogIngest;
 use Smaily\Connect\Model\Engine\Settings;
-use Smaily\Connect\Plugin\Engine\SourceItemsSaveAfter;
+use Smaily\Connect\Plugin\Engine\MsiStockWriteAfter;
 
 /**
- * PRO-1951: MSI writes stock without a legacy model save, so the source-item
- * save is the only hook that sees a shipment deduction or a
- * POST /V1/inventory/source-items. The plugin never names an MSI type — MSI
- * is removable — so the sku is read by duck typing.
+ * PRO-1951: MSI writes stock without a legacy model save, so this plugin is
+ * the only hook that sees a shipment deduction, a credit-memo return to stock
+ * or a POST /V1/inventory/source-items. It never names an MSI type — MSI is
+ * removable — so the sku is read by duck typing off either shape: the saved
+ * source items, or a source deduction request's items.
  */
-class SourceItemsSaveAfterTest extends TestCase
+class MsiStockWriteAfterTest extends TestCase
 {
     private Settings&MockObject $settings;
     private CatalogIngest&MockObject $catalogIngest;
@@ -74,8 +75,22 @@ class SourceItemsSaveAfterTest extends TestCase
         $settings->method('isConnected')->willReturn(false);
         $this->catalogIngest->expects(self::never())->method('enqueueSku');
 
-        (new SourceItemsSaveAfter($settings, $this->catalogIngest))
+        (new MsiStockWriteAfter($settings, $this->catalogIngest))
             ->afterExecute(new \stdClass(), null, [$this->sourceItem('TENT-1')]);
+    }
+
+    public function testASourceDeductionRequestIsReadThroughItsItems(): void
+    {
+        $this->catalogIngest->expects(self::once())->method('enqueueSku')->with('TENT-1');
+
+        $this->plugin()->afterExecute(new \stdClass(), null, $this->deductionRequest('TENT-1'));
+    }
+
+    public function testAnUnrecognisedPayloadQueuesNothing(): void
+    {
+        $this->catalogIngest->expects(self::never())->method('enqueueSku');
+
+        $this->plugin()->afterExecute(new \stdClass(), null, 'nonsense');
     }
 
     public function testTheSubjectResultIsPassedThrough(): void
@@ -83,9 +98,27 @@ class SourceItemsSaveAfterTest extends TestCase
         self::assertSame('kept', $this->plugin()->afterExecute(new \stdClass(), 'kept', []));
     }
 
-    private function plugin(): SourceItemsSaveAfter
+    private function plugin(): MsiStockWriteAfter
     {
-        return new SourceItemsSaveAfter($this->settings, $this->catalogIngest);
+        return new MsiStockWriteAfter($this->settings, $this->catalogIngest);
+    }
+
+    private function deductionRequest(string $sku): object
+    {
+        $items = [$this->sourceItem($sku)];
+
+        return new class ($items) {
+            /** @param object[] $items */
+            public function __construct(private readonly array $items)
+            {
+            }
+
+            /** @return object[] */
+            public function getItems(): array
+            {
+                return $this->items;
+            }
+        };
     }
 
     private function sourceItem(string $sku): object
