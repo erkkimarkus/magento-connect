@@ -13,8 +13,8 @@ use Smaily\Connect\Model\Client\Exception\TransportException;
 
 /**
  * The one place that decides what happens to a Smaily queue row after a
- * failed send — the classification both sibling plugins ship (Woo
- * RetryPolicy, PRO-1685):
+ * failed send — the cross-platform classification the sibling plugins ship
+ * (verified against Woo's `RetryPolicy`, its PRO-1685):
  *
  *  - PERMANENT (4xx except 429): stop on the FIRST refusal. The row is parked
  *    as failed with a `permanent_http_<code>` reason, so a refusal retrying
