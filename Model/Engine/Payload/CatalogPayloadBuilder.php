@@ -19,6 +19,7 @@ use Magento\CatalogInventory\Api\StockRegistryInterface;
 use Magento\Framework\App\Area;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Store\Model\App\Emulation;
+use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
 use Smaily\Connect\Model\Multilingual\LanguageResolver;
 
@@ -33,6 +34,9 @@ use Smaily\Connect\Model\Multilingual\LanguageResolver;
  */
 class CatalogPayloadBuilder
 {
+    /** Contract §3/§5 default when the store has no currency configured. */
+    private const DEFAULT_CURRENCY = 'EUR';
+
     public function __construct(
         private readonly StoreManagerInterface $storeManager,
         private readonly ProductRepositoryInterface $productRepository,
@@ -74,6 +78,7 @@ class CatalogPayloadBuilder
                 (float)$priceProduct->getPriceInfo()->getPrice('final_price')->getAmount()->getValue(),
                 4
             ),
+            'currency' => $this->currency(),
             'in_stock' => $this->isInStock($product),
             'product_url' => $languageValues['product_url'],
             'external_id' => (string)$product->getId(),
@@ -231,16 +236,22 @@ class CatalogPayloadBuilder
 
     /**
      * The single canonical store scope for catalog ingest (PRO-1352/1353):
-     * there is no currency field in the wire contract, so one Magento
-     * installation is one engine tenant with one base currency, and this
-     * plugin — not the engine — is responsible for always sending one
-     * consistent scope's price/URL/language, never whatever scope a CLI/
-     * cron context or an admin's store-view switcher happened to resolve.
-     * The default store view of the default website is the same "default
-     * scope" concept already used elsewhere in the module (`Engine\Client`'s
-     * base-URL fallback, `Multilingual\AccountResolver`'s default account).
+     * one Magento installation is one engine tenant, and this plugin — not
+     * the engine — is responsible for always sending one consistent scope's
+     * price/URL/language, never whatever scope a CLI/cron context or an
+     * admin's store-view switcher happened to resolve. The default store
+     * view of the default website is the same "default scope" concept
+     * already used elsewhere in the module (`Engine\Client`'s base-URL
+     * fallback, `Multilingual\AccountResolver`'s default account).
      * `EngineCatalogProcessor` calls this same method to scope the backfill
      * collection, so both ingest paths can never disagree.
+     *
+     * The optional `currency` field (contract v1.7.0) does NOT relax this:
+     * §3 keeps "one currency per tenant" as the assumed model, and the
+     * catalog row is keyed on `sku` per tenant — a second store scope would
+     * upsert onto the SAME row, so it can only overwrite, never coexist.
+     * Per-scope catalog rows need a tenant per scope, which is the
+     * multi-website RFC's Phase 4, not this field (PRO-1762).
      */
     public function canonicalStoreId(): int
     {
@@ -249,6 +260,26 @@ class CatalogPayloadBuilder
         } catch (NoSuchEntityException) {
             return 0;
         }
+    }
+
+    /**
+     * The currency the `price` we send is denominated in (contract §3,
+     * v1.7.0). The canonical store's BASE currency, because that is the
+     * currency Magento authors catalog prices in and the one
+     * `catalog/price/scope` governs — a store view's display currency is a
+     * presentation-time conversion that the admin/CLI contexts this builder
+     * runs in never apply.
+     */
+    private function currency(): string
+    {
+        try {
+            $store = $this->storeManager->getDefaultStoreView();
+        } catch (NoSuchEntityException) {
+            $store = null;
+        }
+        $code = $store instanceof Store ? strtoupper(trim((string)$store->getBaseCurrencyCode())) : '';
+
+        return $code !== '' ? $code : self::DEFAULT_CURRENCY;
     }
 
     /**

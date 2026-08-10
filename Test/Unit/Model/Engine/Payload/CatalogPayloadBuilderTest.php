@@ -20,6 +20,7 @@ use Magento\Framework\Pricing\Price\PriceInterface;
 use Magento\Framework\Pricing\PriceInfoInterface;
 use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\App\Emulation;
+use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -186,6 +187,67 @@ class CatalogPayloadBuilderTest extends TestCase
         $item = $builder->build($product);
 
         self::assertSame(19.99, $item['price']);
+    }
+
+    /**
+     * PRO-1762 (contract v1.7.0 §3): every catalog row carries the canonical
+     * store's base currency — the currency the `price` we send is actually
+     * denominated in.
+     */
+    public function testCatalogRowCarriesTheCanonicalStoresBaseCurrency(): void
+    {
+        $canonicalStore = $this->createMock(Store::class);
+        $canonicalStore->method('getId')->willReturn(1);
+        $canonicalStore->method('getBaseCurrencyCode')->willReturn('usd');
+
+        $storeManager = $this->createMock(StoreManagerInterface::class);
+        $storeManager->method('getStores')->willReturn([]);
+        $storeManager->method('getDefaultStoreView')->willReturn($canonicalStore);
+
+        $product = $this->product(42, 'SHIRT');
+        $product->method('getStoreId')->willReturn(1);
+
+        $builder = $this->builderWith($storeManager);
+
+        self::assertSame('USD', $builder->build($product)['currency']);
+        self::assertSame('USD', $builder->buildTombstone($product)['currency']);
+    }
+
+    /**
+     * PRO-1762: an unresolvable store falls back to the contract default
+     * rather than sending an empty currency.
+     */
+    public function testCurrencyFallsBackToTheContractDefaultWhenNoStoreResolves(): void
+    {
+        $storeManager = $this->createMock(StoreManagerInterface::class);
+        $storeManager->method('getStores')->willReturn([]);
+        $storeManager->method('getDefaultStoreView')->willReturn(null);
+
+        $item = $this->builderWith($storeManager)->build($this->product(42, 'SHIRT'));
+
+        self::assertSame('EUR', $item['currency']);
+    }
+
+    private function builderWith(StoreManagerInterface&MockObject $storeManager): CatalogPayloadBuilder
+    {
+        $parentResolver = $this->createMock(ParentProductResolver::class);
+        $parentResolver->method('productIdOf')->willReturn('42');
+
+        $stockItem = $this->createMock(StockItemInterface::class);
+        $stockItem->method('getIsInStock')->willReturn(true);
+        $stockRegistry = $this->createMock(StockRegistryInterface::class);
+        $stockRegistry->method('getStockItem')->willReturn($stockItem);
+
+        return new CatalogPayloadBuilder(
+            $storeManager,
+            $this->createMock(ProductRepositoryInterface::class),
+            $this->createMock(CategoryRepositoryInterface::class),
+            $stockRegistry,
+            new ImageHelperFactory(),
+            $this->createMock(LanguageResolver::class),
+            $parentResolver,
+            $this->createMock(Emulation::class)
+        );
     }
 
     private function createBuilder(string $resolvedProductId, ?Emulation $emulation = null): CatalogPayloadBuilder
