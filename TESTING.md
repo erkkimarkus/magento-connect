@@ -10,9 +10,28 @@ vendor/bin/phpstan analyse  # level 6 with the bitexpert/phpstan-magento extensi
 ```
 
 CI (GitHub Actions) runs the unit suite on PHP 8.1 and 8.3 plus the static
-analysis job on every push and pull request. `composer.lock` is not committed,
-so CI resolves the toolchain fresh on every run — an upstream release can turn
-a green build red without a change in this repository.
+analysis job on every push and pull request.
+
+**`composer.lock` is committed.** Every job installs from it, so an upstream
+release can no longer turn a green build red without a change in this
+repository — which is exactly what happened on 2026-09-10, when a freshly
+resolved PHPStan 2.2.13 broke the static job. The lock is resolved against PHP
+8.1 (`config.platform.php` in composer.json), the oldest PHP the package
+supports, so the same lock installs on the PHP 8.1 job and on a newer local
+host. Refresh it deliberately:
+
+```bash
+composer update --ignore-platform-req='ext-*'   # ext-* only if your host is
+                                                # missing Magento extensions
+vendor/bin/phpunit --testsuite unit && vendor/bin/phpcs && vendor/bin/phpstan analyse
+git add composer.lock
+```
+
+Never pass a bare `--ignore-platform-reqs` to `composer update` — that drops
+the PHP 8.1 target too and can lock packages the CI job cannot install. The
+`Lock freshness` workflow runs `composer update --dry-run` every Monday and
+files a GitHub issue when the lock has fallen behind; a second drift comments
+on the open issue rather than opening another.
 
 **PHPStan is capped below 2.2.6 on purpose.** From 2.2.6 the phar ships the
 `phpstan_turbo` extension, which PHPStan loads by restarting itself; its

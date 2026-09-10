@@ -10,7 +10,8 @@ Woo/Shopify, doc reconcile; release gates PRO-1400 + PRO-1484 verified on a
 clean sandbox install; PRO-2451, PRO-2452, PRO-2453, PRO-2467 landed; the
 3.0.0-rc1 release train ran — PRO-2470 index, version cut, packaging check,
 Marketplace pre-checks; release train closed out — the package ships no
-`docs/`, the `composer validate --strict` version warning is accepted)_
+`docs/`, the `composer validate --strict` version warning is accepted;
+PRO-2473 committed `composer.lock`)_
 
 ## Where we are
 
@@ -24,11 +25,11 @@ Marketplace pre-checks; release train closed out — the package ships no
   the composer publish is irreversible for every 2.8.x install. Queue:
   release gates (PRO-1400 + PRO-1484) → ~~PRO-2451~~ → ~~PRO-2452~~ →
   ~~PRO-2453~~ → ~~PRO-2467~~ → ~~release train (done — packaging decisions
-  landed)~~ → **PRO-1748 next** (terminology canon) → PRO-2454 (Event Log
-  "Send again") → PRO-2456 (design fidelity). Erkki-owned doors are unchanged
-  and still shut: PRO-1198 release coordination, PRO-1971 comms, the live
-  engine tenant, the pilot store, and the `composer.lock` decision (issue
-  filed today).
+  landed)~~ → ~~PRO-2473 (composer.lock committed)~~ → **PRO-1748 next**
+  (terminology canon) → PRO-2454 (Event Log "Send again") → PRO-2456 (design
+  fidelity) → PRO-2472. PRO-2460 waits on the engine team's answer. Erkki-owned
+  doors are unchanged and still shut: PRO-1198 release coordination, PRO-1971
+  comms, the live engine tenant and the pilot store.
 
 - **The 3.0.0-rc1 release train ran (Erkki's four-part decision,
   2026-09-10).** Nothing was published — no tag, no GitHub release, no
@@ -83,6 +84,23 @@ Marketplace pre-checks; release train closed out — the package ships no
   `composer.json` (the resolver backs `rector/rector` off to a version without
   the `^2.2.10` floor); reproduced and verified on a clean clone with a fresh
   `composer install`. TESTING.md records the cap and when to lift it.
+
+- **PRO-2473 done — `composer.lock` is committed (Erkki's decision A,
+  2026-09-10).** The root cause of the day's red CI was that the lock was
+  gitignored, so every CI run resolved the toolchain fresh. It is now tracked,
+  and `composer.json` carries `config.platform.php = 8.1.0` so the resolver
+  targets the oldest PHP the package supports — the same lock installs on the
+  PHP 8.1 unit job and on the 8.5 dev host. Verified: `composer install
+  --dry-run` in a real `php:8.1-cli` container reports "Installing dependencies
+  from lock file", "Verifying lock file contents can be installed on current
+  platform", 193 installs / 0 updates. The lock pins `phpstan/phpstan` 2.2.5,
+  under the `<2.2.6` cap. A new `Lock freshness` workflow (Mondays 05:41 UTC)
+  runs `composer update --dry-run` and files one GitHub issue on drift,
+  commenting on the open one instead of opening a second — issues had to be
+  enabled on the `erkkimarkus/magento-connect` fork for that. The release ZIP
+  still excludes `composer.lock` (`bin/build-release-zip.sh` already listed
+  it); verifier green, 330 entries. Gates: 281 unit, phpcs 0 errors / 929
+  warnings, phpstan clean.
 
 - **PRO-2470 done — the marketing event queue is indexed for the per-contact
   lookup (one-way door approved by Erkki 2026-09-10).**

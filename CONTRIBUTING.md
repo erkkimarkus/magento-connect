@@ -12,7 +12,9 @@ cd smaily-magento-extension
 composer install    # Magento packages resolve via the Mage-OS mirror
 ```
 
-If your local PHP is newer than 8.4, add `--ignore-platform-reqs`.
+Dependencies install from the committed `composer.lock`. If your local PHP is
+newer than 8.4, or you are missing one of the Magento PHP extensions, add
+`--ignore-platform-reqs`.
 
 ## Development environment
 

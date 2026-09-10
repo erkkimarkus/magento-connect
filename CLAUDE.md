@@ -64,9 +64,16 @@ style (str_replace, never sprintf).
 
 ## Build / test commands
 
-- Local PHP is 8.5 but the package requires ~8.1–8.4, so:
+- Local PHP is 8.5 and this host is missing a few Magento PHP extensions, so:
   `composer install --ignore-platform-reqs`. Magento packages come from
   `mirror.mage-os.org` (repo configured in composer.json).
+- **`composer.lock` is committed** (PRO-2473) — CI installs from it, so an
+  upstream release cannot turn a green build red on its own. `config.platform.php`
+  pins the resolver to 8.1, the oldest PHP the package supports, so the lock
+  stays installable on the PHP 8.1 CI job. Refresh it deliberately with
+  `composer update --ignore-platform-req='ext-*'`, run the gates, and commit the
+  lock in that same pass. The weekly `Lock freshness` workflow files a GitHub
+  issue when the lock falls behind.
 - Gates — ALL must pass before anything is "done" (CI runs the same):
   - `vendor/bin/phpunit --testsuite unit`
   - `vendor/bin/phpcs` (Magento2 standard; errors fail)
