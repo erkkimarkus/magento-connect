@@ -38,13 +38,14 @@ class BackfillTick
             return;
         }
 
+        $key = sprintf('%s:%s', $job->getJobType(), $job->getTarget());
+
         if ($job->getTarget() === Job::TARGET_ENGINE && $this->engineSettings->isRefused()) {
-            $this->stopEngineJob($job);
+            $this->stopEngineJob($job, $key);
 
             return;
         }
 
-        $key = sprintf('%s:%s', $job->getJobType(), $job->getTarget());
         $processor = $this->processors[$key] ?? null;
         if (!$processor instanceof ProcessorInterface) {
             $this->jobManager->fail($job, sprintf('No backfill processor registered for "%s"', $key));
@@ -83,7 +84,7 @@ class BackfillTick
      * keeping the total and the progress it really achieved — the same
      * treatment the contacts import gets when its switch goes off (PRO-1764).
      */
-    private function stopEngineJob(Job $job): void
+    private function stopEngineJob(Job $job, string $key): void
     {
         if ($job->getData('total_count') === null) {
             $job->setData('total_count', 0);
@@ -94,7 +95,7 @@ class BackfillTick
 
         $this->logger->info('Backfill job stopped: the Campaign Intelligence account is not active', [
             'job_id' => $job->getId(),
-            'type' => sprintf('%s:%s', $job->getJobType(), $job->getTarget()),
+            'type' => $key,
         ]);
     }
 }

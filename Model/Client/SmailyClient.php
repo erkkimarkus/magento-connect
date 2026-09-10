@@ -18,6 +18,7 @@ use Smaily\Connect\Model\Client\Exception\AuthenticationException;
 use Smaily\Connect\Model\Client\Exception\TransportException;
 use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Model\ModuleInfo;
+use Smaily\Connect\Model\SmailyUrl;
 
 /**
  * Smaily marketing API client.
@@ -212,7 +213,7 @@ class SmailyClient
     {
         if ($this->httpClient === null) {
             $this->httpClient = $this->httpClientFactory->create([
-                'base_uri' => sprintf('https://%s.sendsmaily.net/', $this->subdomain),
+                'base_uri' => SmailyUrl::forSubdomain($this->subdomain) . '/',
                 RequestOptions::AUTH => [$this->username, $this->password],
                 RequestOptions::TIMEOUT => self::TIMEOUT_SECONDS,
                 RequestOptions::CONNECT_TIMEOUT => self::CONNECT_TIMEOUT_SECONDS,

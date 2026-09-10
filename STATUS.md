@@ -25,59 +25,36 @@ clean sandbox install; PRO-2451 landed)_
 - **PRO-2451 done — a deactivated Campaign Intelligence account is
   remembered, every send path stops, and the admin says so plainly (Woo
   PRO-1893 / Shopify PRO-1931 parity).** Contract §2 answers `403
-  tenant_inactive` from every API-key-authenticated endpoint when the tenant
-  is deactivated (operator suspension or a GDPR purge); we had only the
-  per-row half of the sender rule, and the health notice blamed an outage
-  that would "recover" (the wording PRO-1953 recorded).
-  - **One place records it, one gate reads it.** `Engine\Client::request()`
-    is the chokepoint every engine call passes through: a 403 whose `error`
-    is `tenant_inactive` calls `Settings::recordRefusal()` (config
-    `smaily_connect/intelligence/refused_at`, the FIRST refusal, default
-    scope), and ANY authenticated call that answers calls `clearRefusal()` —
-    so the health ping and the admin's "Check again" are both recovery paths
-    without a second mechanism. A fresh setup exchange and disconnect clear
-    it too. `Settings::isSendingAllowed()` (`isConnected() && !isRefused()`)
-    is the gate on `Cron\FlushIngestQueue` (re-asked per domain, so one
-    refusal ends the run), the engine-bound backfills at `Cron\BackfillTick`'s
-    router (one seam for catalog/customers/orders), `Controller\Relay\Index`,
-    `IdentityMergeHandler`, `Privacy\ProfilingConsent` and
-    `Cron\CatalogResync`. `isConnected()` stays the gate for everything that
-    only enqueues, reads or displays, so live observers keep queueing.
+  tenant_inactive` when the tenant is deactivated; we had only the per-row
+  half of the sender rule, and the health notice blamed an outage that would
+  "recover" (the wording PRO-1953 recorded). How it works — the chokepoint
+  that records it, the gate that reads it and every call site — is in
+  `docs/ARCHITECTURE.md` ("A refused account stops every send path").
   - **Rows are kept, per Erkki's binding decision.** A batch met by a refusal
     is handed back with the new `IngestQueue::release()`: status pending,
     attempts, backoff, error and claim token untouched. The janitor's normal
     age rule still applies.
-  - **Admin.** Settings > Intelligence renders a server-side panel (the
-    account is not active, a link to the merchant's Smaily account, a "Check
-    again" button reusing the existing `api/engineping` JSON action) and
-    replaces the three engine imports with the same explanation; the
-    Subscribers contact import is untouched. The Dashboard verdict and the
-    connection strip name the deactivated account ahead of the failure and
-    outage verdicts, and `Cron\HealthCheck` posts a notice that promises no
-    recovery and drops the engine-down clock. 14 new phrases in both packs
-    (408 keys each, parity verified).
+  - **What the merchant sees.** Settings > Intelligence: the account is not
+    active, a link to their Smaily account, a "Check again" button (the
+    existing `api/engineping` action) and, in place of the three engine
+    imports, why they are gone — the Subscribers contact import is untouched.
+    The Dashboard verdict and connection strip name the deactivated account
+    ahead of the failure and outage verdicts, and `Cron\HealthCheck` posts a
+    notice that promises no recovery and drops the engine-down clock. One
+    title + one body sentence, shared by all three surfaces; 405 keys per
+    pack, parity verified.
   - **Verification — the real flow on the sandbox with only the transport
-    faked.** A stand-in engine inside the container answered contract §2's
-    exact 403 body and counted every request that arrived. Real
-    `Settings::storeExchange()` connected it; the real flusher's FIRST
-    catalog POST met the refusal and both queued rows came back
-    `pending / attempts 0 / no error / no claim token` — and customers,
-    orders, browse and catalog_remove were never claimed. A second flush and
-    a real `BackfillTick` (catalog job → `completed, total 0`) sent **zero**
-    further requests; a real storefront `POST /smaily/relay` answered 404
-    with nothing forwarded. The real admin block/layout stack rendered the
-    rejection panel with the Check again button and no import buttons, and
-    the real dashboard template rendered "Your Campaign Intelligence account
-    is not active on the Smaily side…" with the strip pill "Not active" —
-    while a fresh (never-refused) render showed neither and made no engine
-    call at all. `Cron\HealthCheck` posted the major notice "Your Smaily
-    Campaign Intelligence account is not active" and set no engine-down flag.
-    Recovery was driven both ways: the real `EnginePing` controller answered
-    `{"ok":false,"message":"Campaign Intelligence teatab endiselt, et see
-    konto ei ole aktiivne."}` while still refused (the et_EE string proving
-    the pack), then `{"ok":true,…}` once the engine accepted — clearing the
-    state, restoring the panel and letting the waiting rows go out in order;
-    a second round proved the health cron clears it unattended.
+    faked.** A stand-in engine answered contract §2's exact 403 body and
+    counted every request. The real flusher's FIRST catalog POST met the
+    refusal and both queued rows came back `pending / attempts 0 / no error /
+    no claim token`; the other domains were never claimed. A second flush, a
+    real `BackfillTick` (catalog job → `completed, total 0`) and a storefront
+    `POST /smaily/relay` sent **zero** further requests. The real admin stack
+    rendered the panel without import buttons and the dashboard strip pill
+    "Not active", while a fresh (never-refused) render showed neither and made
+    no engine call at all. Recovery was driven both ways — the `EnginePing`
+    controller (et_EE string proving the pack) and the health cron unattended
+    — clearing the state and letting the waiting rows go out in order.
   - Gates: 270 unit tests green (17 new), phpcs 0 errors, phpstan clean, 71
     integration tests green (throwaway MySQL — a new case asserts the
     released rows against the real table). `setup:upgrade` +
@@ -86,6 +63,14 @@ clean sandbox install; PRO-2451 landed)_
     restored: engine settings cleared, all queue/job rows, `smaily%` config
     rows, module flags and the Smaily admin notices deleted, capture server
     killed — back to 0 smaily config rows, 0 queue rows, 0 jobs, 0 flags.
+  - **Simplify pass (this commit).** Post-review tightening, no behaviour
+    change: one `isEngineRefused()` predicate on both view models, the
+    dashboard's engine-state ternaries moved behind one view-model accessor,
+    the panel's refusal block on the module's own banner pattern and one
+    imports card instead of two, one release-on-refusal helper in the
+    flusher, the decrypted API key and the dashboard's engine flags memoized
+    per request, and the merchant's sentence pair collapsed from three
+    near-identical strings to one (405 keys per pack).
 
 - **PRO-1400 + PRO-1484 verified on a CLEAN sandbox install — both release
   gates hold on the evidence; one wording conflict between PRO-1484's ask and

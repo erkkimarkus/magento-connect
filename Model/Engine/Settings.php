@@ -46,6 +46,9 @@ class Settings
     /** In-request memo: a refusal recorded mid-run must stop the rest of it. */
     private ?bool $refused = null;
 
+    /** In-request memo: the decrypted key, so one request decrypts once. */
+    private ?string $apiKey = null;
+
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig,
         private readonly WriterInterface $configWriter,
@@ -126,9 +129,12 @@ class Settings
 
     public function getApiKey(): string
     {
-        $encrypted = (string)$this->scopeConfig->getValue(self::XML_PATH_API_KEY);
+        if ($this->apiKey === null) {
+            $encrypted = (string)$this->scopeConfig->getValue(self::XML_PATH_API_KEY);
+            $this->apiKey = $encrypted === '' ? '' : $this->encryptor->decrypt($encrypted);
+        }
 
-        return $encrypted === '' ? '' : $this->encryptor->decrypt($encrypted);
+        return $this->apiKey;
     }
 
     public function getEngineBaseUrl(): string
@@ -202,10 +208,10 @@ class Settings
         );
         $this->configWriter->save(self::XML_PATH_ISSUED_AT, (string)($response['issued_at'] ?? ''));
         $this->configWriter->save(self::XML_PATH_CONNECTED, '1');
+        $this->apiKey = null;
         // A fresh exchange is a live account by definition — and possibly a
         // different one, so a remembered refusal must not survive it.
-        $this->configWriter->delete(self::XML_PATH_REFUSED_AT);
-        $this->refused = false;
+        $this->clearRefusal();
 
         $this->cleanConfigCache();
     }
@@ -229,6 +235,7 @@ class Settings
         ] as $path) {
             $this->configWriter->delete($path);
         }
+        $this->apiKey = null;
         $this->refused = false;
 
         $this->cleanConfigCache();

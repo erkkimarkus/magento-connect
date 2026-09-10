@@ -39,18 +39,20 @@ $isRefused = $viewModel->isEngineRefused();
     </div>
     <div id="smaily-w-engine-connected" style="display:none;">
         <?php if ($isRefused): ?>
-        <div class="message message-error">
-            <strong><?= $escaper->escapeHtml(__('Your Campaign Intelligence account is not active')) ?></strong>
-            <p><?= $escaper->escapeHtml(__('Campaign Intelligence has stopped accepting data from this store, so product, customer and order data is no longer being sent and recommendations will go stale. Waiting will not fix it — the account has to be made active again on the Smaily side. Your Smaily email sending is unaffected; everything queued here waits and is sent once the account is active.')) ?></p>
-            <p>
-                <a href="<?= $escaper->escapeUrl($viewModel->getSmailyAccountUrl()) ?>" target="_blank">
-                    <?= $escaper->escapeHtml(__('Open your Smaily account')) ?></a>
-            </p>
-            <button type="button" class="action-secondary" id="smaily-w-engine-recheck">
-                <span><?= $escaper->escapeHtml(__('Check again')) ?></span>
-            </button>
-            <span class="smaily-result" id="smaily-w-engine-recheck-result"></span>
-            <p class="note"><?= $escaper->escapeHtml(__('Once Smaily tells you the account is active, press Check again — sending resumes on the next cron run.')) ?></p>
+        <div class="smaily-banner smaily-banner--error">
+            <span class="smaily-banner__icon">&#9888;</span>
+            <div class="smaily-banner__body">
+                <div class="smaily-banner__title"><?= $escaper->escapeHtml(__('Your Campaign Intelligence account is not active')) ?></div>
+                <div class="smaily-banner__message"><?= $escaper->escapeHtml(__('Campaign Intelligence has stopped accepting data from this store, so product, customer and order data is no longer being sent and recommendations will go stale. Waiting will not fix it — the account has to be made active again on the Smaily side. Your Smaily email sending is unaffected; everything queued here waits and is sent once the account is active.')) ?></div>
+                <div class="smaily-banner__message">
+                    <button type="button" class="action-secondary" id="smaily-w-engine-recheck">
+                        <span><?= $escaper->escapeHtml(__('Check again')) ?></span>
+                    </button>
+                    <span class="smaily-result" id="smaily-w-engine-recheck-result"></span>
+                </div>
+                <div class="smaily-banner__message"><?= $escaper->escapeHtml(__('Once Smaily tells you the account is active, press Check again — sending resumes on the next cron run.')) ?></div>
+            </div>
+            <a class="smaily-banner__action" href="<?= $escaper->escapeUrl($viewModel->getSmailyAccountUrl()) ?>" target="_blank"><?= $escaper->escapeHtml(__('Open your Smaily account')) ?></a>
         </div>
         <?php else: ?>
         <p class="message message-success" id="smaily-w-engine-status"></p>
@@ -63,15 +65,13 @@ $isRefused = $viewModel->isEngineRefused();
                 <?= $escaper->escapeHtml(__('Enable storefront browse tracking (product views, searches, cart activity)')) ?></label>
             <p class="note"><?= $escaper->escapeHtml(__('Off by default. Respects Magento cookie restriction mode; events flow through your own server, so the API key never reaches the browser.')) ?></p>
         </div>
-        <?php if ($isSettings && $isRefused): ?>
+        <?php if ($isSettings): ?>
         <div class="smaily-card" style="background:#f8f8f8;">
             <strong><?= $escaper->escapeHtml(__('Historical imports to Campaign Intelligence')) ?></strong>
-            <p class="note"><?= $escaper->escapeHtml(__('Imports are unavailable while the account is not active — there is nowhere to send the data. They come back as soon as the account does.')) ?></p>
-        </div>
-        <?php elseif ($isSettings): ?>
-        <div class="smaily-card" style="background:#f8f8f8;">
-            <strong><?= $escaper->escapeHtml(__('Historical imports to Campaign Intelligence')) ?></strong>
-            <p class="note"><?= $escaper->escapeHtml(__('Send your existing data to the engine in the background — one chunk per cron minute. Imports are resumable and safe to re-run: deliveries are deduplicated on the receiving side.')) ?></p>
+            <p class="note"><?= $escaper->escapeHtml($isRefused
+                ? __('Imports are unavailable while the account is not active — there is nowhere to send the data. They come back as soon as the account does.')
+                : __('Send your existing data to the engine in the background — one chunk per cron minute. Imports are resumable and safe to re-run: deliveries are deduplicated on the receiving side.')) ?></p>
+            <?php if (!$isRefused): ?>
             <?php foreach ([
                 'catalog' => __('Import catalog'),
                 'customers' => __('Import customers'),
@@ -90,6 +90,7 @@ $isRefused = $viewModel->isEngineRefused();
                 </div>
             </div>
             <?php endforeach; ?>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
     </div>

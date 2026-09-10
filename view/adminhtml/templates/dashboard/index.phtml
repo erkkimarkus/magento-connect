@@ -17,6 +17,8 @@ $viewModel = $block->getData('view_model');
 
 $verdict = $viewModel->getVerdict();
 $failed = $viewModel->getFailedLast24h();
+$engineRefused = $viewModel->isEngineRefused();
+$engineDown = $viewModel->isEngineDown();
 
 $urls = [
     'wizard' => $block->getUrl('smaily_connect/wizard'),
@@ -43,13 +45,13 @@ $sourceLabels = [
 if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCOMPLETE) {
     $verdictKicker = __('Setup incomplete');
     $verdictText = __('Setup is not finished yet — complete the setup wizard to start syncing.');
-} elseif ($viewModel->isEngineRejected()) {
+} elseif ($engineRefused) {
     $verdictKicker = __('Needs attention');
-    $verdictText = __('Your Campaign Intelligence account is not active on the Smaily side, so nothing is being sent to it. Smaily emails are unaffected. Contact Smaily to reactivate it.');
+    $verdictText = __('Campaign Intelligence has stopped accepting data from this store, so product, customer and order data is no longer being sent and recommendations will go stale. Waiting will not fix it — the account has to be made active again on the Smaily side. Your Smaily email sending is unaffected; everything queued here waits and is sent once the account is active.');
 } elseif ($failed > 0) {
     $verdictKicker = __('Needs attention');
     $verdictText = __('Smaily Connect is running, but %1 delivery(ies) failed in the last 24 hours.', $failed);
-} elseif ($viewModel->isEngineDown()) {
+} elseif ($engineDown) {
     $verdictKicker = __('Needs attention');
     $verdictText = __('Smaily Connect is running, but Campaign Intelligence is currently unreachable — data is queued locally and will sync when it recovers.');
 } else {
@@ -58,11 +60,8 @@ if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCO
 }
 
 // Connection strip: [label, sub-line, is-on, pill variant, pill label].
-$engineSub = $viewModel->isEngineRejected()
-    ? __('Account not active on the Smaily side')
-    : ($viewModel->isEngineDown()
-        ? __('Currently unreachable')
-        : ($viewModel->isEngineConnected() ? __('Connected (%1)', $viewModel->getEngineTenantName()) : __('Not connected')));
+// The engine row's three strings come from one state (see the view model).
+$engineState = $viewModel->getEngineStateLabels();
 $connections = [
     [
         __('Smaily'),
@@ -73,14 +72,10 @@ $connections = [
     ],
     [
         __('Campaign Intelligence'),
-        $engineSub,
-        $viewModel->isEngineConnected() && !$viewModel->isEngineRejected(),
-        $viewModel->isEngineRejected()
-            ? 'failed'
-            : ($viewModel->isEngineDown() ? 'pending' : ($viewModel->isEngineConnected() ? 'active' : 'off')),
-        $viewModel->isEngineRejected()
-            ? __('Not active')
-            : ($viewModel->isEngineDown() ? __('Unreachable') : ($viewModel->isEngineConnected() ? __('On') : __('Off'))),
+        $engineState['sub'],
+        $viewModel->isEngineConnected() && !$engineRefused,
+        $engineState['variant'],
+        $engineState['label'],
     ],
     [
         __('Browse tracking'),

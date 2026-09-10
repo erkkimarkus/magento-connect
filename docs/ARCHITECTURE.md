@@ -179,13 +179,16 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   default scope) and clears it on any authenticated call that answers — the
   health-check ping and the admin's "Check again" are the only calls that
   still go out. `Settings::isSendingAllowed()` (`isConnected() && !isRefused()`)
-  is the one gate every SENDING path consults: `Cron/FlushIngestQueue` (per
-  domain, so one refusal ends the run), the engine-bound backfills at
-  `Cron/BackfillTick`'s router, `Controller/Relay/Index`,
-  `Queue\Handler\IdentityMergeHandler`, `Privacy\ProfilingConsent` and
-  `Cron/CatalogResync`. `isConnected()` stays the gate for everything that
-  only enqueues, reads or displays, so live observers keep queueing and the
-  store's history is intact when the account comes back. Rows a refusal met
+  is the one gate every SENDING path consults: `Cron/FlushIngestQueue`,
+  the engine-bound backfills at `Cron/BackfillTick`'s router,
+  `Controller/Relay/Index`, `Queue\Handler\IdentityMergeHandler`,
+  `Privacy\ProfilingConsent` and `Cron/CatalogResync`. The two paths that
+  loop re-ask only its refusal half once connectedness is proved — per domain
+  in the flusher (so one refusal ends the run) and per row in the merge
+  handler — because that is the half a mid-run 403 can change.
+  `isConnected()` stays the gate for everything that only enqueues, reads or
+  displays, so live observers keep queueing and the store's history is intact
+  when the account comes back. Rows a refusal met
   mid-batch go back to pending untouched (`IngestQueue::release()` — never
   burned, never failed, attempt counters intact); the janitor prunes them by
   its normal age rule.

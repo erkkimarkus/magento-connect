@@ -59,8 +59,9 @@ class FlushIngestQueue
     private function flushDomain(string $domain): void
     {
         // Re-asked per domain: a refusal met by the first batch stops the
-        // rest of this run instead of collecting four more 403s.
-        if (!$this->settings->isSendingAllowed()) {
+        // rest of this run instead of collecting four more 403s. Only the
+        // refusal can appear mid-run — execute() proved connectedness.
+        if ($this->settings->isRefused()) {
             return;
         }
 
@@ -88,12 +89,7 @@ class FlushIngestQueue
 
             return;
         } catch (EngineRequestException $exception) {
-            if ($this->settings->isRefused()) {
-                // Not the rows' fault: the account was refused (contract §2),
-                // so they go back to pending exactly as they were and wait
-                // for it to be active again.
-                $this->queue->release($events);
-
+            if ($this->releaseIfRefused($events)) {
                 return;
             }
 
@@ -115,7 +111,7 @@ class FlushIngestQueue
      */
     private function flushCatalogRemove(): void
     {
-        if (!$this->settings->isSendingAllowed()) {
+        if ($this->settings->isRefused()) {
             return;
         }
 
@@ -156,9 +152,7 @@ class FlushIngestQueue
 
             return;
         } catch (EngineRequestException $exception) {
-            if ($this->settings->isRefused()) {
-                $this->queue->release(array_map(static fn (array $pair) => $pair[0], $keyed));
-
+            if ($this->releaseIfRefused(array_map(static fn (array $pair): IngestEvent => $pair[0], $keyed))) {
                 return;
             }
 
@@ -180,6 +174,24 @@ class FlushIngestQueue
                 'rows_tombstoned' => (int)($response['rows_tombstoned'] ?? 0),
             ]));
         }
+    }
+
+    /**
+     * A 4xx met while the account is refused is not the rows' fault
+     * (contract §2): they go back to pending exactly as they were and wait
+     * for the account to be active again. True when they were released.
+     *
+     * @param IngestEvent[] $events
+     */
+    private function releaseIfRefused(array $events): bool
+    {
+        if (!$this->settings->isRefused()) {
+            return false;
+        }
+
+        $this->queue->release($events);
+
+        return true;
     }
 
     /**

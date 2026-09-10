@@ -112,10 +112,11 @@ class HealthCheck
             return;
         }
 
+        // The same sentence pair the admin surfaces carry, said once.
         $this->notifier->addMajor(
-            (string)__('Your Smaily Campaign Intelligence account is not active'),
+            (string)__('Your Campaign Intelligence account is not active'),
             (string)__(
-                'Campaign Intelligence has stopped accepting data from this store, so no catalog, customer or order data is being sent. Waiting will not fix it — contact Smaily to reactivate the account. Nothing is lost meanwhile: queued data waits, and sending resumes once the account is active again.'
+                'Campaign Intelligence has stopped accepting data from this store, so product, customer and order data is no longer being sent and recommendations will go stale. Waiting will not fix it — the account has to be made active again on the Smaily side. Your Smaily email sending is unaffected; everything queued here waits and is sent once the account is active.'
             )
         );
         $this->flagManager->saveFlag(self::FLAG_TENANT_INACTIVE_NOTIFIED, 1);

@@ -33,10 +33,14 @@ class IdentityMergeHandler implements EventHandlerInterface
     public function handle(array $events): array
     {
         $results = [];
+        // Connectedness cannot change under us mid-batch; a refusal can (a
+        // 403 on one row stops the rest), so only that half is re-asked.
+        $connected = $this->settings->isConnected();
         foreach ($events as $event) {
             $id = (int)$event->getId();
-            if (!$this->settings->isSendingAllowed()) {
-                $results[$id] = $this->settings->isRefused()
+            $refused = $this->settings->isRefused();
+            if (!$connected || $refused) {
+                $results[$id] = $refused
                     ? 'Campaign Intelligence account is not active'
                     : 'Campaign Intelligence is not connected';
                 continue;

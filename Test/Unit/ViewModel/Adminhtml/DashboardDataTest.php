@@ -27,7 +27,7 @@ class DashboardDataTest extends TestCase
     {
         $viewModel = $this->createViewModel(true);
 
-        self::assertTrue($viewModel->isEngineRejected());
+        self::assertTrue($viewModel->isEngineRefused());
         self::assertSame(DashboardData::VERDICT_DEGRADED, $viewModel->getVerdict());
     }
 
@@ -35,7 +35,7 @@ class DashboardDataTest extends TestCase
     {
         $viewModel = $this->createViewModel(false);
 
-        self::assertFalse($viewModel->isEngineRejected());
+        self::assertFalse($viewModel->isEngineRefused());
         self::assertSame(DashboardData::VERDICT_OK, $viewModel->getVerdict());
     }
 

@@ -29,6 +29,8 @@ class DashboardData implements ArgumentInterface
     public const VERDICT_OK = 'ok';
 
     private ?int $failed24h = null;
+    private ?bool $engineRefused = null;
+    private ?bool $engineDown = null;
 
     public function __construct(
         private readonly Config $config,
@@ -73,11 +75,11 @@ class DashboardData implements ArgumentInterface
     /**
      * Whether Campaign Intelligence has refused this account outright
      * (contract §2) — a verdict, not an outage, so the dashboard must not
-     * report it as one (PRO-2451).
+     * report it as one (PRO-2451). Same name, same meaning as on WizardData.
      */
-    public function isEngineRejected(): bool
+    public function isEngineRefused(): bool
     {
-        return $this->isEngineConnected() && $this->engineSettings->isRefused();
+        return $this->engineRefused ??= $this->engineSettings->isRefused();
     }
 
     /**
@@ -85,8 +87,46 @@ class DashboardData implements ArgumentInterface
      */
     public function isEngineDown(): bool
     {
-        return $this->isEngineConnected()
+        return $this->engineDown ??= $this->isEngineConnected()
             && (int)$this->flagManager->getFlagData(HealthCheck::FLAG_ENGINE_DOWN_SINCE) > 0;
+    }
+
+    /**
+     * The dashboard connection strip's Campaign Intelligence row — sub-line,
+     * pill variant and pill label. All three are read off one engine state,
+     * so they can never tell three different stories.
+     *
+     * @return array{sub: string, variant: string, label: string}
+     */
+    public function getEngineStateLabels(): array
+    {
+        if ($this->isEngineRefused()) {
+            return [
+                'sub' => (string)__('Account not active on the Smaily side'),
+                'variant' => 'failed',
+                'label' => (string)__('Not active'),
+            ];
+        }
+        if ($this->isEngineDown()) {
+            return [
+                'sub' => (string)__('Currently unreachable'),
+                'variant' => 'pending',
+                'label' => (string)__('Unreachable'),
+            ];
+        }
+        if ($this->isEngineConnected()) {
+            return [
+                'sub' => (string)__('Connected (%1)', $this->getEngineTenantName()),
+                'variant' => 'active',
+                'label' => (string)__('On'),
+            ];
+        }
+
+        return [
+            'sub' => (string)__('Not connected'),
+            'variant' => 'off',
+            'label' => (string)__('Off'),
+        ];
     }
 
     public function getFailedLast24h(): int
@@ -106,7 +146,7 @@ class DashboardData implements ArgumentInterface
         if (!$this->isSetupCompleted()) {
             return self::VERDICT_INCOMPLETE;
         }
-        if ($this->isEngineRejected() || $this->getFailedLast24h() > 0 || $this->isEngineDown()) {
+        if ($this->isEngineRefused() || $this->getFailedLast24h() > 0 || $this->isEngineDown()) {
             return self::VERDICT_DEGRADED;
         }
 

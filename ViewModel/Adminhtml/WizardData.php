@@ -25,6 +25,7 @@ use Smaily\Connect\Model\ContactSync\Mode;
 use Smaily\Connect\Model\Engine\Settings as EngineSettings;
 use Smaily\Connect\Model\Multilingual\AccountResolver;
 use Smaily\Connect\Model\ResourceModel\Automation\Mapping\CollectionFactory as MappingCollectionFactory;
+use Smaily\Connect\Model\SmailyUrl;
 
 /**
  * Boot data for the native setup wizard AND the tabbed settings page (both
@@ -180,7 +181,7 @@ class WizardData implements ArgumentInterface
     {
         $subdomain = $this->config->getSubdomain($this->websiteContext->getStoreId());
 
-        return $subdomain === '' ? 'https://smaily.com' : 'https://' . $subdomain . '.sendsmaily.net';
+        return $subdomain === '' ? 'https://smaily.com' : SmailyUrl::forSubdomain($subdomain);
     }
 
     /**

@@ -168,10 +168,11 @@ class IngestQueue
      */
     public function release(array $events): void
     {
-        $ids = array_map(static fn (IngestEvent $event): int => (int)$event->getId(), $events);
-        if (!$ids) {
+        if (!$events) {
             return;
         }
+
+        $ids = array_map(static fn (IngestEvent $event): int => (int)$event->getId(), $events);
 
         $connection = $this->resourceConnection->getConnection();
         $connection->update(

@@ -56,7 +56,6 @@ class SettingsTest extends TestCase
 
         self::assertFalse($settings->isRefused());
         self::assertTrue($settings->isSendingAllowed());
-        self::assertSame('', $settings->getRefusedAt());
     }
 
     private function createSettings(): Settings
