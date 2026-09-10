@@ -14,6 +14,7 @@ use Magento\Framework\Exception\AlreadyExistsException;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Smaily\Connect\Model\Logger\Logger;
+use Smaily\Connect\Model\Privacy\PayloadAnonymizer;
 use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 use Smaily\Connect\Model\ResourceModel\Queue\Event\CollectionFactory;
 
@@ -224,6 +225,10 @@ class EventQueue
     /**
      * Reset failed events back to pending (admin manual retry).
      *
+     * A row anonymised by an Art. 17 erasure (PRO-2452) is skipped: it no
+     * longer holds a recipient, so retrying it would put the placeholder on
+     * the wire.
+     *
      * @param int[] $ids
      * @return int number of rows reset
      */
@@ -245,6 +250,7 @@ class EventQueue
             [
                 'id IN (?)' => array_map('intval', $ids),
                 'status = ?' => Event::STATUS_FAILED,
+                'entity_id IS NULL OR entity_id != ?' => PayloadAnonymizer::ERASED_PLACEHOLDER,
             ]
         );
     }

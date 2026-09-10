@@ -14,6 +14,7 @@ use Magento\Framework\Exception\AlreadyExistsException;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Smaily\Connect\Model\Logger\Logger;
+use Smaily\Connect\Model\Privacy\PayloadAnonymizer;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent\CollectionFactory;
 
@@ -220,6 +221,10 @@ class IngestQueue
     /**
      * Reset failed events back to pending (admin manual retry).
      *
+     * A row anonymised by an Art. 17 erasure (PRO-2452) is skipped: it no
+     * longer holds a recipient, so retrying it would put the placeholder on
+     * the wire.
+     *
      * @param int[] $ids
      */
     public function retry(array $ids): int
@@ -240,6 +245,7 @@ class IngestQueue
             [
                 'id IN (?)' => array_map('intval', $ids),
                 'status = ?' => IngestEvent::STATUS_FAILED,
+                'entity_id IS NULL OR entity_id != ?' => PayloadAnonymizer::ERASED_PLACEHOLDER,
             ]
         );
     }
