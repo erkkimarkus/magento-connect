@@ -310,11 +310,25 @@ class Client
             try {
                 $response = $httpClient->request($method, $url, $options);
                 $this->checkEngineVersion($response->getHeaderLine('X-Engine-Version'));
+                if ($authenticated) {
+                    // The account answered, so a remembered refusal is over
+                    // (PRO-2451). Cleared here for the same reason it is
+                    // recorded here: this is the one place every engine call
+                    // passes through, so no caller can forget either half.
+                    $this->settings->clearRefusal();
+                }
 
                 return $this->decode((string)$response->getBody());
             } catch (BadResponseException $exception) {
                 $status = $exception->getResponse()->getStatusCode();
                 $errorBody = $this->decodeSafely((string)$exception->getResponse()->getBody());
+
+                if ($status === 403 && ($errorBody['error'] ?? '') === 'tenant_inactive') {
+                    // Contract §2: the key is valid, the account is not.
+                    // Remembered as connection state so every send path can
+                    // stop asking — retries cannot clear it, only Smaily can.
+                    $this->settings->recordRefusal();
+                }
 
                 if ($status !== 429 && $status < 500) {
                     throw new EngineRequestException(

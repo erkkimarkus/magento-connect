@@ -104,7 +104,7 @@ class ProfilingConsent
             ]);
         }
 
-        if ($this->engineSettings->isConnected()) {
+        if ($this->engineSettings->isSendingAllowed()) {
             try {
                 $this->engineClient->customerOptOut($email, !$allowed, 'user_preference', $timestamp);
             } catch (EngineException $exception) {

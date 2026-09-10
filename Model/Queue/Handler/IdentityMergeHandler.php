@@ -35,8 +35,10 @@ class IdentityMergeHandler implements EventHandlerInterface
         $results = [];
         foreach ($events as $event) {
             $id = (int)$event->getId();
-            if (!$this->settings->isConnected()) {
-                $results[$id] = 'Campaign Intelligence is not connected';
+            if (!$this->settings->isSendingAllowed()) {
+                $results[$id] = $this->settings->isRefused()
+                    ? 'Campaign Intelligence account is not active'
+                    : 'Campaign Intelligence is not connected';
                 continue;
             }
 

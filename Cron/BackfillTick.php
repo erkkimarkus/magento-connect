@@ -11,6 +11,7 @@ namespace Smaily\Connect\Cron;
 use Smaily\Connect\Model\Backfill\Job;
 use Smaily\Connect\Model\Backfill\JobManager;
 use Smaily\Connect\Model\Backfill\ProcessorInterface;
+use Smaily\Connect\Model\Engine\Settings as EngineSettings;
 use Smaily\Connect\Model\Logger\Logger;
 
 /**
@@ -24,6 +25,7 @@ class BackfillTick
      */
     public function __construct(
         private readonly JobManager $jobManager,
+        private readonly EngineSettings $engineSettings,
         private readonly Logger $logger,
         private readonly array $processors = []
     ) {
@@ -33,6 +35,12 @@ class BackfillTick
     {
         $job = $this->jobManager->nextActive();
         if ($job === null) {
+            return;
+        }
+
+        if ($job->getTarget() === Job::TARGET_ENGINE && $this->engineSettings->isRefused()) {
+            $this->stopEngineJob($job);
+
             return;
         }
 
@@ -63,5 +71,30 @@ class BackfillTick
                 'failed' => $job->getFailedCount(),
             ]);
         }
+    }
+
+    /**
+     * The one gate every engine-bound import passes when the account has been
+     * refused (contract §2) — catalog / customers / orders share this router,
+     * so the gate lives here rather than three times over.
+     * A job that never started completes having queued nothing, its total 0
+     * rather than a count promising a sync that will not happen; one caught
+     * mid-import is stopped at this page boundary like an admin cancel,
+     * keeping the total and the progress it really achieved — the same
+     * treatment the contacts import gets when its switch goes off (PRO-1764).
+     */
+    private function stopEngineJob(Job $job): void
+    {
+        if ($job->getData('total_count') === null) {
+            $job->setData('total_count', 0);
+            $this->jobManager->complete($job);
+        } else {
+            $this->jobManager->cancel($job);
+        }
+
+        $this->logger->info('Backfill job stopped: the Campaign Intelligence account is not active', [
+            'job_id' => $job->getId(),
+            'type' => sprintf('%s:%s', $job->getJobType(), $job->getTarget()),
+        ]);
     }
 }

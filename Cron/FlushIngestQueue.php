@@ -43,7 +43,7 @@ class FlushIngestQueue
 
     public function execute(): void
     {
-        if (!$this->settings->isConnected()) {
+        if (!$this->settings->isSendingAllowed()) {
             return;
         }
 
@@ -58,6 +58,12 @@ class FlushIngestQueue
 
     private function flushDomain(string $domain): void
     {
+        // Re-asked per domain: a refusal met by the first batch stops the
+        // rest of this run instead of collecting four more 403s.
+        if (!$this->settings->isSendingAllowed()) {
+            return;
+        }
+
         $events = $this->queue->claimBatch($domain, Client::DOMAIN_BATCH_LIMITS[$domain]);
         if (!$events) {
             return;
@@ -82,6 +88,15 @@ class FlushIngestQueue
 
             return;
         } catch (EngineRequestException $exception) {
+            if ($this->settings->isRefused()) {
+                // Not the rows' fault: the account was refused (contract §2),
+                // so they go back to pending exactly as they were and wait
+                // for it to be active again.
+                $this->queue->release($events);
+
+                return;
+            }
+
             // Whole-batch 4xx: the request shape is wrong; retrying the same
             // rows cannot succeed.
             foreach ($events as $event) {
@@ -100,6 +115,10 @@ class FlushIngestQueue
      */
     private function flushCatalogRemove(): void
     {
+        if (!$this->settings->isSendingAllowed()) {
+            return;
+        }
+
         $events = $this->queue->claimBatch(Client::DOMAIN_CATALOG_REMOVE, Client::CATALOG_REMOVE_BATCH_LIMIT);
         if (!$events) {
             return;
@@ -137,6 +156,12 @@ class FlushIngestQueue
 
             return;
         } catch (EngineRequestException $exception) {
+            if ($this->settings->isRefused()) {
+                $this->queue->release(array_map(static fn (array $pair) => $pair[0], $keyed));
+
+                return;
+            }
+
             // 4xx is terminal: a malformed wrapper cannot improve by
             // resending, and a 404 means the engine predates §3b — the
             // periodic full re-sync stays the reconciler either way.

@@ -13,6 +13,7 @@ use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\App\Config\Storage\WriterInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Framework\Serialize\Serializer\Json;
+use Magento\Framework\Stdlib\DateTime\DateTime;
 
 /**
  * Campaign Intelligence tenant settings, stored at default scope (one engine
@@ -33,18 +34,84 @@ class Settings
     public const XML_PATH_ISSUED_AT = 'smaily_connect/intelligence/issued_at';
     public const XML_PATH_BROWSE_TRACKING = 'smaily_connect/intelligence/browse_tracking';
 
+    /**
+     * The engine refused this account outright — contract §2 `403
+     * tenant_inactive`: the API key is valid, the account is not (operator
+     * suspension or a GDPR purge; the wire never tells the two apart, and the
+     * plugin's reaction is the same either way). Holds the FIRST refusal's
+     * GMT timestamp, so the merchant can be told when sending stopped.
+     */
+    public const XML_PATH_REFUSED_AT = 'smaily_connect/intelligence/refused_at';
+
+    /** In-request memo: a refusal recorded mid-run must stop the rest of it. */
+    private ?bool $refused = null;
+
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig,
         private readonly WriterInterface $configWriter,
         private readonly EncryptorInterface $encryptor,
         private readonly TypeListInterface $cacheTypeList,
-        private readonly Json $serializer
+        private readonly Json $serializer,
+        private readonly DateTime $dateTime
     ) {
     }
 
     public function isConnected(): bool
     {
         return $this->scopeConfig->isSetFlag(self::XML_PATH_CONNECTED) && $this->getApiKey() !== '';
+    }
+
+    /**
+     * Has the engine refused this account outright? Recorded by Engine\Client
+     * on a `403 tenant_inactive`, cleared by the next authenticated call that
+     * succeeds (the health-check ping, or the admin's "Check again").
+     */
+    public function isRefused(): bool
+    {
+        return $this->refused ??= $this->getRefusedAt() !== '';
+    }
+
+    /** GMT timestamp of the FIRST refusal, empty when not refused. */
+    public function getRefusedAt(): string
+    {
+        return (string)$this->scopeConfig->getValue(self::XML_PATH_REFUSED_AT);
+    }
+
+    /**
+     * The gate every SENDING path consults (PRO-2451, Woo PRO-1893 parity):
+     * connected AND not refused. isConnected() stays the gate for everything
+     * that only enqueues, reads or displays — queued rows wait for the
+     * account to come back, they are never burned on a verdict.
+     */
+    public function isSendingAllowed(): bool
+    {
+        return $this->isConnected() && !$this->isRefused();
+    }
+
+    /**
+     * Remember the refusal. Keeps the first timestamp: the merchant wants to
+     * know when sending stopped, not when it was last attempted.
+     */
+    public function recordRefusal(): void
+    {
+        if ($this->isRefused()) {
+            return;
+        }
+
+        $this->configWriter->save(self::XML_PATH_REFUSED_AT, $this->dateTime->gmtDate());
+        $this->refused = true;
+        $this->cleanConfigCache();
+    }
+
+    public function clearRefusal(): void
+    {
+        if (!$this->isRefused()) {
+            return;
+        }
+
+        $this->configWriter->delete(self::XML_PATH_REFUSED_AT);
+        $this->refused = false;
+        $this->cleanConfigCache();
     }
 
     public function getTenantId(): string
@@ -135,6 +202,10 @@ class Settings
         );
         $this->configWriter->save(self::XML_PATH_ISSUED_AT, (string)($response['issued_at'] ?? ''));
         $this->configWriter->save(self::XML_PATH_CONNECTED, '1');
+        // A fresh exchange is a live account by definition — and possibly a
+        // different one, so a remembered refusal must not survive it.
+        $this->configWriter->delete(self::XML_PATH_REFUSED_AT);
+        $this->refused = false;
 
         $this->cleanConfigCache();
     }
@@ -154,9 +225,11 @@ class Settings
             self::XML_PATH_ENDPOINTS,
             self::XML_PATH_CONFIG,
             self::XML_PATH_ISSUED_AT,
+            self::XML_PATH_REFUSED_AT,
         ] as $path) {
             $this->configWriter->delete($path);
         }
+        $this->refused = false;
 
         $this->cleanConfigCache();
     }

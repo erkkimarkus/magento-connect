@@ -158,6 +158,32 @@ class IngestQueue
         );
     }
 
+    /**
+     * Hand claimed rows straight back to pending — attempts, backoff and
+     * error untouched. Used when the batch was never at fault: a refused
+     * account (contract §2 `403 tenant_inactive`) stops sending until the
+     * account is live again, and its rows wait in line for that (PRO-2451).
+     *
+     * @param IngestEvent[] $events
+     */
+    public function release(array $events): void
+    {
+        $ids = array_map(static fn (IngestEvent $event): int => (int)$event->getId(), $events);
+        if (!$ids) {
+            return;
+        }
+
+        $connection = $this->resourceConnection->getConnection();
+        $connection->update(
+            $this->resourceConnection->getTableName(IngestEventResource::TABLE_NAME),
+            ['status' => IngestEvent::STATUS_PENDING, 'claim_token' => null],
+            ['id IN (?)' => $ids]
+        );
+        foreach ($events as $event) {
+            $event->setData('status', IngestEvent::STATUS_PENDING);
+        }
+    }
+
     public function markSent(IngestEvent $event, ?string $response = null): void
     {
         $event->addData([

@@ -31,6 +31,7 @@ class HealthCheck
 {
     public const FLAG_ENGINE_DOWN_SINCE = 'smaily_connect_engine_down_since';
     public const FLAG_ENGINE_NOTIFIED = 'smaily_connect_engine_down_notified';
+    private const FLAG_TENANT_INACTIVE_NOTIFIED = 'smaily_connect_engine_tenant_inactive_notified';
     private const FLAG_FAILURES_NOTIFIED_AT = 'smaily_connect_failures_notified_at';
 
     private const ENGINE_DOWN_NOTIFY_SECONDS = 3600;
@@ -60,10 +61,19 @@ class HealthCheck
         }
 
         try {
+            // The ping is also the re-check that clears a remembered refusal:
+            // Engine\Client clears it on any authenticated call that answers.
             $this->client->ping();
             $this->flagManager->deleteFlag(self::FLAG_ENGINE_DOWN_SINCE);
             $this->flagManager->deleteFlag(self::FLAG_ENGINE_NOTIFIED);
+            $this->flagManager->deleteFlag(self::FLAG_TENANT_INACTIVE_NOTIFIED);
         } catch (EngineException $exception) {
+            if ($this->settings->isRefused()) {
+                $this->notifyTenantInactive();
+
+                return;
+            }
+
             $now = $this->dateTime->gmtTimestamp();
             $downSince = (int)$this->flagManager->getFlagData(self::FLAG_ENGINE_DOWN_SINCE);
             if ($downSince === 0) {
@@ -85,6 +95,33 @@ class HealthCheck
                 $this->logger->error('Engine down for over an hour', ['error' => $exception->getMessage()]);
             }
         }
+    }
+
+    /**
+     * A deactivated account is a verdict, not an outage — the engine answers
+     * fine, waiting changes nothing and only Smaily can lift it. So the
+     * engine-down clock is dropped and the notice promises no recovery
+     * (PRO-2451; the misleading "will sync when it recovers" wording is what
+     * PRO-1953 recorded). Once per incident, like the down notice.
+     */
+    private function notifyTenantInactive(): void
+    {
+        $this->flagManager->deleteFlag(self::FLAG_ENGINE_DOWN_SINCE);
+        $this->flagManager->deleteFlag(self::FLAG_ENGINE_NOTIFIED);
+        if ((bool)$this->flagManager->getFlagData(self::FLAG_TENANT_INACTIVE_NOTIFIED)) {
+            return;
+        }
+
+        $this->notifier->addMajor(
+            (string)__('Your Smaily Campaign Intelligence account is not active'),
+            (string)__(
+                'Campaign Intelligence has stopped accepting data from this store, so no catalog, customer or order data is being sent. Waiting will not fix it — contact Smaily to reactivate the account. Nothing is lost meanwhile: queued data waits, and sending resumes once the account is active again.'
+            )
+        );
+        $this->flagManager->saveFlag(self::FLAG_TENANT_INACTIVE_NOTIFIED, 1);
+        $this->logger->error('Campaign Intelligence account is not active', [
+            'refused_at' => $this->settings->getRefusedAt(),
+        ]);
     }
 
     private function checkFailureVolume(): void

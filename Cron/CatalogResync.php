@@ -36,7 +36,7 @@ class CatalogResync
 
     public function execute(): void
     {
-        if (!$this->settings->isConnected()) {
+        if (!$this->settings->isSendingAllowed()) {
             return;
         }
 

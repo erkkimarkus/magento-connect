@@ -54,7 +54,9 @@ class Index implements HttpPostActionInterface, CsrfAwareActionInterface
     {
         $result = $this->jsonFactory->create();
 
-        if (!$this->settings->isBrowseTrackingEnabled()) {
+        // A refused account (contract §2) receives nothing, so the beacon is
+        // answered exactly like a store with tracking switched off.
+        if (!$this->settings->isBrowseTrackingEnabled() || !$this->settings->isSendingAllowed()) {
             $result->setHttpResponseCode(404);
 
             return $result->setData(['ok' => false]);
