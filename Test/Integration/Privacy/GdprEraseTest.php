@@ -88,7 +88,7 @@ class GdprEraseTest extends IntegrationTestCase
             [
                 self::QUEUE_LABEL => ['removed' => 2, 'anonymised' => 1],
                 self::ENGINE_LABEL => ['removed' => 1, 'anonymised' => 1],
-                self::CART_LABEL => ['removed' => 1, 'anonymised' => 0],
+                self::CART_LABEL => ['removed' => 0, 'anonymised' => 1],
             ],
             $this->eraser->erase(self::SUBJECT),
             'Sendable rows go, terminal rows are kept anonymised'
@@ -114,9 +114,14 @@ class GdprEraseTest extends IntegrationTestCase
         self::assertSame(Erasure::PLACEHOLDER, $ingest['ing-sent']['last_error']);
         self::assertStringNotContainsString(self::SUBJECT, (string)$ingest['ing-sent']['payload']);
 
-        self::assertSame([], $this->stateManager->rowsForEmail(self::SUBJECT));
+        self::assertSame([], $this->stateManager->rowsForEmail(self::SUBJECT), 'The address is gone');
+        self::assertSame(
+            [StateManager::STATUS_ERASED],
+            $this->cartStatuses(11),
+            'The cart row is kept as an email-less tombstone, never deleted'
+        );
         $carts = $this->stateManager->rowsForEmail(self::BYSTANDER);
-        self::assertCount(1, $carts, 'Only the subject\'s cart row goes');
+        self::assertCount(1, $carts, 'Only the subject\'s cart row is tombstoned');
         self::assertSame('12', (string)$carts[0]['quote_id']);
 
         // Another contact's pending row is untouched, and a second run is a no-op.
@@ -175,7 +180,33 @@ class GdprEraseTest extends IntegrationTestCase
         self::assertSame(0, $tester->getStatusCode());
         self::assertStringContainsString('Queued messages: 1 removed, 1 anonymised', $tester->getDisplay());
         self::assertStringContainsString('Engine queue: 0 removed, 0 anonymised', $tester->getDisplay());
-        self::assertStringContainsString('Abandoned carts: 1 removed, 0 anonymised', $tester->getDisplay());
+        self::assertStringContainsString('Abandoned carts: 0 removed, 1 anonymised', $tester->getDisplay());
+    }
+
+    /**
+     * PRO-2467: the module may not touch the core quote table, so the erasure
+     * leaves a tombstone. If the row went away, a quote that is still active
+     * and idle past the cutoff would look untracked to the next sweep and be
+     * mailed to the address just erased.
+     */
+    public function testAnErasedContactsQuoteIsNeverPickedUpByTheCronAgain(): void
+    {
+        $this->stateManager->markMailed(11, 1, self::SUBJECT);
+        $this->stateManager->markMailed(12, 1, self::BYSTANDER);
+
+        $tester = $this->runCommand(['action' => 'erase', 'email' => self::SUBJECT, '--force' => true]);
+        self::assertSame(0, $tester->getStatusCode());
+
+        // The cron's own gate: quote 11 is still reported as handled, so it
+        // never reaches markMailed()/dispatchAutomation() and no reminder row
+        // is ever enqueued for it.
+        self::assertSame(
+            [11, 12],
+            $this->stateManager->filterAlreadyHandled([11, 12]),
+            'The tombstoned quote stays out of the candidate set'
+        );
+        self::assertSame([StateManager::STATUS_ERASED], $this->cartStatuses(11));
+        self::assertSame([], $this->fetchAll(EventResource::TABLE_NAME), 'Nothing was enqueued');
     }
 
     public function testAFailingEngineStillLeavesTheLocalHalfErased(): void
@@ -229,6 +260,18 @@ class GdprEraseTest extends IntegrationTestCase
 
         self::assertSame(0, $this->eventQueue->retry([$id]));
         self::assertSame(Event::STATUS_FAILED, $this->fetchRow(EventResource::TABLE_NAME, $id)['status']);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function cartStatuses(int $quoteId): array
+    {
+        return $this->connection->fetchCol(
+            $this->connection->select()
+                ->from($this->connection->getTableName('smaily_abandoned_cart'), ['status'])
+                ->where('quote_id = ?', $quoteId)
+        );
     }
 
     private function seedContactSync(string $email, string $uuid): void

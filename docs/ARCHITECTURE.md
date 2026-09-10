@@ -251,7 +251,21 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   the pair the retention sweep prunes — and the cart rows go through
   `Model\AbandonedCart\StateManager`, their only owner. Both `retry()`
   methods skip a row carrying `Model\Privacy\Erasure::PLACEHOLDER` —
-  reviving one would put the placeholder on the wire. Counts and exported
+  reviving one would put the placeholder on the wire.
+  **A cart row is always ANONYMISED, never deleted (PRO-2467)**, whatever
+  its status: it is not a message but the marker saying this quote has been
+  handled, and the module may not touch the core `quote` table. Delete it
+  and a quote that is still active and idle past the cutoff (a merchant who
+  ran only `smaily:gdpr erase`, not Magento's own customer deletion) looks
+  untracked to the next sweep and is mailed to the address just erased. What
+  stays is an email-less tombstone — `email` NULL, status
+  `StateManager::STATUS_ERASED` — which `filterAlreadyHandled()` covers like
+  any other terminal status, so `Cron\AbandonedCart` neither mails that
+  quote nor tracks it afresh, and `wasReminded()` reads false so the
+  PRO-2453 purchase marker never fires for an erased contact either. The
+  tombstone carries no special retention. The export lists cart rows by
+  address, so a tombstone is by construction unlisted — there is no address
+  left to match, and the row holds nothing else personal. Counts and exported
   rows come back under merchant-facing labels (Queued messages, Engine
   queue, Abandoned carts), which is what the CLI prints.
   `smaily_order_attribution` is deliberately untouched: it holds only
@@ -264,7 +278,7 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
 |---|---|
 | `smaily_event_queue` | Marketing event queue |
 | `smaily_ingest_queue` | Engine ingest queue |
-| `smaily_abandoned_cart` | Per-quote send state + checkout opt-in flag (the core `quote` table is never altered) |
+| `smaily_abandoned_cart` | Per-quote send state (`open`/`mailed`/`completed`/`expired`/`erased`) + checkout opt-in flag (the core `quote` table is never altered) |
 | `smaily_automation_mapping` | (website, trigger, language, account) → workflow |
 | `smaily_backfill_job` | Chunked import jobs (cursor-resumable) |
 | `smaily_order_attribution` | Recommendation attribution per order (sales connection) |
@@ -336,8 +350,9 @@ the merchant's workflow exit condition compared against
 `Y-m-d H:i:s` shape — the two must sort against each other. The row carries
 the address and that one field only: the reminder's cart and product fields
 are never rewritten. The status IS the scope guard — a quote the extension
-never tracked as abandoned (no row, or a checkout-optin-only `open` row)
-sends nothing, so an ordinary purchase never creates a contact.
+never tracked as abandoned (no row, a checkout-optin-only `open` row, or an
+erased tombstone) sends nothing, so an ordinary purchase never creates a
+contact.
 
 ### Attribution (FPC-safe by construction)
 

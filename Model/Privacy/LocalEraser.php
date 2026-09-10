@@ -35,6 +35,12 @@ use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
  *   automation row IS the address, and is the Log grid's Entity column),
  *   the queued payload, the payload as sent, the last response and the last
  *   error.
+ * - **An abandoned-cart row is ALWAYS anonymised**, whatever its status
+ *   (PRO-2467). It is not a message; it is the marker saying this quote has
+ *   been handled, and the module may not touch the core `quote` table. Take
+ *   the row away and a still-active idle quote is picked up by the next
+ *   sweep and mailed to the address just erased, so what stays behind is an
+ *   email-less tombstone with status `erased`.
  *
  * Rows are found by decoding, never by searching the raw JSON text — see
  * PayloadAnonymizer. Erasure is idempotent by construction: an anonymised
@@ -114,8 +120,8 @@ class LocalEraser
             $counts[self::LABELS[$table]] = $this->eraseQueue($table, $email);
         }
         $counts[self::ABANDONED_CART_LABEL] = [
-            'removed' => $this->cartState->deleteForEmail($email),
-            'anonymised' => 0,
+            'removed' => 0,
+            'anonymised' => $this->cartState->anonymizeForEmail($email),
         ];
 
         return $counts;

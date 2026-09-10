@@ -477,14 +477,18 @@ panel — you do not have to keep the page open:
   **anonymised and kept**, so you keep your own record that you messaged
   this person: the row keeps its type, status, attempts and timestamps, and
   its Entity, payload, response and error all read `[erased]`. Such a row
-  can no longer be retried from the Log. The contact's abandoned-cart row is
-  deleted.
+  can no longer be retried from the Log. The contact's abandoned-cart record
+  is **anonymised and kept**: the address is removed and the record is marked
+  erased, but the record itself stays, because it is what tells the extension
+  that this cart has already been dealt with — remove it and a cart that is
+  still sitting in the store would be picked up as a fresh abandoned cart and
+  a reminder sent to the address you just erased.
 - **What it prints.** One line per place it reached, then the engine:
 
   ```
   Queued messages: 1 removed, 1 anonymised
   Engine queue: 1 removed, 0 anonymised
-  Abandoned carts: 1 removed, 0 anonymised
+  Abandoned carts: 0 removed, 1 anonymised
   Erased engine data for shopper@example.com.
   ```
 

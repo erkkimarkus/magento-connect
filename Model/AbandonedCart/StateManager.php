@@ -16,7 +16,8 @@ use Magento\Framework\Stdlib\DateTime\DateTime;
  * connection; the core quote table is never altered).
  *
  * Statuses: open (tracked), mailed (automation fired), completed (order
- * placed), expired (aged out unmailed).
+ * placed), expired (aged out unmailed), erased (Art. 17 tombstone — the
+ * row is kept, email-less, so the quote is never picked up again).
  */
 class StateManager
 {
@@ -24,6 +25,7 @@ class StateManager
     public const STATUS_MAILED = 'mailed';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_EXPIRED = 'expired';
+    public const STATUS_ERASED = 'erased';
 
     private const TABLE_NAME = 'smaily_abandoned_cart';
     private const CONNECTION = 'checkout';
@@ -119,7 +121,8 @@ class StateManager
     }
 
     /**
-     * Quote IDs that must not be (re)mailed: already mailed, completed or expired.
+     * Quote IDs that must not be (re)mailed: already mailed, completed,
+     * expired, or tombstoned by an erasure.
      *
      * @param int[] $quoteIds
      * @return int[]
@@ -134,20 +137,36 @@ class StateManager
         $select = $connection->select()
             ->from($this->table(), ['quote_id'])
             ->where('quote_id IN (?)', array_map('intval', $quoteIds))
-            ->where('status IN (?)', [self::STATUS_MAILED, self::STATUS_COMPLETED, self::STATUS_EXPIRED]);
+            ->where('status IN (?)', [
+                self::STATUS_MAILED,
+                self::STATUS_COMPLETED,
+                self::STATUS_EXPIRED,
+                self::STATUS_ERASED,
+            ]);
 
         return array_map('intval', $connection->fetchCol($select));
     }
 
     /**
-     * Delete every tracked cart for a contact (Art. 17 erasure). The address
-     * is expected already lowercased.
+     * Turn every tracked cart of a contact into an email-less tombstone
+     * (Art. 17 erasure). The address is expected already lowercased.
+     *
+     * The row is anonymised, never deleted (PRO-2467): the row IS the
+     * "already handled" marker, and the module must not touch the core
+     * `quote` table, so deleting it would let a still-active idle quote be
+     * picked up again and mailed to the erased address. `erased` is a
+     * terminal status like `completed` — filterAlreadyHandled() covers it,
+     * so the cron neither mails the quote nor tracks it afresh.
      */
-    public function deleteForEmail(string $email): int
+    public function anonymizeForEmail(string $email): int
     {
         $connection = $this->resourceConnection->getConnection(self::CONNECTION);
 
-        return $connection->delete($this->table(), ['LOWER(email) = ?' => $email]);
+        return $connection->update(
+            $this->table(),
+            ['email' => null, 'status' => self::STATUS_ERASED],
+            ['LOWER(email) = ?' => $email]
+        );
     }
 
     /**

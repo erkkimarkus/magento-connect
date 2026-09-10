@@ -20,8 +20,54 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   widget) is 3.1. **Erkki's decision: the wave ships BEFORE 3.0.0 is tagged** —
   the composer publish is irreversible for every 2.8.x install. Queue:
   release gates (PRO-1400 + PRO-1484) → ~~PRO-2451~~ → ~~PRO-2452~~ →
-  ~~PRO-2453~~ → **PRO-2467 next** (the PRO-2452 leftover) → PRO-1748 →
+  ~~PRO-2453~~ → ~~PRO-2467~~ → **PRO-1748 next** (terminology canon) →
   PRO-2454 → release train → PRO-2456.
+
+- **PRO-2467 done — a GDPR erasure leaves an email-less TOMBSTONE on the
+  abandoned-cart tracker instead of deleting the row (PRO-2452 leftover).**
+  PRO-2452 deleted the contact's cart rows, but that row is also the
+  "already handled" marker and the module may not touch the core `quote`
+  table — so a merchant who ran only `smaily:gdpr erase` (not Magento's own
+  customer deletion) left the quote active and idle, and the next
+  abandoned-cart sweep saw an untracked cart and mailed the address just
+  erased.
+  - **What changed.** `StateManager::deleteForEmail()` became
+    `anonymizeForEmail()`: `email` NULL, status the new
+    `StateManager::STATUS_ERASED`. `filterAlreadyHandled()` covers `erased`
+    like any other terminal status, so `Cron\AbandonedCart` neither mails
+    that quote nor tracks it afresh, and `wasReminded()` reads false, so
+    PRO-2453's purchase marker never fires for an erased contact either.
+    `LocalEraser` counts the row under `anonymised` instead of `removed`,
+    which is what the CLI's existing line prints — no new vocabulary, and
+    honest: "Abandoned carts: 0 removed, 1 anonymised". The export is
+    unchanged: it matches cart rows by address and never printed one, so a
+    tombstone is by construction unlisted and there is nothing else
+    personal on the row. No special retention: the janitor's sweep covers
+    only the two queue tables (`Cron\QueueJanitor::TABLES`), so a tombstone
+    ages exactly like every other cart row — which today means it is not
+    pruned by us at all. Flagged as a follow-up, not fixed here.
+  - **Verification — the REAL flow on the sandbox, only the Smaily
+    transport faked; synthetic contact.** A guest quote built through the
+    real cart services, backdated idle, the real `Cron\AbandonedCart` +
+    real flusher sending one reminder; then the REAL `smaily:gdpr erase
+    --force` through `CommandTester` ("Queued messages: 0 removed, 1
+    anonymised / Abandoned carts: 0 removed, 1 anonymised"). The tracker row
+    came back `status=erased email=NULL` while the quote stayed
+    `active=1 items=1` and idle — and a second real cron + flush run
+    enqueued **nothing** and sent **zero** requests. Placing a real order on
+    that same tombstoned quote afterwards produced no purchase marker and no
+    queue row at all.
+  - Gates: 281 unit tests green, phpcs 0 errors, phpstan clean, 79
+    integration tests green (throwaway MySQL — a new case runs the real
+    command against the real tables and then asks the cron's own gate).
+    No constructor changed and no new injectable class, so no
+    `setup:di:compile`; `setup:upgrade` WAS run in the sandbox because
+    `etc/db_schema.xml` changed (the status column's comment now lists
+    `erased`) and the declarative pipeline applied it cleanly. Sandbox
+    restored after both demonstrations — 0 quotes, 0 orders, 0 products, 0
+    queue rows, 0 `smaily%` config rows; the one pre-existing
+    `smaily_abandoned_cart` row (quote 2, from an earlier session) was left
+    as found.
 
 - **PRO-2453 done — a purchase now stops the abandoned-cart follow-ups (Woo
   PRO-1723 parity).** A shopper who bought mid-series was handled only on
@@ -79,7 +125,9 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   - **Erkki's binding decision (2026-09-10):** a row that could still send
     (`pending`, `sending`) is DELETED — not sending is the point — while a
     row that is over (`sent`, `failed`) is ANONYMISED in place and kept for
-    audit; the contact's abandoned-cart row is deleted. It deviates from
+    audit; the contact's abandoned-cart row is ANONYMISED IN PLACE too
+    (corrected by PRO-2467 below — it was deleted, which let the cron
+    re-mail an erased address whose quote still existed). It deviates from
     Woo, which deletes `failed` because its Event Log Retry revives one:
     here both queues' `retry()` skip an anonymised row instead. `export`
     lists the same set, so the two can never disagree; local runs first, so
@@ -101,7 +149,8 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
     `setup:di:compile` run in the sandbox (`GdprCommand` and `LocalEraser`
     both gained a constructor argument). Demonstrated on the sandbox with
     synthetic contacts only: 1 removed + 1 anonymised in the marketing
-    queue, 1 removed in the ingest queue, 1 abandoned-cart row removed, the
+    queue, 1 removed in the ingest queue, 1 abandoned-cart row removed
+    (a tombstone since PRO-2467), the
     anonymised row's four blobs all reading `[erased]`. Sandbox restored —
     all seeded rows deleted, 0 smaily config rows, 0 queue rows, 0 jobs.
 
