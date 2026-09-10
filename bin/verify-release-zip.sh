@@ -68,9 +68,17 @@ require etc/db_schema.xml
 require_glob 'i18n/.+\.csv'
 require_glob 'view/.+'
 
+# The documentation that ships with the code: what it is, what changed, and
+# under which licence. Everything else lives on GitHub (see below).
+require README.md
+require CHANGELOG.md
+require LICENSE.txt
+
 # --- 2. What must never ship ------------------------------------------------
-# The development apparatus, the separately published Hyvä companion and the
-# internal working documents.
+# The development apparatus, the separately published Hyvä companion, the
+# internal working documents and the whole docs/ folder — it vendors the engine
+# contract from a private repository and carries internal audits, so the
+# documentation set is linked on GitHub instead of copied into the package.
 forbid() {
     local label="$1" pattern="$2" hits
     hits="$( grep -E "^${pattern}" "$LIST" | head -3 | tr '\n' ' ' )"
@@ -96,6 +104,7 @@ forbid "docker files"     '(docker-compose.*|Dockerfile)$'
 forbid "working status"   'STATUS\.md$'
 forbid "backlog"          'BACKLOG\.md$'
 forbid "agent guide"      'CLAUDE\.md$'
+forbid "documentation"    'docs/'
 
 # --- 3. The archive states the repo's version -------------------------------
 repo_version="$( php -r 'echo json_decode(file_get_contents($argv[1]), true)["version"] ?? "";' "$ROOT/composer.json" )"

@@ -9,7 +9,8 @@ _Last updated: 2026-09-10 (orchestration session — parity sweep vs
 Woo/Shopify, doc reconcile; release gates PRO-1400 + PRO-1484 verified on a
 clean sandbox install; PRO-2451, PRO-2452, PRO-2453, PRO-2467 landed; the
 3.0.0-rc1 release train ran — PRO-2470 index, version cut, packaging check,
-Marketplace pre-checks)_
+Marketplace pre-checks; release train closed out — the package ships no
+`docs/`, the `composer validate --strict` version warning is accepted)_
 
 ## Where we are
 
@@ -22,10 +23,12 @@ Marketplace pre-checks)_
   widget) is 3.1. **Erkki's decision: the wave ships BEFORE 3.0.0 is tagged** —
   the composer publish is irreversible for every 2.8.x install. Queue:
   release gates (PRO-1400 + PRO-1484) → ~~PRO-2451~~ → ~~PRO-2452~~ →
-  ~~PRO-2453~~ → ~~PRO-2467~~ → ~~release train~~ → **PRO-1748 next**
-  (terminology canon) → PRO-2454 (Event Log "Send again") → PRO-2456 (design
-  fidelity). Erkki-owned doors are unchanged and still shut: PRO-1198 release
-  coordination, PRO-1971 comms, the live engine tenant, the pilot store.
+  ~~PRO-2453~~ → ~~PRO-2467~~ → ~~release train (done — packaging decisions
+  landed)~~ → **PRO-1748 next** (terminology canon) → PRO-2454 (Event Log
+  "Send again") → PRO-2456 (design fidelity). Erkki-owned doors are unchanged
+  and still shut: PRO-1198 release coordination, PRO-1971 comms, the live
+  engine tenant, the pilot store, and the `composer.lock` decision (issue
+  filed today).
 
 - **The 3.0.0-rc1 release train ran (Erkki's four-part decision,
   2026-09-10).** Nothing was published — no tag, no GitHub release, no
@@ -42,8 +45,15 @@ Marketplace pre-checks)_
     command); `bin/verify-release-zip.sh` builds and then proves it, and CI
     runs that on every push (`package` job, artifact kept 5 days). Newly
     excluded: `bin/`, `.claude/`, `CLAUDE.md`, STATUS, BACKLOG and
-    `phpunit.integration.xml.dist`. `docs/` keeps shipping — that was the
-    existing behaviour and it is the right one for a Marketplace reviewer.
+    `phpunit.integration.xml.dist`.
+  - **`docs/` does not ship (Erkki, 2026-09-10)** — it vendors the engine
+    contract from a private repo and carries internal audits; README, CHANGELOG
+    and LICENSE ship, the documentation set lives on GitHub and the shipped
+    README/CHANGELOG link to it by URL (verifier now asserts `docs/` absent).
+  - **`composer validate --strict` stays yellow on the `version` field
+    (Erkki, 2026-09-10)** — accepted item, not a defect: the Marketplace
+    requires the field and `ModuleVersion` reads it, so CI keeps running plain
+    `composer validate`.
   - **Marketplace pre-checks, recorded in `docs/UPSTREAM_PROPOSAL.md` §4.**
     `composer validate` passes; `--strict` flags only the "leave the version
     field out" recommendation, which we keep on purpose (the Marketplace
@@ -56,9 +66,10 @@ Marketplace pre-checks)_
     are named only in `etc/di.xml` plugin declarations, and MSI is
     removable.
   - Gates: 281 unit, phpcs 0 errors, phpstan clean, 79 integration
-    (throwaway MySQL), plus the new packaging check green (344 entries,
-    `php -l` clean on 189 shipped PHP files) and a deliberate negative test
-    — dropping `Test/*` from the exclusion list made it fail, as it must.
+    (throwaway MySQL), plus the packaging check green (330 entries once
+    `docs/` came out, `php -l` clean on 189 shipped PHP files) and a
+    deliberate negative test — dropping `Test/*` from the exclusion list made
+    it fail, as it must.
 
 - **CI green again — PHPStan is capped below 2.2.6 (2026-09-10).** The
   `static` job started failing with dozens of

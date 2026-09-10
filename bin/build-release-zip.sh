@@ -12,9 +12,11 @@
 #
 # What stays out: the development apparatus (tests, CI, sandbox, tooling,
 # static-analysis config), the Hyvä companion (compat/, published as the
-# separate package smaily/module-connect-hyva) and the internal working
-# documents. docs/ ships — the user guide, the architecture notes and the
-# engine contract are part of the deliverable.
+# separate package smaily/module-connect-hyva), the internal working documents
+# and the whole docs/ folder — it carries the engine contract vendored from a
+# private repository and internal audits, so the documentation set lives on
+# GitHub and the package links to it there (Erkki's decision, 2026-09-10).
+# What ships alongside the code: README.md, CHANGELOG.md, LICENSE.txt.
 
 set -euo pipefail
 
@@ -36,6 +38,7 @@ zip -q -r -X "$OUT" . \
        'phpunit.xml.dist' 'phpunit.integration.xml.dist' \
        'composer.lock' '.gitignore' \
        'CONTRIBUTING.md' 'CLAUDE.md' 'STATUS.md' 'BACKLOG.md' \
+       'docs/*' \
        '*.zip' '*.zip.sha256'
 
 echo "$OUT"

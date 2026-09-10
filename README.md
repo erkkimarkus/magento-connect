@@ -50,16 +50,16 @@ Manual install: extract the release ZIP to `app/code/Smaily/Connect` and
 run the same commands.
 
 **Upgrading from 2.8.x?** It's seamless — settings migrate automatically.
-See [docs/UPGRADING.md](docs/UPGRADING.md).
+See [UPGRADING.md](https://github.com/erkkimarkus/magento-connect/blob/v3/docs/UPGRADING.md).
 
 ## Documentation
 
 | | |
 |---|---|
-| [User Guide](docs/USER_GUIDE.md) | Setup, every setting explained, CLI reference, FAQ |
-| [Upgrading](docs/UPGRADING.md) | Migrating from Smaily for Magento 2.8.x |
-| [Architecture](docs/ARCHITECTURE.md) | How the module works inside (for developers) |
-| [Hyvä Support](docs/HYVA_SUPPORT.md) | Hyvä theme compatibility: audit, compat module, verification results |
+| [User Guide](https://github.com/erkkimarkus/magento-connect/blob/v3/docs/USER_GUIDE.md) | Setup, every setting explained, CLI reference, FAQ |
+| [Upgrading](https://github.com/erkkimarkus/magento-connect/blob/v3/docs/UPGRADING.md) | Migrating from Smaily for Magento 2.8.x |
+| [Architecture](https://github.com/erkkimarkus/magento-connect/blob/v3/docs/ARCHITECTURE.md) | How the module works inside (for developers) |
+| [Hyvä Support](https://github.com/erkkimarkus/magento-connect/blob/v3/docs/HYVA_SUPPORT.md) | Hyvä theme compatibility: audit, compat module, verification results |
 | [Testing](TESTING.md) | Test suites, sandbox, upgrade verification |
 | [Contributing](CONTRIBUTING.md) | Development environment and quality gates |
 | [Backlog](BACKLOG.md) | Known deferred work |

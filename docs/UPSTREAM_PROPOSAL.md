@@ -112,7 +112,7 @@ the new name rather than a version bump of the old one. Proposed split:
 | Coding-standard compliance (phpcs, Magento2 ruleset — the Marketplace's own standard) | fork | ✅ clean, enforced in CI |
 | Release packaging — a GitHub release automatically builds the submission ZIP (`.github/workflows/release.yaml`) | fork | ✅ in place, and the package is built + verified on every push |
 | Package manifest — `composer validate`, declared Magento dependencies, `type`/`autoload`/`license` | fork | ✅ checked, see below |
-| Public documentation set (README, User Guide, Upgrading, screenshots for the listing) | fork | ✅ docs done; listing screenshots to be produced at submission |
+| Public documentation set (README, User Guide, Upgrading, screenshots for the listing) | fork | ✅ docs done, published on GitHub (not inside the ZIP — see below); listing screenshots to be produced at submission |
 | Listing copy + name/branding decision ("Smaily Connect") | Smaily | ⏳ Smaily-owned |
 | Marketplace account, submission, EQP review cycle, responding to reviewer feedback | Smaily | ⏳ Smaily-owned (same flow as today's releases — see `.github/pull_request_template.md`) |
 | Decide fate of the existing listing (deprecate in favor of the new one vs. parallel run) | Smaily | ⏳ decision needed |
@@ -122,10 +122,12 @@ from a clean checkout):
 
 - `composer validate` passes. Under `--strict` it reports exactly one general
   warning — "the version field is present, it is recommended to leave it out if
-  the package is published on Packagist" — which is **deliberate and stays**: the
-  Marketplace's packaging guide lists `version` among the required fields, and the
+  the package is published on Packagist". That warning is an **accepted item, not
+  a defect** (Erkki's decision, 2026-09-10): the field stays, because the
+  Marketplace's packaging guide lists `version` among the required fields and the
   module reads its own version out of composer.json (`Model\ModuleVersion`) for the
-  admin's post-upgrade notice.
+  admin's post-upgrade notice. CI runs plain `composer validate`; `--strict` is
+  expected to stay yellow on exactly this one line and on nothing else.
 - `type` is `magento2-module`, `license` `GPL-3.0-only`, autoload is PSR-4
   (`Smaily\Connect\` → the package root) plus `files: [registration.php]` — the
   Marketplace's expected shape.
@@ -143,7 +145,11 @@ from a clean checkout):
 - Release ZIP: `bin/verify-release-zip.sh` builds the submission package the way
   the release workflow does and asserts its contents, its version and that every
   shipped PHP file parses, then prints a SHA-256 build hash — see
-  [TESTING.md](../TESTING.md).
+  [TESTING.md](../TESTING.md). **The package ships no `docs/`** (Erkki's decision,
+  2026-09-10): the folder vendors the engine contract from a private repository
+  and carries internal audits, so it must not travel to reviewers or merchants.
+  README, CHANGELOG and LICENSE ship with the code; the documentation set lives on
+  GitHub and the shipped README links to it by URL.
 
 The Marketplace submission and the composer release are **independent knobs**:
 composer installs (the majority path, per the 2.8.x install docs) work as soon as

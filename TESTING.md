@@ -142,18 +142,29 @@ bin/verify-release-zip.sh            # writes ./smaily-connect-magento2.zip
 
 It asserts that the archive carries what a Magento module needs to install
 (`registration.php`, `composer.json`, `etc/module.xml`, `etc/db_schema.xml`,
-the `i18n` catalogs, `view/`), that it carries none of the development
-apparatus (tests, CI config, sandbox, tooling, static-analysis and phpunit
-config, `vendor/`, the internal working documents) and none of the Hyvä
-companion (`compat/` — a separately published package), that the version in
-the archived `composer.json` is the repo's, and that every shipped PHP file
-parses under `php -l`. It ends by printing a SHA-256 build hash and writing it
-to `<zip>.sha256`, so a package handed to a reviewer or a pilot store can be
+the `i18n` catalogs, `view/`) plus `README.md`, `CHANGELOG.md` and
+`LICENSE.txt`, that it carries none of the development apparatus (tests, CI
+config, sandbox, tooling, static-analysis and phpunit config, `vendor/`, the
+internal working documents), none of the Hyvä companion (`compat/` — a
+separately published package) and no `docs/` at all, that the version in the
+archived `composer.json` is the repo's, and that every shipped PHP file parses
+under `php -l`. It ends by printing a SHA-256 build hash and writing it to
+`<zip>.sha256`, so a package handed to a reviewer or a pilot store can be
 identified later.
 
 CI runs it on every push (the `package` job) and keeps the ZIP plus its hash
 as a build artifact for 5 days.
 
-The public documentation set (`docs/`, README, CHANGELOG, TESTING, the user
-guide) ships inside the package deliberately — Marketplace reviewers and
-merchants who install from the ZIP get it with the code.
+**`docs/` does not ship** (Erkki's decision, 2026-09-10). The folder vendors
+the engine contract from a private repository and carries internal audits, so
+the package would leak both to anyone who unzips it. The documentation set
+lives on GitHub instead and the shipped README links to it there by URL — when
+you add a documentation link to README, CHANGELOG or an admin template, make it
+the repository URL, never a relative `docs/` path.
+
+**`composer validate --strict` stays yellow, on purpose.** Its one warning —
+"the version field is present, it is recommended to leave it out" — is an
+accepted item, not a defect: the Marketplace's packaging guide requires
+`version` and `Model\ModuleVersion` reads it for the admin's post-upgrade
+notice. CI therefore runs plain `composer validate`; do not "fix" the warning
+by dropping the field.
