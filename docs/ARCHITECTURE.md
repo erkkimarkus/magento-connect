@@ -283,7 +283,11 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
 | `smaily_backfill_job` | Chunked import jobs (cursor-resumable) |
 | `smaily_order_attribution` | Recommendation attribution per order (sales connection) |
 
-All schema is declarative (`etc/db_schema.xml` + whitelist).
+All schema is declarative (`etc/db_schema.xml` + whitelist). Both queues are
+indexed for the reads their cron drains do (`status`/`domain` + `next_retry_at`,
+`created_at` for the janitor); `smaily_event_queue` additionally carries
+`(entity_id, event_type, status)` for the per-contact lookup
+`EventQueue::cancelPendingAutomation()` runs on every order placed.
 `Setup/Patch/Schema/MigrateLegacyQuoteColumns` drops the legacy 2.8.x
 artifacts (`quote.reminder_date`, `quote.is_sent`, `smaily_customer_sync`)
 because a renamed module's declarative schema cannot.

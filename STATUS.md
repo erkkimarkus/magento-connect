@@ -23,6 +23,32 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   ~~PRO-2453~~ → ~~PRO-2467~~ → **PRO-1748 next** (terminology canon) →
   PRO-2454 → release train → PRO-2456.
 
+- **PRO-2470 done — the marketing event queue is indexed for the per-contact
+  lookup (one-way door approved by Erkki 2026-09-10).**
+  `EventQueue::cancelPendingAutomation()` — the PRO-2453 withdrawal, run on
+  every order placed — filters `event_type` + `entity_id` + `status`, a shape
+  no index served: on a store whose queue holds a season's rows that is a full
+  scan on the checkout path. `etc/db_schema.xml` grew
+  `SMAILY_EVENT_QUEUE_ENTITY_ID_EVENT_TYPE_STATUS` (btree, `entity_id`,
+  `event_type`, `status`); the whitelist was regenerated with
+  `bin/magento setup:db-declaration:generate-whitelist`.
+  - **The ingest queue does NOT get the twin.** Its only entity-scoped read is
+    `domain` + `status` (`SMAILY_INGEST_QUEUE_DOMAIN_STATUS_NEXT_RETRY_AT`
+    already covers it) and its retry takes an id list — no
+    `(entity_id, domain, status)` lookup exists, so none was added.
+  - **Verified on the sandbox**, not by reasoning: `setup:upgrade` applied the
+    declarative change and `SHOW INDEX FROM smaily_event_queue` lists the three
+    columns in order; with 500 seeded rows `EXPLAIN` on the real
+    `cancelPendingAutomation()` query reports
+    `key: SMAILY_EVENT_QUEUE_ENTITY_ID_EVENT_TYPE_STATUS`,
+    `ref: const,const,const`, `rows: 1` (it had been a scan). Seeded rows
+    deleted afterwards — the sandbox queue is back to 0 rows.
+  - Gates: 281 unit, phpcs 0 errors, phpstan clean, 79 integration (throwaway
+    MySQL). The whitelist generator also emitted a hashed
+    `UNQ_3F9F0C28473A63DD141D6E798667BF25` entry for the automation-mapping
+    unique constraint; `ModuleDefinitionTest` rejects whitelist entries that
+    are not in `db_schema.xml`, so it was dropped again.
+
 - **PRO-2467 done — a GDPR erasure leaves an email-less TOMBSTONE on the
   abandoned-cart tracker instead of deleting the row (PRO-2452 leftover).**
   PRO-2452 deleted the contact's cart rows, but that row is also the

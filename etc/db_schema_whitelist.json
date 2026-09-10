@@ -20,7 +20,8 @@
         },
         "index": {
             "SMAILY_EVENT_QUEUE_STATUS_NEXT_RETRY_AT": true,
-            "SMAILY_EVENT_QUEUE_CREATED_AT": true
+            "SMAILY_EVENT_QUEUE_CREATED_AT": true,
+            "SMAILY_EVENT_QUEUE_ENTITY_ID_EVENT_TYPE_STATUS": true
         },
         "constraint": {
             "PRIMARY": true,
