@@ -36,11 +36,16 @@ $sourceLabels = [
     'intelligence' => __('Campaign Intelligence'),
 ];
 
-// One-sentence health verdict, by priority: incomplete > failures > engine
-// unreachable > all good. Kicker is the short role label above it.
+// One-sentence health verdict, by priority: incomplete > account not active
+// > failures > engine unreachable > all good. A deactivated Campaign
+// Intelligence account outranks the rest because it explains them (PRO-2451).
+// Kicker is the short role label above it.
 if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCOMPLETE) {
     $verdictKicker = __('Setup incomplete');
     $verdictText = __('Setup is not finished yet — complete the setup wizard to start syncing.');
+} elseif ($viewModel->isEngineRejected()) {
+    $verdictKicker = __('Needs attention');
+    $verdictText = __('Your Campaign Intelligence account is not active on the Smaily side, so nothing is being sent to it. Smaily emails are unaffected. Contact Smaily to reactivate it.');
 } elseif ($failed > 0) {
     $verdictKicker = __('Needs attention');
     $verdictText = __('Smaily Connect is running, but %1 delivery(ies) failed in the last 24 hours.', $failed);
@@ -53,9 +58,11 @@ if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCO
 }
 
 // Connection strip: [label, sub-line, is-on, pill variant, pill label].
-$engineSub = $viewModel->isEngineDown()
-    ? __('Currently unreachable')
-    : ($viewModel->isEngineConnected() ? __('Connected (%1)', $viewModel->getEngineTenantName()) : __('Not connected'));
+$engineSub = $viewModel->isEngineRejected()
+    ? __('Account not active on the Smaily side')
+    : ($viewModel->isEngineDown()
+        ? __('Currently unreachable')
+        : ($viewModel->isEngineConnected() ? __('Connected (%1)', $viewModel->getEngineTenantName()) : __('Not connected')));
 $connections = [
     [
         __('Smaily'),
@@ -67,9 +74,13 @@ $connections = [
     [
         __('Campaign Intelligence'),
         $engineSub,
-        $viewModel->isEngineConnected(),
-        $viewModel->isEngineDown() ? 'pending' : ($viewModel->isEngineConnected() ? 'active' : 'off'),
-        $viewModel->isEngineDown() ? __('Unreachable') : ($viewModel->isEngineConnected() ? __('On') : __('Off')),
+        $viewModel->isEngineConnected() && !$viewModel->isEngineRejected(),
+        $viewModel->isEngineRejected()
+            ? 'failed'
+            : ($viewModel->isEngineDown() ? 'pending' : ($viewModel->isEngineConnected() ? 'active' : 'off')),
+        $viewModel->isEngineRejected()
+            ? __('Not active')
+            : ($viewModel->isEngineDown() ? __('Unreachable') : ($viewModel->isEngineConnected() ? __('On') : __('Off'))),
     ],
     [
         __('Browse tracking'),

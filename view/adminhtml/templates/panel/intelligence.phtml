@@ -13,7 +13,15 @@
  * @var \Magento\Framework\Escaper $escaper
  */
 
+/** @var \Smaily\Connect\ViewModel\Adminhtml\WizardData $viewModel */
+$viewModel = $block->getData('view_model');
 $isSettings = $block->getData('context') === 'settings';
+// Campaign Intelligence has refused this account outright (contract §2
+// `403 tenant_inactive`, PRO-2451). Rendered server-side because the state
+// IS server state: nothing is sent, so the panel says so plainly, the
+// engine-bound imports are not offered, and the only two things that help
+// — Smaily reactivating the account, and a re-check afterwards — are here.
+$isRefused = $viewModel->isEngineRefused();
 ?>
 <div class="smaily-card">
     <h2><?= $escaper->escapeHtml(__('Campaign Intelligence (optional)')) ?></h2>
@@ -30,7 +38,23 @@ $isSettings = $block->getData('context') === 'settings';
         <span class="smaily-result" id="smaily-w-engine-result"></span>
     </div>
     <div id="smaily-w-engine-connected" style="display:none;">
+        <?php if ($isRefused): ?>
+        <div class="message message-error">
+            <strong><?= $escaper->escapeHtml(__('Your Campaign Intelligence account is not active')) ?></strong>
+            <p><?= $escaper->escapeHtml(__('Campaign Intelligence has stopped accepting data from this store, so product, customer and order data is no longer being sent and recommendations will go stale. Waiting will not fix it — the account has to be made active again on the Smaily side. Your Smaily email sending is unaffected; everything queued here waits and is sent once the account is active.')) ?></p>
+            <p>
+                <a href="<?= $escaper->escapeUrl($viewModel->getSmailyAccountUrl()) ?>" target="_blank">
+                    <?= $escaper->escapeHtml(__('Open your Smaily account')) ?></a>
+            </p>
+            <button type="button" class="action-secondary" id="smaily-w-engine-recheck">
+                <span><?= $escaper->escapeHtml(__('Check again')) ?></span>
+            </button>
+            <span class="smaily-result" id="smaily-w-engine-recheck-result"></span>
+            <p class="note"><?= $escaper->escapeHtml(__('Once Smaily tells you the account is active, press Check again — sending resumes on the next cron run.')) ?></p>
+        </div>
+        <?php else: ?>
         <p class="message message-success" id="smaily-w-engine-status"></p>
+        <?php endif; ?>
         <?php if (!$isSettings): ?>
         <p><?= $escaper->escapeHtml(__('Catalog, customer and order sync started automatically. Historical data can be imported any time under Marketing > Smaily Connect > Settings > Intelligence.')) ?></p>
         <?php endif; ?>
@@ -39,7 +63,12 @@ $isSettings = $block->getData('context') === 'settings';
                 <?= $escaper->escapeHtml(__('Enable storefront browse tracking (product views, searches, cart activity)')) ?></label>
             <p class="note"><?= $escaper->escapeHtml(__('Off by default. Respects Magento cookie restriction mode; events flow through your own server, so the API key never reaches the browser.')) ?></p>
         </div>
-        <?php if ($isSettings): ?>
+        <?php if ($isSettings && $isRefused): ?>
+        <div class="smaily-card" style="background:#f8f8f8;">
+            <strong><?= $escaper->escapeHtml(__('Historical imports to Campaign Intelligence')) ?></strong>
+            <p class="note"><?= $escaper->escapeHtml(__('Imports are unavailable while the account is not active — there is nowhere to send the data. They come back as soon as the account does.')) ?></p>
+        </div>
+        <?php elseif ($isSettings): ?>
         <div class="smaily-card" style="background:#f8f8f8;">
             <strong><?= $escaper->escapeHtml(__('Historical imports to Campaign Intelligence')) ?></strong>
             <p class="note"><?= $escaper->escapeHtml(__('Send your existing data to the engine in the background — one chunk per cron minute. Imports are resumable and safe to re-run: deliveries are deduplicated on the receiving side.')) ?></p>

@@ -162,6 +162,28 @@ class WizardData implements ArgumentInterface
     }
 
     /**
+     * Campaign Intelligence has refused this account outright (contract §2
+     * `403 tenant_inactive`), remembered locally so the panel can say what
+     * happened instead of promising an outage will pass (PRO-2451).
+     */
+    public function isEngineRefused(): bool
+    {
+        return $this->engineSettings->isRefused();
+    }
+
+    /**
+     * The merchant's own Smaily account page — where a deactivated Campaign
+     * Intelligence account is sorted out. Falls back to the public site when
+     * no subdomain is configured yet.
+     */
+    public function getSmailyAccountUrl(): string
+    {
+        $subdomain = $this->config->getSubdomain($this->websiteContext->getStoreId());
+
+        return $subdomain === '' ? 'https://smaily.com' : 'https://' . $subdomain . '.sendsmaily.net';
+    }
+
+    /**
      * The selected website's stored contact-sync answer — the same one the
      * live paths and the contacts import read (PRO-1764). Read by the WIZARD
      * only: Settings carries the switch itself, so panel/panels-js.phtml owns

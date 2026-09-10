@@ -53,6 +53,15 @@ class EnginePing extends AbstractJsonAction implements HttpPostActionInterface
                 'engineVersion' => $this->settings->getEngineVersion(),
             ]);
         } catch (EngineException $exception) {
+            if ($this->settings->isRefused()) {
+                // The account, not the connection: say so in the merchant's
+                // words rather than quoting a 403 back at them (PRO-2451).
+                return $this->jsonResponse([
+                    'ok' => false,
+                    'message' => (string)__('Campaign Intelligence still reports that this account is not active.'),
+                ]);
+            }
+
             // Frame the (possibly technical) engine message in a translated
             // sentence so the failure is understandable in any admin locale.
             return $this->jsonResponse([

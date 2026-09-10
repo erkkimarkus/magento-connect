@@ -71,6 +71,16 @@ class DashboardData implements ArgumentInterface
     }
 
     /**
+     * Whether Campaign Intelligence has refused this account outright
+     * (contract §2) — a verdict, not an outage, so the dashboard must not
+     * report it as one (PRO-2451).
+     */
+    public function isEngineRejected(): bool
+    {
+        return $this->isEngineConnected() && $this->engineSettings->isRefused();
+    }
+
+    /**
      * Whether the HealthCheck cron currently sees the engine as unreachable.
      */
     public function isEngineDown(): bool
@@ -96,7 +106,7 @@ class DashboardData implements ArgumentInterface
         if (!$this->isSetupCompleted()) {
             return self::VERDICT_INCOMPLETE;
         }
-        if ($this->getFailedLast24h() > 0 || $this->isEngineDown()) {
+        if ($this->isEngineRejected() || $this->getFailedLast24h() > 0 || $this->isEngineDown()) {
             return self::VERDICT_DEGRADED;
         }
 

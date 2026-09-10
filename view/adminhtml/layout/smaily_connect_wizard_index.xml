@@ -44,6 +44,7 @@
                        name="smaily.panel.intelligence" as="panel.intelligence"
                        template="Smaily_Connect::panel/intelligence.phtml">
                     <arguments>
+                        <argument name="view_model" xsi:type="object">Smaily\Connect\ViewModel\Adminhtml\WizardData</argument>
                         <argument name="context" xsi:type="string">wizard</argument>
                     </arguments>
                 </block>

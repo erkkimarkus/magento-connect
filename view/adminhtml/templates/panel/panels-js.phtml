@@ -615,6 +615,24 @@ window.smailyPanelsInit = function ($) {
             loadWorkflows(null);
         });
 
+        // "Check again" on the deactivated-account panel (PRO-2451): the one
+        // request a refused account still makes — a direct question deserves
+        // the engine's direct answer, and it is neither scheduled nor
+        // repeated. A success clears the remembered refusal server-side, so
+        // the page is reloaded to render the state that is now true.
+        $('#smaily-w-engine-recheck').on('click', function () {
+            result('#smaily-w-engine-recheck-result', '<?= $escaper->escapeJs(__('Checking…')) ?>', true);
+            post(urls.enginePing, {}).then(function (data) {
+                if (data.ok) {
+                    window.location.reload();
+                } else {
+                    result('#smaily-w-engine-recheck-result',
+                        data.message || '<?= $escaper->escapeJs(__('Could not reach Campaign Intelligence.')) ?>',
+                        false);
+                }
+            });
+        });
+
         // Engine connect.
         $('#smaily-w-engine-connect').on('click', function () {
             result('#smaily-w-engine-result', '<?= $escaper->escapeJs(__('Connecting…')) ?>', true);
