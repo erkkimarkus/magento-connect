@@ -170,6 +170,25 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   taxonomy to map from. A partial credit memo leaves the order state alone,
   so `OrderSaveAfter`'s enqueue gate treats a moved `total_refunded` as a
   change worth re-sending.
+- **A refused account stops every send path (PRO-2451).** Contract §2 answers
+  `403 tenant_inactive` from every API-key-authenticated endpoint when the
+  tenant is deactivated (operator suspension or a GDPR purge — the wire never
+  tells the two apart, and the correct reaction is the same). `Engine\Client`
+  records it at the single chokepoint every engine call passes through
+  (`Engine\Settings::recordRefusal()`, the FIRST refusal's timestamp at
+  default scope) and clears it on any authenticated call that answers — the
+  health-check ping and the admin's "Check again" are the only calls that
+  still go out. `Settings::isSendingAllowed()` (`isConnected() && !isRefused()`)
+  is the one gate every SENDING path consults: `Cron/FlushIngestQueue` (per
+  domain, so one refusal ends the run), the engine-bound backfills at
+  `Cron/BackfillTick`'s router, `Controller/Relay/Index`,
+  `Queue\Handler\IdentityMergeHandler`, `Privacy\ProfilingConsent` and
+  `Cron/CatalogResync`. `isConnected()` stays the gate for everything that
+  only enqueues, reads or displays, so live observers keep queueing and the
+  store's history is intact when the account comes back. Rows a refusal met
+  mid-batch go back to pending untouched (`IngestQueue::release()` — never
+  burned, never failed, attempt counters intact); the janitor prunes them by
+  its normal age rule.
 - Browse events are the exception: loss-tolerant by design, they are relayed
   synchronously (`Controller/Relay/Index`) and never queued.
 - **Catalog price/URL/language scope (PRO-1352/1353):** one Magento

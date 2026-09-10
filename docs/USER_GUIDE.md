@@ -330,6 +330,29 @@ captured into first-party cookies and stamped onto the resulting order, so
 the engine can credit purchases to recommendations. This works with Full
 Page Cache because the capture runs client-side.
 
+### If your Campaign Intelligence account is deactivated
+
+If Smaily deactivates the Campaign Intelligence account behind this store —
+a suspension, or an account that has been closed — the engine stops
+accepting data and says so. The extension remembers that answer instead of
+retrying forever:
+
+- Nothing more is sent — no catalog, customer or order data, no browse
+  events, no historical imports.
+- Nothing is lost. Everything already queued stays queued, untouched, and
+  goes out in order once the account is active again.
+- **Settings > Intelligence** says the account is not active, links to your
+  Smaily account and offers **Check again**. The engine-bound historical
+  imports are unavailable meanwhile; the subscriber import on the
+  **Subscribers** tab is unaffected, as is all Smaily email sending.
+- The Dashboard verdict names the deactivated account rather than
+  reporting an outage, and an admin notification says the same. Waiting
+  does not fix it — only Smaily can make the account active again.
+
+Once Smaily tells you the account is active, press **Check again**. The
+health check asks the engine again on its own every 15 minutes, so sending
+also resumes without you pressing anything.
+
 ### Engine automations
 
 The engine-run triggers live right under your regular automations on
