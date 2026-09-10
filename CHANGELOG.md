@@ -2,6 +2,8 @@
 
 ### 3.0.0 (unreleased)
 
+The package version is currently `3.0.0-rc1` — the release-candidate cut of everything below. Nothing is published: composer still resolves 2.8.1 as the newest stable release.
+
 Ground-up rewrite as module `Smaily_Connect`, targeting feature parity with the Smaily Connect plugins for WooCommerce and Shopify. Upgrading from 2.8.x is seamless: the composer package name is unchanged and all settings (including the previously plaintext API password, now encrypted) migrate automatically during `setup:upgrade`.
 
 **New features**

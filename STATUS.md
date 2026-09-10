@@ -1763,7 +1763,7 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   merchant recovery).
 
 **All 6 v3 phases implemented** (~110 files) on branch `v3`, version
-**3.0.0-alpha1 — unreleased**. Current truth:
+**3.0.0-rc1 — unreleased**. Current truth:
 
 - **PRO-1391 final-polish done — four refinements on Settings > Connection
   after Erkki's side-by-side review of the PRO-1391 visual-fidelity pass.**
