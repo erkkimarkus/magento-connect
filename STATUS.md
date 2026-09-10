@@ -7,7 +7,9 @@
 
 _Last updated: 2026-09-10 (orchestration session — parity sweep vs
 Woo/Shopify, doc reconcile; release gates PRO-1400 + PRO-1484 verified on a
-clean sandbox install; PRO-2451 and PRO-2452 landed)_
+clean sandbox install; PRO-2451, PRO-2452, PRO-2453, PRO-2467 landed; the
+3.0.0-rc1 release train ran — PRO-2470 index, version cut, packaging check,
+Marketplace pre-checks)_
 
 ## Where we are
 
@@ -20,8 +22,43 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   widget) is 3.1. **Erkki's decision: the wave ships BEFORE 3.0.0 is tagged** —
   the composer publish is irreversible for every 2.8.x install. Queue:
   release gates (PRO-1400 + PRO-1484) → ~~PRO-2451~~ → ~~PRO-2452~~ →
-  ~~PRO-2453~~ → ~~PRO-2467~~ → **PRO-1748 next** (terminology canon) →
-  PRO-2454 → release train → PRO-2456.
+  ~~PRO-2453~~ → ~~PRO-2467~~ → ~~release train~~ → **PRO-1748 next**
+  (terminology canon) → PRO-2454 (Event Log "Send again") → PRO-2456 (design
+  fidelity). Erkki-owned doors are unchanged and still shut: PRO-1198 release
+  coordination, PRO-1971 comms, the live engine tenant, the pilot store.
+
+- **The 3.0.0-rc1 release train ran (Erkki's four-part decision,
+  2026-09-10).** Nothing was published — no tag, no GitHub release, no
+  Packagist, no Marketplace; those stay Erkki's doors (PRO-1198). What
+  changed:
+  - **The version is `3.0.0-rc1`** (composer normalises it to `3.0.0.0-RC1`,
+    stability RC, so no 2.8.x install can pick it up on a `composer update`),
+    carried through composer.json, `ModuleInfo::VERSION`, this file and the
+    upstream proposal. `SetupGuard` records `last_seen_version` by exact
+    string and only notifies on a MAJOR jump, so an rc1 install records
+    itself and the later 3.0.0 upgrade is seen without a spurious notice.
+  - **The release ZIP has one owner.** `bin/build-release-zip.sh` assembles
+    it (the release workflow calls it instead of carrying its own zip
+    command); `bin/verify-release-zip.sh` builds and then proves it, and CI
+    runs that on every push (`package` job, artifact kept 5 days). Newly
+    excluded: `bin/`, `.claude/`, `CLAUDE.md`, STATUS, BACKLOG and
+    `phpunit.integration.xml.dist`. `docs/` keeps shipping — that was the
+    existing behaviour and it is the right one for a Marketplace reviewer.
+  - **Marketplace pre-checks, recorded in `docs/UPSTREAM_PROPOSAL.md` §4.**
+    `composer validate` passes; `--strict` flags only the "leave the version
+    field out" recommendation, which we keep on purpose (the Marketplace
+    requires `version`, and `ModuleVersion` reads it). `vendor/bin/phpcs` —
+    the repo's config IS the Marketplace's Magento2 ruleset: **0 errors**, 929
+    warnings (doc-block annotations); `PHPCompatibility` 8.1–8.4 clean.
+    `magento/module-catalog-inventory` (PRO-1966) and `magento/module-ui`
+    were used but undeclared — now declared. `Magento\InventoryApi` and
+    `Magento\InventorySourceDeductionApi` stay undeclared on purpose: they
+    are named only in `etc/di.xml` plugin declarations, and MSI is
+    removable.
+  - Gates: 281 unit, phpcs 0 errors, phpstan clean, 79 integration
+    (throwaway MySQL), plus the new packaging check green (344 entries,
+    `php -l` clean on 189 shipped PHP files) and a deliberate negative test
+    — dropping `Test/*` from the exclusion list made it fail, as it must.
 
 - **PRO-2470 done — the marketing event queue is indexed for the per-contact
   lookup (one-way door approved by Erkki 2026-09-10).**

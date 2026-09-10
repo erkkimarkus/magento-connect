@@ -110,11 +110,40 @@ the new name rather than a version bump of the old one. Proposed split:
 | Step | Owner | Status |
 |---|---|---|
 | Coding-standard compliance (phpcs, Magento2 ruleset — the Marketplace's own standard) | fork | ✅ clean, enforced in CI |
-| Release packaging — a GitHub release automatically builds the submission ZIP (`.github/workflows/release.yaml`) | fork | ✅ in place |
+| Release packaging — a GitHub release automatically builds the submission ZIP (`.github/workflows/release.yaml`) | fork | ✅ in place, and the package is built + verified on every push |
+| Package manifest — `composer validate`, declared Magento dependencies, `type`/`autoload`/`license` | fork | ✅ checked, see below |
 | Public documentation set (README, User Guide, Upgrading, screenshots for the listing) | fork | ✅ docs done; listing screenshots to be produced at submission |
 | Listing copy + name/branding decision ("Smaily Connect") | Smaily | ⏳ Smaily-owned |
 | Marketplace account, submission, EQP review cycle, responding to reviewer feedback | Smaily | ⏳ Smaily-owned (same flow as today's releases — see `.github/pull_request_template.md`) |
 | Decide fate of the existing listing (deprecate in favor of the new one vs. parallel run) | Smaily | ⏳ decision needed |
+
+**Pre-check results** (run locally at 3.0.0-rc1, 2026-09-10 — all of it repeatable
+from a clean checkout):
+
+- `composer validate` passes. Under `--strict` it reports exactly one general
+  warning — "the version field is present, it is recommended to leave it out if
+  the package is published on Packagist" — which is **deliberate and stays**: the
+  Marketplace's packaging guide lists `version` among the required fields, and the
+  module reads its own version out of composer.json (`Model\ModuleVersion`) for the
+  admin's post-upgrade notice.
+- `type` is `magento2-module`, `license` `GPL-3.0-only`, autoload is PSR-4
+  (`Smaily\Connect\` → the package root) plus `files: [registration.php]` — the
+  Marketplace's expected shape.
+- The `require` block was read against what the code actually uses:
+  `magento/module-catalog-inventory` and `magento/module-ui` were used but
+  undeclared and are now declared. `Magento\InventoryApi` and
+  `Magento\InventorySourceDeductionApi` are referenced only from `etc/di.xml`
+  plugin declarations and stay **undeclared on purpose** — MSI is removable, and a
+  plugin declared on a class that does not exist is simply never wired (see
+  `Plugin/Engine/SourceItemsSave.php`).
+- Coding standard: `vendor/bin/phpcs` — the repo's config is the Marketplace's own
+  `Magento2` ruleset — reports **0 errors and 929 warnings** across 198 files (the
+  warnings are almost entirely missing or multi-line doc-block annotations, which
+  the EQP gate does not fail on). `PHPCompatibility` for `8.1-8.4` is clean.
+- Release ZIP: `bin/verify-release-zip.sh` builds the submission package the way
+  the release workflow does and asserts its contents, its version and that every
+  shipped PHP file parses, then prints a SHA-256 build hash — see
+  [TESTING.md](../TESTING.md).
 
 The Marketplace submission and the composer release are **independent knobs**:
 composer installs (the majority path, per the 2.8.x install docs) work as soon as
@@ -137,7 +166,11 @@ button, exactly as it does today for 2.8.x.
 - **Release workflow**: publishing a GitHub release builds and attaches
   `smaily-connect-magento2.zip` (`.github/workflows/release.yaml`) — the same
   artifact used for Marketplace submission and manual installs. No external
-  service, no secrets needed for releases.
+  service, no secrets needed for releases. The workflow does not assemble the
+  package itself: it calls `bin/verify-release-zip.sh`, which builds it through
+  `bin/build-release-zip.sh` (the one owner of what ships) and refuses to hand
+  over an archive that is missing a required file, carries development material
+  or states the wrong version.
 - **Secrets to carry over**: exactly one — `ENGINE_CONTRACT_READ_TOKEN`, a
   fine-grained PAT with `contents:read` on the Campaign Intelligence engine
   repository, used by the daily contract-staleness workflow to detect wire-contract

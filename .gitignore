@@ -3,6 +3,8 @@
 /vendor/
 /composer.lock
 /var/
+/smaily-connect-magento2.zip
+/smaily-connect-magento2.zip.sha256
 .phpunit.result.cache
 phpcs.xml
 phpstan.neon
