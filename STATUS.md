@@ -12,22 +12,47 @@ clean sandbox install; PRO-2451, PRO-2452, PRO-2453, PRO-2467 landed; the
 Marketplace pre-checks; release train closed out — the package ships no
 `docs/`, the `composer validate --strict` version warning is accepted;
 PRO-2473 committed `composer.lock`; PRO-1748 adopted the shared Connect
-terminology canon in EN + ET)_
+terminology canon in EN + ET; PRO-2469 gave the abandoned-cart tracker a
+retention sweep and pinned the two tombstone edges)_
 
 ## Where we are
 
 - **Next session opens here (2026-09-10 orchestration session).** Queue:
-  ~~PRO-2473 (`composer.lock`)~~ → ~~PRO-1748 (terminology canon, EN + ET —
-  the ET diff still needs Erkki's proofread)~~ → **PRO-2469 next** (tombstone
-  edges; Erkki 2026-09-10: erased status survives completion, a new opt-in may
-  repopulate a tombstoned row) → PRO-1458 (Erkki 2026-09-10: price
-  non-default-website products at a website they belong to) → PRO-2454 →
+  ~~PRO-2469 (tracker retention + tombstone edges)~~ → **PRO-1458 next**
+  (Erkki 2026-09-10: price non-default-website products at a website they
+  belong to) → PRO-2454 → PRO-2476 (sandbox 2FA off, before PRO-2456) →
   PRO-2456 → PRO-2472 → PRO-2474 (pilot readiness — the first pilot client
   exists and installs manually from the release ZIP into `app/code`, clean
   install, live engine tenant) → rc1 tag on Erkki's go; the Smaily repo
-  hand-over (PRO-1198) comes AFTER the pilot, on Erkki's date. PRO-2460 waits
-  on the engine's answer (current SKU behaviour stays meanwhile). PRO-1971
-  reaffirmed A.
+  hand-over (PRO-1198) comes AFTER the pilot, on Erkki's date. PRO-1748's code
+  landed; Erkki's ET proofread is still open. PRO-2460 waits on the engine's
+  answer (current SKU behaviour stays meanwhile). PRO-1971 reaffirmed A.
+
+- **PRO-2469 — the abandoned-cart tracker is swept, and a tombstone survives
+  both of its edges (2026-09-10).** Nothing pruned `smaily_abandoned_cart`:
+  the janitor knew only the two queue tables and Magento's quote cleanup does
+  not cascade onto the side table, so the tracker grew for the life of the
+  store — with PRO-2467 tombstones sitting in it. `Cron\QueueJanitor` gained a
+  third sweep on the SAME 30-day window the sent queue rows use (no new admin
+  setting): terminal rows (`StateManager::TERMINAL_STATUSES` — mailed,
+  completed, expired, erased) past the window, plus any row whose `quote_id`
+  is gone from `quote`, whatever its status. A live quote in a non-terminal
+  status is never touched — that row is what stops a second reminder. The two
+  edges Erkki decided the same day are now behaviour, not intent:
+  `markCompleted()` writes `IF(status = 'erased', status, VALUES(status))`, so
+  a converting tombstone keeps `erased` and its empty email;
+  `setNewsletterOptin()` already wrote the status on insert only, so a later
+  checkout opt-in may put
+  the shopper's freshly typed address on the row while it stays `erased` and
+  unmailable — pinned by tests either way. Docs: `docs/ARCHITECTURE.md`
+  (retention + Art. 17 sections, cron table) and `docs/USER_GUIDE.md`
+  (retention bullet + the GDPR erasure paragraph, merchant wording).
+  Verified on the sandbox against the REAL `quote` table as well: of five
+  seeded tracker rows the sweep took the 40-day-old `completed` one and both
+  orphans (including the stray quote-2 row from an earlier session) and left
+  the 5-day-old `completed` row and a 400-day-old `open` row on a live quote.
+  Sandbox restored to exactly what it was. Gates: 281 unit, phpcs 0 errors,
+  phpstan `[OK]`, 82 integration (3 new).
 
 - **PRO-1748 — the admin speaks the shared Connect terminology canon, in both
   languages (2026-09-10).** Jane's approved copy review, already shipped by Woo
@@ -173,8 +198,9 @@ terminology canon in EN + ET)_
     than a new vocabulary. What the tombstone means for the cron, the
     export and retention is written up in `docs/ARCHITECTURE.md` ("Queue
     semantics" → Art. 17 erasure); don't restate it here. The one open
-    end: a tombstone gets no special retention (the janitor sweeps only the
-    two queue tables), flagged as a follow-up, not fixed here.
+    end: a tombstone got no special retention (the janitor swept only the
+    two queue tables), flagged as a follow-up — closed by PRO-2469, which
+    sweeps the tracker on the sent-row window.
   - **Verification — the REAL flow on the sandbox, only the Smaily
     transport faked; synthetic contact.** A guest quote built through the
     real cart services, backdated idle, the real `Cron\AbandonedCart` +

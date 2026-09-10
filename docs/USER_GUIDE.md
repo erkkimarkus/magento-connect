@@ -473,7 +473,12 @@ panel — you do not have to keep the page open:
   and responses — use only for troubleshooting (debug logs summarize
   payloads, customer PII is not written to disk). Also settable via
   `bin/magento config:set smaily_connect/logging/verbosity debug`.
-- Sent queue rows are pruned after 30 days, failed rows after 90.
+- Sent queue rows are pruned after 30 days, failed rows after 90. The same
+  nightly job also tidies the abandoned-cart tracker — the small table that
+  remembers which carts the extension has already dealt with: a finished
+  record (reminded, purchased, expired, erased) is dropped 30 days on, and
+  so is any record whose cart Magento has already deleted. A cart that is
+  still in the store and still being watched is never touched.
 
 ## Privacy and GDPR
 
@@ -499,7 +504,13 @@ panel — you do not have to keep the page open:
   erased, but the record itself stays, because it is what tells the extension
   that this cart has already been dealt with — remove it and a cart that is
   still sitting in the store would be picked up as a fresh abandoned cart and
-  a reminder sent to the address you just erased.
+  a reminder sent to the address you just erased. The erased record is not kept
+  forever: it goes with the ordinary 30-day tidy-up above, or sooner if the
+  cart itself is deleted. If that shopper's cart later turns into an order,
+  the record stays marked erased. If they come back, type their address at
+  checkout and tick the newsletter box themselves, that new address is
+  stored — it is their own fresh choice — but the record stays erased, so
+  no abandoned-cart reminder is sent for it.
 - **What it prints.** One line per place it reached, then the engine:
 
   ```
