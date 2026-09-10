@@ -91,6 +91,21 @@ class StateManager
     }
 
     /**
+     * Whether the extension tracked this quote as abandoned — the reminder is
+     * either already delivered or still waiting in the queue (PRO-2453). Read
+     * BEFORE markCompleted(), which overwrites the status.
+     */
+    public function wasReminded(int $quoteId): bool
+    {
+        $connection = $this->resourceConnection->getConnection(self::CONNECTION);
+        $select = $connection->select()
+            ->from($this->table(), ['status'])
+            ->where('quote_id = ?', $quoteId);
+
+        return $connection->fetchOne($select) === self::STATUS_MAILED;
+    }
+
+    /**
      * Whether the customer ticked the checkout newsletter checkbox for a quote.
      */
     public function isOptedIn(int $quoteId): bool

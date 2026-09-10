@@ -32,6 +32,13 @@ class EventQueue
     public const BACKOFF_SECONDS = [60, 300, 900, 3600, 21600];
     public const MAX_ERROR_LENGTH = 60000;
 
+    /**
+     * What a withdrawn row records in place of an API reply. Not a status:
+     * a status is what the flusher reads to decide what to send, and a
+     * cancelled row is terminal exactly like a delivered one.
+     */
+    public const CANCELLED_RESPONSE = 'cancelled';
+
     public function __construct(
         private readonly EventFactory $eventFactory,
         private readonly EventResource $eventResource,
@@ -251,6 +258,55 @@ class EventQueue
                 'id IN (?)' => array_map('intval', $ids),
                 'status = ?' => Event::STATUS_FAILED,
                 'entity_id IS NULL OR entity_id != ?' => Erasure::PLACEHOLDER,
+            ]
+        );
+    }
+
+    /**
+     * Withdraw a contact's still-pending automation rows of one trigger
+     * (PRO-2453): the shopper bought, so the reminder must not go out.
+     *
+     * The row is closed the way the flusher records a terminal skip — status
+     * sent, no sent_payload, nothing retried — with CANCELLED_RESPONSE in
+     * place of an API reply, so the Log keeps the fact that a reminder was
+     * withdrawn instead of losing the row. Only `pending` rows are taken: a
+     * claimed one is already in a worker's hands.
+     *
+     * @return int number of rows cancelled
+     */
+    public function cancelPendingAutomation(string $trigger, string $entityId): int
+    {
+        $connection = $this->resourceConnection->getConnection();
+        $table = $this->resourceConnection->getTableName(EventResource::TABLE_NAME);
+
+        $rows = $connection->fetchPairs(
+            $connection->select()->from($table, ['id', 'payload'])
+                ->where('event_type = ?', EventType::AUTOMATION_TRIGGER)
+                ->where('entity_id = ?', $entityId)
+                ->where('status = ?', Event::STATUS_PENDING)
+        );
+
+        $ids = [];
+        foreach ($rows as $id => $payload) {
+            $decoded = $this->serializer->unserialize((string)$payload);
+            if (is_array($decoded) && ($decoded['trigger_type'] ?? null) === $trigger) {
+                $ids[] = (int)$id;
+            }
+        }
+        if (!$ids) {
+            return 0;
+        }
+
+        return $connection->update(
+            $table,
+            [
+                'status' => Event::STATUS_SENT,
+                'next_retry_at' => null,
+                'last_response' => self::CANCELLED_RESPONSE,
+            ],
+            [
+                'id IN (?)' => $ids,
+                'status = ?' => Event::STATUS_PENDING,
             ]
         );
     }

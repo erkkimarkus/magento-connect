@@ -184,4 +184,52 @@ class EventQueueTest extends IntegrationTestCase
         self::assertSame(Event::STATUS_PENDING, $row['status']);
         self::assertNull($row['claim_token']);
     }
+
+    /**
+     * PRO-2453: the shopper bought before the reminder went out, so the row
+     * is withdrawn terminally — and only the matching trigger's, only for
+     * this contact, and only while it is still pending.
+     */
+    public function testCancelPendingAutomationWithdrawsOnlyTheMatchingReminder(): void
+    {
+        $this->seedAutomation('abandoned_cart', 'shopper@example.com', 'u-cancel');
+        $this->seedAutomation('abandoned_cart', 'shopper@example.com', 'u-claimed');
+        $this->seedAutomation('welcome', 'shopper@example.com', 'u-welcome');
+        $this->seedAutomation('abandoned_cart', 'someone-else@example.com', 'u-other');
+        $this->connection->update(
+            EventResource::TABLE_NAME,
+            ['status' => Event::STATUS_SENDING],
+            ['event_uuid = ?' => 'u-claimed']
+        );
+
+        self::assertSame(
+            1,
+            $this->queue->cancelPendingAutomation('abandoned_cart', 'shopper@example.com')
+        );
+
+        $byUuid = array_column($this->fetchAll(EventResource::TABLE_NAME), null, 'event_uuid');
+        self::assertSame(Event::STATUS_SENT, $byUuid['u-cancel']['status'], 'Terminal: nothing retries it');
+        self::assertSame(EventQueue::CANCELLED_RESPONSE, $byUuid['u-cancel']['last_response']);
+        self::assertNull($byUuid['u-cancel']['sent_payload'], 'Nothing was POSTed');
+        self::assertSame(Event::STATUS_SENDING, $byUuid['u-claimed']['status'], 'A claimed row is a worker\'s');
+        self::assertSame(Event::STATUS_PENDING, $byUuid['u-welcome']['status']);
+        self::assertSame(Event::STATUS_PENDING, $byUuid['u-other']['status']);
+
+        self::assertSame(
+            0,
+            $this->queue->cancelPendingAutomation('abandoned_cart', 'shopper@example.com'),
+            'Withdrawing twice is a no-op'
+        );
+    }
+
+    private function seedAutomation(string $trigger, string $email, string $uuid): void
+    {
+        $this->queue->enqueue(
+            'automation.trigger',
+            ['trigger_type' => $trigger, 'store_id' => 1, 'address' => ['email' => $email]],
+            $email,
+            0,
+            $uuid
+        );
+    }
 }

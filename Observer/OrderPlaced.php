@@ -24,8 +24,10 @@ use Smaily\Connect\Model\ContactSync\SyncDispatcher;
 /**
  * Order placement side effects (sales_order_place_after):
  * 1. The quote is no longer an abandoned cart candidate.
- * 2. Checkout newsletter opt-in and guest-email contact sync.
- * 3. First-order automation for a customer's first purchase.
+ * 2. A cart that WAS reminded gets its purchase marker (and its still-queued
+ *    reminder withdrawn), so the follow-up workflow can exit.
+ * 3. Checkout newsletter opt-in and guest-email contact sync.
+ * 4. First-order automation for a customer's first purchase.
  */
 class OrderPlaced implements ObserverInterface
 {
@@ -51,8 +53,10 @@ class OrderPlaced implements ObserverInterface
         }
 
         $quoteId = (int)$order->getQuoteId();
+        $wasReminded = false;
         if ($quoteId > 0) {
             $optedIn = $this->abandonedCartState->isOptedIn($quoteId);
+            $wasReminded = $this->abandonedCartState->wasReminded($quoteId);
             $this->abandonedCartState->markCompleted($quoteId);
         } else {
             $optedIn = false;
@@ -69,8 +73,29 @@ class OrderPlaced implements ObserverInterface
             return;
         }
 
+        $this->markCartPurchased($email, $storeId, $websiteId, $wasReminded);
         $this->syncContact($order, $email, $storeId, $websiteId, $optedIn);
         $this->triggerFirstOrder($order, $email, $storeId, $websiteId);
+    }
+
+    /**
+     * The abandoned-cart workflow's exit signal (PRO-2453): a cart the
+     * extension tracked as abandoned has converted, so the contact carries
+     * the purchase moment and any reminder still queued is withdrawn.
+     *
+     * A cart that was never tracked sends nothing — marking a shopper the
+     * store never emailed would create a contact out of an ordinary
+     * purchase. The contact-sync switch is deliberately not consulted:
+     * automations run on their own lawful basis, exactly like the marker
+     * fields, and this only ever touches a contact already reminded.
+     */
+    private function markCartPurchased(string $email, int $storeId, int $websiteId, bool $wasReminded): void
+    {
+        if (!$wasReminded || !$this->config->isAbandonedCartEnabled($websiteId)) {
+            return;
+        }
+
+        $this->dispatcher->dispatchCartPurchase($email, $storeId);
     }
 
     private function syncContact(

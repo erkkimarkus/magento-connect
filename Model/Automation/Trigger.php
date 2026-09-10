@@ -48,4 +48,17 @@ class Trigger
         self::FIRST_ORDER => 'first_order_automation_at',
         self::ABANDONED_CART => 'abandoned_cart_automation_at',
     ];
+
+    /**
+     * The contact field recording that a shopper the store sent an
+     * abandoned-cart reminder to has since bought (PRO-2453, Woo PRO-1723).
+     *
+     * It is not a trigger marker — no automation runs — so it lives outside
+     * MARKER_FIELDS: the merchant's Smaily workflow reads it as the EXIT
+     * condition of the reminder series ("`abandoned_cart_purchased_at` is
+     * later than `abandoned_cart_automation_at`"), which is why it carries
+     * the same UTC `Y-m-d H:i:s` shape as the markers above and must sort
+     * against them. Merchant-visible and permanent, exactly like them.
+     */
+    public const ABANDONED_CART_PURCHASED_FIELD = 'abandoned_cart_purchased_at';
 }

@@ -17,11 +17,15 @@ use Smaily\Connect\Model\ContactSync\SubscriberPayloadBuilder;
 use Smaily\Connect\Model\ContactSync\SyncDispatcher;
 use Smaily\Connect\Model\Multilingual\LanguageResolver;
 use Smaily\Connect\Model\Queue\EventQueue;
+use Smaily\Connect\Model\Queue\EventType;
 
 class SyncDispatcherTest extends TestCase
 {
     /** @var array<int, array<string, mixed>> */
     private array $enqueued = [];
+
+    /** @var array<int, array{0: string, 1: string}> */
+    private array $cancelled = [];
 
     private SubscriberPayloadBuilder&MockObject $payloadBuilder;
     private SyncDispatcher $dispatcher;
@@ -29,6 +33,7 @@ class SyncDispatcherTest extends TestCase
     protected function setUp(): void
     {
         $this->enqueued = [];
+        $this->cancelled = [];
 
         $this->payloadBuilder = $this->createMock(SubscriberPayloadBuilder::class);
         $languageResolver = $this->createMock(LanguageResolver::class);
@@ -40,6 +45,13 @@ class SyncDispatcherTest extends TestCase
         $storeManager->method('getStore')->willReturn($store);
 
         $eventQueue = $this->createMock(EventQueue::class);
+        $eventQueue->method('cancelPendingAutomation')->willReturnCallback(
+            function (string $trigger, string $entityId): int {
+                $this->cancelled[] = [$trigger, $entityId];
+
+                return 0;
+            }
+        );
         $eventQueue->method('enqueue')->willReturnCallback(
             function (string $eventType, array $payload): bool {
                 $this->enqueued[] = ['event_type' => $eventType, 'payload' => $payload];
@@ -101,6 +113,36 @@ class SyncDispatcherTest extends TestCase
         $address = $this->enqueued[0]['payload']['address'];
         self::assertSame('true', $address['is_abandoned_cart']);
         self::assertSame('shopper@example.com', $address['email']);
+    }
+
+    /**
+     * PRO-2453: the workflow's exit condition compares the purchase against
+     * `abandoned_cart_automation_at`, so the two must sort against each other
+     * — same UTC `Y-m-d H:i:s` shape, same wire name as the Woo sibling.
+     */
+    public function testTheCartPurchaseMarkerIsSentAloneAndSortsAgainstTheRunMarker(): void
+    {
+        $before = gmdate('Y-m-d H:i:s');
+        $this->dispatcher->dispatchCartPurchase('shopper@example.com', 1);
+        $after = gmdate('Y-m-d H:i:s');
+
+        self::assertSame(
+            [[Trigger::ABANDONED_CART, 'shopper@example.com']],
+            $this->cancelled,
+            'A reminder still queued for this contact is withdrawn first'
+        );
+        self::assertSame(EventType::CONTACT_SYNC, $this->enqueued[0]['event_type'], 'No automation is triggered');
+        $contact = $this->enqueued[0]['payload']['contact'];
+        self::assertSame(
+            ['email', Trigger::ABANDONED_CART_PURCHASED_FIELD],
+            array_keys($contact),
+            'The address and the one field, nothing that could rewrite the reminder'
+        );
+        self::assertSame('abandoned_cart_purchased_at', Trigger::ABANDONED_CART_PURCHASED_FIELD);
+        $stamp = $contact[Trigger::ABANDONED_CART_PURCHASED_FIELD];
+        self::assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $stamp);
+        self::assertGreaterThanOrEqual($before, $stamp);
+        self::assertLessThanOrEqual($after, $stamp);
     }
 
     public function testContactSyncCarriesNoMarker(): void

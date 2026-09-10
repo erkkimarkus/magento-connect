@@ -20,7 +20,52 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   widget) is 3.1. **Erkki's decision: the wave ships BEFORE 3.0.0 is tagged** —
   the composer publish is irreversible for every 2.8.x install. Queue:
   release gates (PRO-1400 + PRO-1484) → ~~PRO-2451~~ → ~~PRO-2452~~ →
-  **PRO-2453 next** → PRO-1748 → PRO-2454 → release train → PRO-2456.
+  ~~PRO-2453~~ → **PRO-2467 next** (the PRO-2452 leftover) → PRO-1748 →
+  PRO-2454 → release train → PRO-2456.
+
+- **PRO-2453 done — a purchase now stops the abandoned-cart follow-ups (Woo
+  PRO-1723 parity).** A shopper who bought mid-series was handled only on
+  the cart side: the tracker row went `completed` so no LATER reminder could
+  be enqueued, but a reminder already queued still went out, and nothing
+  about the purchase reached the Smaily contact — so the merchant's
+  follow-up letters ran to the end regardless. The contact now carries
+  `abandoned_cart_purchased_at`, the workflow's exit condition. How it works
+  is written up in `docs/ARCHITECTURE.md` ("The exit signal"); don't restate
+  it here.
+  - **Erkki's binding design (2026-09-10):** the marker is sent both when a
+    reminder was already delivered AND when the cart was marked abandoned
+    but the reminder has not gone out yet — in Magento both are tracker
+    status `mailed`, so one predicate (`StateManager::wasReminded()`, read
+    before `markCompleted()` overwrites it) answers both. A still-`pending`
+    reminder is withdrawn in the same breath. A cart the extension never
+    tracked sends nothing; the feature off sends nothing.
+  - **Wire-shape deviation from the task brief, recorded honestly.** The
+    brief called for a Z-suffixed datetime. It is UTC `Y-m-d H:i:s`
+    instead — what Woo actually ships (`AutomationMarker::purchase_stamp()`,
+    `gmdate('Y-m-d H:i:s')`, decision PRO-1723, pinned in its
+    `AutomationMarkerTest`) and what the Woo merchant guide documents. The
+    format is load-bearing, not cosmetic: the merchant's exit condition
+    compares this field against `abandoned_cart_automation_at`, and the two
+    must sort against each other. A Z-suffixed value would both break that
+    comparison ('T' > ' ') and split the cross-platform canon the three
+    plugins share. Queued for Erkki below.
+  - **Verification — the REAL flow on the sandbox, only the Smaily
+    transport faked.** Guest quotes built and orders placed through the real
+    `CartManagementInterface`, the real `Cron\AbandonedCart` and the real
+    `Cron\FlushEventQueue` (handlers built by hand around a recording
+    client, since the compiled object manager has no `addSharedInstance()`).
+    Four cases, synthetic contacts only: (a) reminder delivered → order →
+    `POST contact [{"email":…,"abandoned_cart_purchased_at":"2026-09-10
+    17:08:44"}]`, nothing else in the payload; (b) reminder still `pending`
+    → order → the reminder row went `sent` with `last_response` `cancelled`
+    and was **never POSTed**, while the marker went out; (c) a quote never
+    tracked as abandoned → order → no contact row at all; (d) the feature
+    switched off between the reminder and the order → order → nothing sent.
+  - Gates: 281 unit tests green (1 new), phpcs 0 errors, phpstan clean, 78
+    integration tests green (throwaway MySQL — a new case pins the
+    withdrawal against the real table). No constructor changed and no new
+    injectable class, so no `setup:di:compile` was needed. Sandbox restored
+    (see PRO-2467 below — both demonstrations were cleaned up together).
 
 - **PRO-2452 done — a GDPR erasure now reaches the store's OWN tables, not
   just the engine (Woo PRO-2383 parity, and it closes the sibling's open
@@ -2626,3 +2671,15 @@ PRO-1267 (engine: Magento product-identity contract note).
    above). Someone has to ask the engine team which text wins; if the ask
    wins, it is a contract change and a one-way door for every already-ingested
    Magento tenant's `(tenant_id, sku)` history.
+7. PRO-2453 — confirm the purchase marker's datetime format (Low urgency;
+   reversible until 3.0.0 ships, but merchant-visible and permanent
+   afterwards). The task brief asked for a Z-suffixed
+   `abandoned_cart_purchased_at`; the code ships UTC `Y-m-d H:i:s` instead,
+   because that is what the Woo sibling actually sends (decision PRO-1723,
+   `AutomationMarker::purchase_stamp()`, pinned in its unit test and
+   documented in the Woo merchant guide), and because the merchant's exit
+   condition compares this value against `abandoned_cart_automation_at` —
+   which is `Y-m-d H:i:s`. A Z form would sort wrong against it ('T' > ' ')
+   and split the cross-platform canon the three plugins share. Nothing to
+   change unless you want all four marker fields moved to Z form on all
+   three platforms at once.

@@ -241,6 +241,30 @@ for a contact writes nothing at all, leaving any value Smaily already holds
 untouched. The same field names are used by Smaily's WooCommerce and Shopify
 plugins, so a segment built on them transfers between stores.
 
+### Stopping the abandoned-cart follow-ups once the shopper buys
+
+When a shopper you sent an abandoned-cart reminder to completes an order, the
+extension writes one more field onto their contact:
+
+| Event | Contact field |
+|---|---|
+| Abandoned cart purchased | `abandoned_cart_purchased_at` |
+
+The value is the date and time of the purchase, in UTC, in the same format as
+the fields above. Use it as the **exit condition** on every follow-up step of
+your abandoned-cart workflow: continue only while `abandoned_cart_purchased_at`
+is **earlier than** `abandoned_cart_automation_at` (or empty) — the shopper has
+bought when the purchase time is the later of the two. Guests and signed-in
+shoppers alike are covered, and the purchase counts as soon as the order is
+placed, without waiting for payment status.
+
+It is written **only** for a shopper the extension actually tracked as having
+abandoned a cart — an ordinary purchase writes nothing and creates no contact.
+The reminder's cart and product fields are left exactly as the reminder wrote
+them. If the shopper buys before the reminder has gone out, the reminder is
+dropped instead: the Log row is closed without being sent, its response reading
+`cancelled`.
+
 ## Abandoned cart
 
 A cart counts as abandoned when it has items and an email address and has

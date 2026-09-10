@@ -75,6 +75,34 @@ class SyncDispatcher
         );
     }
 
+    /**
+     * The abandoned-cart workflow's exit signal, for a contact the store has
+     * already tracked as abandoned (PRO-2453). Two halves of one thing: a
+     * reminder still waiting in the queue is withdrawn, and the purchase
+     * moment goes onto the contact as a plain contact.sync carrying the
+     * address and that one field — no automation runs, and the reminder's
+     * own cart and product fields are left exactly as the reminder wrote
+     * them. Stamped here, at the order-placed moment, for the same reason
+     * dispatchAutomation() stamps its marker at the trigger.
+     */
+    public function dispatchCartPurchase(string $email, int $storeId): void
+    {
+        $this->eventQueue->cancelPendingAutomation(Trigger::ABANDONED_CART, $email);
+
+        $this->eventQueue->enqueue(
+            EventType::CONTACT_SYNC,
+            [
+                'store_id' => $storeId,
+                'contact' => [
+                    'email' => $email,
+                    Trigger::ABANDONED_CART_PURCHASED_FIELD => gmdate('Y-m-d H:i:s'),
+                ],
+            ],
+            $email,
+            $this->websiteId($storeId)
+        );
+    }
+
     public function websiteId(int $storeId): int
     {
         try {

@@ -318,6 +318,27 @@ automation. The payload's `abandoned_cart_url` is an HMAC-signed
 `smaily/cart/restore` link (`AbandonedCart\RestoreTokenManager`, keyed with
 the installation crypt key) that restores the exact quote.
 
+**The exit signal (PRO-2453, Woo PRO-1723 parity).** A follow-up series has
+to stop when the shopper buys, and a Smaily-only "has ordered since" rule
+cannot see a repeat buyer's history the way the store can — so the store
+sends the signal. `Observer\OrderPlaced` reads the tracker row BEFORE
+`markCompleted()` overwrites it (`StateManager::wasReminded()`, status
+`mailed`) and, when the feature is on for that website,
+`ContactSync\SyncDispatcher::dispatchCartPurchase()` does two things:
+`EventQueue::cancelPendingAutomation()` withdraws a reminder still sitting
+`pending` for that address (terminally, the shape the flusher's own skip
+records — `sent`, no `sent_payload`, `EventQueue::CANCELLED_RESPONSE` in
+place of an API reply, so the Log keeps the withdrawal), and one plain
+`contact.sync` carries `Trigger::ABANDONED_CART_PURCHASED_FIELD`
+(`abandoned_cart_purchased_at`) with the order-placed moment. The field is
+the merchant's workflow exit condition compared against
+`abandoned_cart_automation_at`, so it carries the markers' UTC
+`Y-m-d H:i:s` shape — the two must sort against each other. The row carries
+the address and that one field only: the reminder's cart and product fields
+are never rewritten. The status IS the scope guard — a quote the extension
+never tracked as abandoned (no row, or a checkout-optin-only `open` row)
+sends nothing, so an ordinary purchase never creates a contact.
+
 ### Attribution (FPC-safe by construction)
 
 Landing capture is client-side (`view/frontend/web/js/attribution.js` —
