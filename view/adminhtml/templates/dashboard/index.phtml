@@ -44,7 +44,7 @@ $sourceLabels = [
 // Kicker is the short role label above it.
 if ($verdict === \Smaily\Connect\ViewModel\Adminhtml\DashboardData::VERDICT_INCOMPLETE) {
     $verdictKicker = __('Setup incomplete');
-    $verdictText = __('Setup is not finished yet — complete the setup wizard to start syncing.');
+    $verdictText = __('Setup is not finished yet — complete the initial setup to start syncing.');
 } elseif ($engineRefused) {
     $verdictKicker = __('Needs attention');
     $verdictText = __('Campaign Intelligence has stopped accepting data from this store, so product, customer and order data is no longer being sent and recommendations will go stale. Waiting will not fix it — the account has to be made active again on the Smaily side. Your Smaily email sending is unaffected; everything queued here waits and is sent once the account is active.');
@@ -157,7 +157,7 @@ $connections = [
             </div>
             <?php $activity = $viewModel->getRecentActivity(10); ?>
             <?php if (!$activity): ?>
-                <p class="smaily-empty"><?= $escaper->escapeHtml(__('No deliveries yet. Once subscribers, orders or catalog changes start flowing, the latest queue rows show up here.')) ?></p>
+                <p class="smaily-empty"><?= $escaper->escapeHtml(__('No deliveries yet. Once contacts, orders or catalog changes start flowing, the latest queue rows show up here.')) ?></p>
             <?php else: ?>
                 <div class="admin__table-wrapper">
                     <table class="admin__table-secondary">
@@ -192,9 +192,9 @@ $connections = [
         <div class="smaily-card smaily-quick-links">
             <h2><?= $escaper->escapeHtml(__('Quick links')) ?></h2>
             <ul>
-                <li><a href="<?= $escaper->escapeUrl($urls['settings']) ?>"><?= $escaper->escapeHtml(__('Settings')) ?></a> — <?= $escaper->escapeHtml(__('connection, subscribers, automations, Intelligence and RSS in one tabbed page')) ?></li>
+                <li><a href="<?= $escaper->escapeUrl($urls['settings']) ?>"><?= $escaper->escapeHtml(__('Settings')) ?></a> — <?= $escaper->escapeHtml(__('connection, contacts, automations, Intelligence and RSS in one tabbed page')) ?></li>
                 <li><a href="<?= $escaper->escapeUrl($urls['log']) ?>"><?= $escaper->escapeHtml(__('Log')) ?></a> — <?= $escaper->escapeHtml(__('every delivery with retry for failed rows')) ?></li>
-                <li><a href="<?= $escaper->escapeUrl($urls['wizard']) ?>"><?= $escaper->escapeHtml(__('Setup Wizard')) ?></a> — <?= $escaper->escapeHtml(__('re-run the guided setup at any time; your settings are kept')) ?></li>
+                <li><a href="<?= $escaper->escapeUrl($urls['wizard']) ?>"><?= $escaper->escapeHtml(__('Initial setup')) ?></a> — <?= $escaper->escapeHtml(__('re-run the guided setup at any time; your settings are kept')) ?></li>
             </ul>
         </div>
     </div>

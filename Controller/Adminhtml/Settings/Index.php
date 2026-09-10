@@ -18,7 +18,7 @@ use Smaily\Connect\Model\Adminhtml\SetupGuard;
 
 /**
  * Tabbed settings page — the wizard's step content as always-available tabs
- * (Connection / Subscribers / Automations / Intelligence / RSS), saving via
+ * (Connection / Contacts / Automations / Intelligence / RSS), saving via
  * AJAX into the same system config paths as the wizard and system.xml.
  */
 class Index extends Action implements HttpGetActionInterface

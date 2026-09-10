@@ -41,16 +41,16 @@ $syncFieldLabels = [
 $selectedSyncFields = $viewModel->getSelectedSyncFields();
 ?>
 <div class="smaily-card">
-    <?php // Settings already has its own "Subscribers" heading + description above the
+    <?php // Settings already has its own "Contacts" heading + description above the
     // card (settings/index.phtml), matching the Connection tab's pattern — the wizard
     // has no such heading, so it keeps this in-card intro. ?>
     <?php if (!$isSettings): ?>
-    <h2><?= $escaper->escapeHtml(__('Who should be synced to Smaily?')) ?></h2>
+    <h2><?= $escaper->escapeHtml(__('Contact synchronisation to Smaily')) ?></h2>
     <?php endif; ?>
     <?php if ($isSettings): ?>
     <div class="smaily-inline-toggle">
         <label><input type="checkbox" id="smaily-w-sync-enabled"/>
-            <?= $escaper->escapeHtml(__('Enable subscriber synchronization')) ?></label>
+            <?= $escaper->escapeHtml(__('Sync contacts to Smaily')) ?></label>
     </div>
     <?php endif; ?>
     <div id="smaily-w-subscribers-body">
@@ -135,11 +135,11 @@ $selectedSyncFields = $viewModel->getSelectedSyncFields();
     </div>
 
     <div class="smaily-card smaily-backfill-card" style="background:#f8f8f8;">
-        <strong><?= $escaper->escapeHtml(__('Import your existing subscribers')) ?></strong>
+        <strong><?= $escaper->escapeHtml(__('Initial contact import')) ?></strong>
         <p class="note" id="smaily-w-backfill-estimate"<?= $syncEnabled ? '' : ' style="display:none;"' ?>><?= $escaper->escapeHtml(__('Your store has %1 customers, %2 orders and %3 products. The import runs in the background, a chunk per minute, and never slows the storefront down.', $totals['customers'], $totals['orders'], $totals['products'])) ?></p>
-        <p class="note" id="smaily-w-backfill-off"<?= $syncEnabled ? ' style="display:none;"' : '' ?>><?= $escaper->escapeHtml(__('Subscriber synchronization is off for this website, so an import would send nothing. Turn it on and save to import.')) ?></p>
+        <p class="note" id="smaily-w-backfill-off"<?= $syncEnabled ? ' style="display:none;"' : '' ?>><?= $escaper->escapeHtml(__('Contact synchronisation is off for this website, so an import would send nothing. Turn it on and save to import.')) ?></p>
         <button type="button" class="action-secondary" id="smaily-w-backfill"<?= $syncEnabled ? '' : ' disabled' ?>>
-            <span><?= $escaper->escapeHtml(__('Import subscribers to Smaily')) ?></span>
+            <span><?= $escaper->escapeHtml(__('Start import')) ?></span>
         </button>
         <button type="button" class="action-tertiary" id="smaily-w-backfill-cancel" style="display:none;">
             <span><?= $escaper->escapeHtml(__('Cancel import')) ?></span>

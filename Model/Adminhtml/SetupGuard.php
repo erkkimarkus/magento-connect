@@ -80,7 +80,7 @@ class SetupGuard
                 (string)__(
                     'A major upgrade can bring new features and changed screens.'
                     . ' Review the settings under Marketing > Smaily Connect > Settings,'
-                    . ' or re-run the setup wizard — your saved configuration is untouched either way.'
+                    . ' or re-run the initial setup — your saved configuration is untouched either way.'
                 )
             );
         }

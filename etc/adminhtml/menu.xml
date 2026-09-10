@@ -14,7 +14,7 @@
         <add id="Smaily_Connect::dashboard" title="Dashboard" module="Smaily_Connect"
              sortOrder="10" parent="Smaily_Connect::connect"
              action="smaily_connect/dashboard" resource="Smaily_Connect::connect"/>
-        <add id="Smaily_Connect::wizard" title="Setup Wizard" module="Smaily_Connect"
+        <add id="Smaily_Connect::wizard" title="Initial setup" module="Smaily_Connect"
              sortOrder="20" parent="Smaily_Connect::connect"
              action="smaily_connect/wizard" resource="Smaily_Connect::connect"/>
         <add id="Smaily_Connect::settings" title="Settings" module="Smaily_Connect"

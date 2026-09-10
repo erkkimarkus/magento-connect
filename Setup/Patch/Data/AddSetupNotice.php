@@ -45,7 +45,7 @@ class AddSetupNotice implements DataPatchInterface
         $this->notifier->addNotice(
             (string)__('Smaily Connect is ready to set up'),
             (string)__(
-                'Open Marketing > Smaily Connect > Setup Wizard to connect your Smaily account'
+                'Open Marketing > Smaily Connect > Initial setup to connect your Smaily account'
                 . ' in a few guided steps. Existing settings from an earlier version were migrated automatically.'
                 . ' The full user guide is linked below under Read Details.'
             ),

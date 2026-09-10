@@ -30,7 +30,7 @@ $selectedWebsiteId = $viewModel->getSelectedWebsiteId();
 
 $tabs = [
     'connection' => __('Connection'),
-    'subscribers' => __('Subscribers'),
+    'subscribers' => __('Contacts'),
     'automations' => __('Automations'),
     'intelligence' => __('Intelligence'),
     'rss' => __('RSS'),
@@ -71,12 +71,12 @@ $tabs = [
         </div>
     </div>
     <div class="smaily-tab-panel" data-tab="subscribers">
-        <h3><?= $escaper->escapeHtml(__('Subscribers')) ?></h3>
-        <p class="smaily-tab-desc"><?= $escaper->escapeHtml(__('Who should be synced to Smaily?')) ?></p>
+        <h3><?= $escaper->escapeHtml(__('Contacts')) ?></h3>
+        <p class="smaily-tab-desc"><?= $escaper->escapeHtml(__('Synchronization settings')) ?></p>
         <?= $block->getChildHtml('panel.subscribers') ?>
         <div class="smaily-tab-footer">
             <button type="button" class="action-primary" id="smaily-w-subscribers-save">
-                <span><?= $escaper->escapeHtml(__('Save Subscribers')) ?></span>
+                <span><?= $escaper->escapeHtml(__('Save Contacts')) ?></span>
             </button>
             <span class="smaily-result" id="smaily-w-subscribers-result"></span>
         </div>

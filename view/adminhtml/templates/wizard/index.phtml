@@ -3,8 +3,8 @@
  * Copyright © Smaily. All rights reserved.
  * See LICENSE.txt for license details.
  *
- * Native 5-step setup wizard: Connect -> Subscribers -> Automations ->
- * Intelligence -> Done. The step content is the shared panel partials
+ * Native 5-step initial setup: Connect -> Contacts -> Automations ->
+ * Intelligence -> Overview. The step content is the shared panel partials
  * (view/adminhtml/templates/panel/) also rendered by the Settings page;
  * every step saves via AJAX into the same system config paths declared in
  * `etc/adminhtml/system.xml` (kept for storage/encryption; the native
@@ -43,7 +43,7 @@ $logUrl = $block->getUrl('smaily_connect/log', $websiteQuery);
     <?php if ($showChooser): ?>
     <div class="smaily-card" id="smaily-wizard-website-chooser">
         <h2><?= $escaper->escapeHtml(__('Which website are you setting up?')) ?></h2>
-        <p><?= $escaper->escapeHtml(__('This install has more than one website. Pick the one to connect — you can run this wizard again for each of the others.')) ?></p>
+        <p><?= $escaper->escapeHtml(__('This install has more than one website. Pick the one to connect — you can run the initial setup again for each of the others.')) ?></p>
         <div class="smaily-field">
             <label for="smaily-wizard-website-input"><?= $escaper->escapeHtml(__('Website')) ?></label>
             <select id="smaily-wizard-website-input">
@@ -65,10 +65,10 @@ $logUrl = $block->getUrl('smaily_connect/log', $websiteQuery);
     <ul class="smaily-steps">
         <?php foreach ([
             1 => __('Connect'),
-            2 => __('Subscribers'),
+            2 => __('Contacts'),
             3 => __('Automations'),
             4 => __('Intelligence'),
-            5 => __('Done'),
+            5 => __('Overview'),
         ] as $stepNo => $stepLabel): ?>
         <li data-step="<?= (int)$stepNo ?>">
             <span class="smaily-step-index"><span class="smaily-step-num"><?= (int)$stepNo ?></span></span><?= $escaper->escapeHtml($stepLabel) ?>
@@ -81,13 +81,13 @@ $logUrl = $block->getUrl('smaily_connect/log', $websiteQuery);
     <div class="smaily-step-panel" data-step="3"><?= $block->getChildHtml('panel.automations') ?></div>
     <div class="smaily-step-panel" data-step="4"><?= $block->getChildHtml('panel.intelligence') ?></div>
 
-    <!-- Step 5: Done (wizard-only) -->
+    <!-- Step 5: Overview (wizard-only) -->
     <div class="smaily-step-panel" data-step="5">
         <div class="smaily-card">
             <h2><?= $escaper->escapeHtml(__('You are all set!')) ?></h2>
             <p><?= $escaper->escapeHtml(__('Smaily Connect is now syncing in near-real-time. Here is where everything lives from now on:')) ?></p>
             <ul style="line-height:2.2;">
-                <li><a href="<?= $escaper->escapeUrl($settingsUrl) ?>"><?= $escaper->escapeHtml(__('Settings')) ?></a> — <?= $escaper->escapeHtml(__('every setting from this wizard as always-available tabs, including the historical imports and the RSS feed URL builder')) ?></li>
+                <li><a href="<?= $escaper->escapeUrl($settingsUrl) ?>"><?= $escaper->escapeHtml(__('Settings')) ?></a> — <?= $escaper->escapeHtml(__('every setting from the initial setup as always-available tabs, including the historical imports and the RSS feed URL builder')) ?></li>
                 <li><a href="<?= $escaper->escapeUrl($logUrl) ?>"><?= $escaper->escapeHtml(__('Log')) ?></a> — <?= $escaper->escapeHtml(__('every delivery to Smaily and Campaign Intelligence with retry; check here first if something seems off')) ?></li>
                 <li><?= $escaper->escapeHtml(__('Product RSS feed for the Smaily template editor:')) ?> <code><?= $escaper->escapeHtml($block->getBaseUrl() . 'smaily/rss/feed') ?></code><br/>
                     <span class="note"><?= $escaper->escapeHtml(__('Need a category-filtered or sorted feed? Use the URL builder under Settings > RSS.')) ?>

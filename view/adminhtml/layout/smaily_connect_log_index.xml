@@ -17,7 +17,7 @@
                    template="Smaily_Connect::intro.phtml"
                    before="-">
                 <arguments>
-                    <argument name="intro_text" xsi:type="string">Every delivery lands here: subscriber syncs and automation triggers to Smaily, plus catalog, customer, order and browse data to Campaign Intelligence — the Source column tells them apart. Failed rows retry automatically with backoff for up to 5 attempts; anything still failed can be selected and retried manually. Sent rows are kept for 30 days, failed rows for 90. If something seems missing in Smaily, this is the first place to look.</argument>
+                    <argument name="intro_text" xsi:type="string">Every delivery lands here: contact syncs and automation triggers to Smaily, plus catalog, customer, order and browse data to Campaign Intelligence — the Source column tells them apart. Failed rows retry automatically with backoff for up to 5 attempts; anything still failed can be selected and retried manually. Sent rows are kept for 30 days, failed rows for 90. If something seems missing in Smaily, this is the first place to look.</argument>
                 </arguments>
             </block>
             <block class="Magento\Backend\Block\Template"
