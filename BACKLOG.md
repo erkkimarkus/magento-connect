@@ -28,9 +28,20 @@ executed verification matrix (Luma / Hyvä / strict CSP — all pass) in
 - Backfill job cancel button in the admin grid (CLI/DB only for now).
 - Setup wizard as a guided multi-step flow (the Getting Started checklist
   covers onboarding for now).
+- Event Log "Send again" for a failed row, refusals worded from the server's
+  own reason, and no double send on retry (PRO-2454, Woo parity).
+- Smaily landing page as a Magento CMS widget — decided for 3.1 (PRO-2455).
+- Fidelity check of the July admin design pack against the rendered admin
+  (PRO-2456, UI/UX parity project).
 
 ## Sync / data
 
+- A deactivated or refused Campaign Intelligence account is remembered, gates
+  every send path and is stated in the merchant panel (PRO-2451, Woo parity).
+- GDPR erasure must also erase local queue rows and anonymise stored payloads,
+  not just the contact (PRO-2452, Woo parity).
+- Abandoned-cart purchase marker `abandoned_cart_purchased_at`, so a recovered
+  cart stops the reminder chain (PRO-2453, Woo parity).
 - Abandoned-cart coverage for guests who abandon before the payment step:
   fall back to the `quote_address` billing email when
   `quote.customer_email` is still NULL (Magento fills it only at

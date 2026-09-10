@@ -5,10 +5,21 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-08-11 (PRO-1765 — contact field wire canon: `user_gender`
-+ `user_phone`)_
+_Last updated: 2026-09-10 (orchestration session — parity sweep vs
+Woo/Shopify, doc reconcile)_
 
 ## Where we are
+
+- **Next session opens here (2026-09-10 orchestration session).** Parity sweep
+  against the Woo and Shopify siblings: Magento mirrors the August sibling wave
+  and sits on engine contract v1.8.1. The Woo **September wave** is not
+  mirrored — filed as PRO-2451 (deactivated/refused engine account), PRO-2452
+  (GDPR erasure must reach local queue rows), PRO-2453 (abandoned-cart purchase
+  marker), PRO-2454 (Event Log "Send again"); PRO-2455 (landing page as a CMS
+  widget) is 3.1. **Erkki's decision: the wave ships BEFORE 3.0.0 is tagged** —
+  the composer publish is irreversible for every 2.8.x install. Queue:
+  release gates (PRO-1400 + PRO-1484) → PRO-2451 → PRO-2452 → PRO-2453 →
+  PRO-1748 → PRO-2454 → release train → PRO-2456.
 
 - **PRO-1765 done — the contact payload speaks the cross-platform field
   canon: gender ships as `user_gender`, and phone ships at all.** Two
@@ -2357,11 +2368,17 @@ _Last updated: 2026-08-11 (PRO-1765 — contact field wire canon: `user_gender`
 | Issue | What | Priority |
 |---|---|---|
 | PRO-1198 | Release coordination with Smaily (upstream/Marketplace path) | High — Erkki's decision |
-| PRO-1201 | Hyvä theme work package | — |
-| PRO-1281 | Phase 3 design-led polish — DONE (Stage A tokens/components + Stage B screens; Playwright en/et green) | — |
-| PRO-1288 | Engine-automations connected-states validation — DONE (off/active/test/validation-error driven live en/et; no code change) | Low |
-| PRO-1292 | Engine-automations trigger title/description i18n — DONE (locale-aware `name_<lang>`/`description_<lang>` with `_en` fallback; unit-tested) | Low |
-| PRO-1274 | Settings vs config-scope overrides — DONE (option c: detect + "Overridden for X" indicator + Use-Default clear with path allowlist; Playwright en/et green) | Medium |
+| PRO-1971 | `gender` → `user_gender` release-comms obligation — parked 2026-09-02, reopens when 3.0.0 has a date | High — Erkki's decision |
+| PRO-1400 | Clean-install confirmation of the cron group (release gate) | Todo |
+| PRO-1484 | Canonical `mag-<id>` keys, `smaily_rec` click capture, browse keys (release gate) | Todo |
+| PRO-2451 | Deactivated/refused Campaign Intelligence account — remember it, gate every send path, say so in the merchant panel (Woo PRO-1893 parity) | High |
+| PRO-2452 | GDPR erasure must also erase local queue rows and anonymise stored payloads (Woo PRO-2383 parity) | High |
+| PRO-2453 | Abandoned-cart purchase marker `abandoned_cart_purchased_at` (Woo PRO-1723 parity) | Medium |
+| PRO-2454 | Event Log "Send again", server-worded refusals, no double-send on retry (Woo PRO-2324/2368/1733 parity) | Medium — may slip to 3.1 |
+| PRO-2455 | Smaily landing page as a Magento CMS widget — decided for 3.1 | Low |
+| PRO-1748 | Terminology canon across admin copy and docs | Medium |
+| PRO-1766 | Open in the Magento v3 project (scope in Linear) | — |
+| PRO-2456 | Fidelity check of the July design pack against the rendered admin (UI/UX parity project) | — |
 
 Closed 2026-07-11: PRO-1199 (integration suite), PRO-1200 (i18n), PRO-1202 /
 PRO-1242 (contract v1.4.0), PRO-1231 (product-delete §3b), PRO-1252
@@ -2417,13 +2434,14 @@ PRO-1267 (engine: Magento product-identity contract note).
    and the observer gates are all deleted — ingest now gates purely on
    `Settings::isConnected()`. (b) and (c) are both covered by the STATUS
    entries above.
-5. PRO-1765 — sign off the `gender` → `user_gender` wire rename before
+5. ~~PRO-1765 — sign off the `gender` → `user_gender` wire rename before
    3.0.0 ships (Medium; reversible until release). v3 has no installed
    base, but **2.8.x did send `gender`** and those stores upgrade in place,
    so an upgraded merchant's Smaily segments/templates on `gender` freeze
-   at their last 2.8.x value until repointed. Implemented per PRO-1765 on
+   at their last 2.8.x value until repointed.~~ **Resolved (Erkki,
+   2026-08-26, recorded on PRO-1971):** option A — the rename STANDS, on
    the cross-platform-canon argument (Woo decision F2-7 — one shopper must
    not produce two fields), with the repoint documented in
-   `docs/UPGRADING.md` and `CHANGELOG.md`. If you would rather keep
-   Magento's legacy `gender` on the wire, say so and it reverts to a
-   one-constant change.
+   `docs/UPGRADING.md` and `CHANGELOG.md`. It carries a release-comms
+   obligation towards upgrading merchants (PRO-1971), parked 2026-09-02
+   until 3.0.0 has a date.
