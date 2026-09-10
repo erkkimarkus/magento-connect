@@ -181,11 +181,9 @@ class EventQueue
      */
     public function markSent(Event $event, ?string $sentPayload = null, ?string $response = null): void
     {
-        $event->addData([
-            'status' => Event::STATUS_SENT,
+        $event->addData($this->terminalFields($response) + [
             'last_error' => null,
             'sent_payload' => $sentPayload,
-            'last_response' => $response,
         ]);
         $this->eventResource->save($event);
     }
@@ -264,13 +262,8 @@ class EventQueue
 
     /**
      * Withdraw a contact's still-pending automation rows of one trigger
-     * (PRO-2453): the shopper bought, so the reminder must not go out.
-     *
-     * The row is closed the way the flusher records a terminal skip — status
-     * sent, no sent_payload, nothing retried — with CANCELLED_RESPONSE in
-     * place of an API reply, so the Log keeps the fact that a reminder was
-     * withdrawn instead of losing the row. Only `pending` rows are taken: a
-     * claimed one is already in a worker's hands.
+     * (PRO-2453): the shopper bought, so the reminder must not go out. Only
+     * `pending` rows are taken — a claimed one is a worker's.
      *
      * @return int number of rows cancelled
      */
@@ -288,8 +281,7 @@ class EventQueue
 
         $ids = [];
         foreach ($rows as $id => $payload) {
-            $decoded = $this->serializer->unserialize((string)$payload);
-            if (is_array($decoded) && ($decoded['trigger_type'] ?? null) === $trigger) {
+            if (($this->decodeArray((string)$payload)['trigger_type'] ?? null) === $trigger) {
                 $ids[] = (int)$id;
             }
         }
@@ -299,11 +291,7 @@ class EventQueue
 
         return $connection->update(
             $table,
-            [
-                'status' => Event::STATUS_SENT,
-                'next_retry_at' => null,
-                'last_response' => self::CANCELLED_RESPONSE,
-            ],
+            $this->terminalFields(self::CANCELLED_RESPONSE),
             [
                 'id IN (?)' => $ids,
                 'status = ?' => Event::STATUS_PENDING,
@@ -318,9 +306,36 @@ class EventQueue
      */
     public function decodePayload(Event $event): array
     {
-        $decoded = $this->serializer->unserialize($event->getPayload());
+        return $this->decodeArray($event->getPayload());
+    }
+
+    /**
+     * A stored JSON payload as an array; anything else decodes to nothing.
+     *
+     * @return array<int|string, mixed>
+     */
+    private function decodeArray(string $payload): array
+    {
+        $decoded = $this->serializer->unserialize($payload);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * The fields that close a row for good — delivered, or withdrawn because
+     * the reminder became moot: status sent and nothing left to retry, with
+     * $response holding the API reply or CANCELLED_RESPONSE in its place, so
+     * the Log keeps the row either way.
+     *
+     * @return array<string, mixed>
+     */
+    private function terminalFields(?string $response): array
+    {
+        return [
+            'status' => Event::STATUS_SENT,
+            'next_retry_at' => null,
+            'last_response' => $response,
+        ];
     }
 
     private function nextRetryAt(int $attempts, ?int $retryAfter = null): string

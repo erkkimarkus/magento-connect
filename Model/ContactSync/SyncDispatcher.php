@@ -36,13 +36,9 @@ class SyncDispatcher
         ?bool $isUnsubscribed,
         ?CustomerInterface $customer = null
     ): void {
-        $contact = $this->payloadBuilder->build($email, $storeId, $isUnsubscribed, $customer);
-
-        $this->eventQueue->enqueue(
-            EventType::CONTACT_SYNC,
-            ['store_id' => $storeId, 'contact' => $contact],
-            $contact['email'],
-            $this->websiteId($storeId)
+        $this->enqueueContactSync(
+            $this->payloadBuilder->build($email, $storeId, $isUnsubscribed, $customer),
+            $storeId
         );
     }
 
@@ -58,7 +54,7 @@ class SyncDispatcher
     {
         $marker = Trigger::MARKER_FIELDS[$trigger] ?? null;
         if ($marker !== null) {
-            $address[$marker] = gmdate('Y-m-d H:i:s');
+            $address[$marker] = gmdate(Trigger::MARKER_STAMP_FORMAT);
         }
 
         $this->eventQueue->enqueue(
@@ -89,16 +85,26 @@ class SyncDispatcher
     {
         $this->eventQueue->cancelPendingAutomation(Trigger::ABANDONED_CART, $email);
 
+        $this->enqueueContactSync(
+            [
+                'email' => $email,
+                Trigger::ABANDONED_CART_PURCHASED_FIELD => gmdate(Trigger::MARKER_STAMP_FORMAT),
+            ],
+            $storeId
+        );
+    }
+
+    /**
+     * Queue one contact.sync for an already-built contact payload.
+     *
+     * @param array<string, mixed> $contact must contain "email"
+     */
+    private function enqueueContactSync(array $contact, int $storeId): void
+    {
         $this->eventQueue->enqueue(
             EventType::CONTACT_SYNC,
-            [
-                'store_id' => $storeId,
-                'contact' => [
-                    'email' => $email,
-                    Trigger::ABANDONED_CART_PURCHASED_FIELD => gmdate('Y-m-d H:i:s'),
-                ],
-            ],
-            $email,
+            ['store_id' => $storeId, 'contact' => $contact],
+            (string)($contact['email'] ?? ''),
             $this->websiteId($storeId)
         );
     }

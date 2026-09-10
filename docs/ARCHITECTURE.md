@@ -261,7 +261,7 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   stays is an email-less tombstone — `email` NULL, status
   `StateManager::STATUS_ERASED` — which `filterAlreadyHandled()` covers like
   any other terminal status, so `Cron\AbandonedCart` neither mails that
-  quote nor tracks it afresh, and `wasReminded()` reads false so the
+  quote nor tracks it afresh, and the status no longer reads `mailed`, so the
   PRO-2453 purchase marker never fires for an erased contact either. The
   tombstone carries no special retention. The export lists cart rows by
   address, so a tombstone is by construction unlisted — there is no address
@@ -336,7 +336,7 @@ the installation crypt key) that restores the exact quote.
 to stop when the shopper buys, and a Smaily-only "has ordered since" rule
 cannot see a repeat buyer's history the way the store can — so the store
 sends the signal. `Observer\OrderPlaced` reads the tracker row BEFORE
-`markCompleted()` overwrites it (`StateManager::wasReminded()`, status
+`markCompleted()` overwrites it (`StateManager::rowForQuote()`, status
 `mailed`) and, when the feature is on for that website,
 `ContactSync\SyncDispatcher::dispatchCartPurchase()` does two things:
 `EventQueue::cancelPendingAutomation()` withdraws a reminder still sitting
@@ -346,10 +346,11 @@ place of an API reply, so the Log keeps the withdrawal), and one plain
 `contact.sync` carries `Trigger::ABANDONED_CART_PURCHASED_FIELD`
 (`abandoned_cart_purchased_at`) with the order-placed moment. The field is
 the merchant's workflow exit condition compared against
-`abandoned_cart_automation_at`, so it carries the markers' UTC
-`Y-m-d H:i:s` shape — the two must sort against each other. The row carries
-the address and that one field only: the reminder's cart and product fields
-are never rewritten. The status IS the scope guard — a quote the extension
+`abandoned_cart_automation_at`, so it carries the markers' own
+`Trigger::MARKER_STAMP_FORMAT` — the two must sort against each other, and
+why that format is what it is is stated there. The row carries the address
+and that one field only: the reminder's cart and product fields are never
+rewritten. The status IS the scope guard — a quote the extension
 never tracked as abandoned (no row, a checkout-optin-only `open` row, or an
 erased tombstone) sends nothing, so an ordinary purchase never creates a
 contact.

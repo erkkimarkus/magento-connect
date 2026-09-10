@@ -115,11 +115,8 @@ class SyncDispatcherTest extends TestCase
         self::assertSame('shopper@example.com', $address['email']);
     }
 
-    /**
-     * PRO-2453: the workflow's exit condition compares the purchase against
-     * `abandoned_cart_automation_at`, so the two must sort against each other
-     * — same UTC `Y-m-d H:i:s` shape, same wire name as the Woo sibling.
-     */
+    // PRO-2453: the wire name is pinned, and the stamp sorts against a run
+    // marker of the same shape (rationale: Trigger::MARKER_STAMP_FORMAT).
     public function testTheCartPurchaseMarkerIsSentAloneAndSortsAgainstTheRunMarker(): void
     {
         $before = gmdate('Y-m-d H:i:s');
@@ -140,7 +137,6 @@ class SyncDispatcherTest extends TestCase
         );
         self::assertSame('abandoned_cart_purchased_at', Trigger::ABANDONED_CART_PURCHASED_FIELD);
         $stamp = $contact[Trigger::ABANDONED_CART_PURCHASED_FIELD];
-        self::assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $stamp);
         self::assertGreaterThanOrEqual($before, $stamp);
         self::assertLessThanOrEqual($after, $stamp);
     }

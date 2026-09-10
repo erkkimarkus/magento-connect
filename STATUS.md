@@ -31,21 +31,15 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   customer deletion) left the quote active and idle, and the next
   abandoned-cart sweep saw an untracked cart and mailed the address just
   erased.
-  - **What changed.** `StateManager::deleteForEmail()` became
+  - **The decision.** `StateManager::deleteForEmail()` became
     `anonymizeForEmail()`: `email` NULL, status the new
-    `StateManager::STATUS_ERASED`. `filterAlreadyHandled()` covers `erased`
-    like any other terminal status, so `Cron\AbandonedCart` neither mails
-    that quote nor tracks it afresh, and `wasReminded()` reads false, so
-    PRO-2453's purchase marker never fires for an erased contact either.
-    `LocalEraser` counts the row under `anonymised` instead of `removed`,
-    which is what the CLI's existing line prints — no new vocabulary, and
-    honest: "Abandoned carts: 0 removed, 1 anonymised". The export is
-    unchanged: it matches cart rows by address and never printed one, so a
-    tombstone is by construction unlisted and there is nothing else
-    personal on the row. No special retention: the janitor's sweep covers
-    only the two queue tables (`Cron\QueueJanitor::TABLES`), so a tombstone
-    ages exactly like every other cart row — which today means it is not
-    pruned by us at all. Flagged as a follow-up, not fixed here.
+    `StateManager::STATUS_ERASED`, counted under the CLI's existing
+    `anonymised` line ("Abandoned carts: 0 removed, 1 anonymised") rather
+    than a new vocabulary. What the tombstone means for the cron, the
+    export and retention is written up in `docs/ARCHITECTURE.md` ("Queue
+    semantics" → Art. 17 erasure); don't restate it here. The one open
+    end: a tombstone gets no special retention (the janitor sweeps only the
+    two queue tables), flagged as a follow-up, not fixed here.
   - **Verification — the REAL flow on the sandbox, only the Smaily
     transport faked; synthetic contact.** A guest quote built through the
     real cart services, backdated idle, the real `Cron\AbandonedCart` +
@@ -59,7 +53,8 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
     queue row at all.
   - Gates: 281 unit tests green, phpcs 0 errors, phpstan clean, 79
     integration tests green (throwaway MySQL — a new case runs the real
-    command against the real tables and then asks the cron's own gate).
+    command against the real tables, and the cron's own gate is asked in
+    `Test/Integration/AbandonedCart/StateManagerTest.php`).
     No constructor changed and no new injectable class, so no
     `setup:di:compile`; `setup:upgrade` WAS run in the sandbox because
     `etc/db_schema.xml` changed (the status column's comment now lists
@@ -68,6 +63,11 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
     queue rows, 0 `smaily%` config rows; the one pre-existing
     `smaily_abandoned_cart` row (quote 2, from an earlier session) was left
     as found.
+  - Simplified after review (2026-09-10, same gates re-run): the tombstone
+    rationale now has one owner per layer (`anonymizeForEmail()` in code,
+    ARCHITECTURE in docs) and the cron-gate case moved out of the privacy
+    suite into `Test\Integration\AbandonedCart\StateManagerTest`. No
+    behaviour change.
 
 - **PRO-2453 done — a purchase now stops the abandoned-cart follow-ups (Woo
   PRO-1723 parity).** A shopper who bought mid-series was handled only on
@@ -81,20 +81,15 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   - **Erkki's binding design (2026-09-10):** the marker is sent both when a
     reminder was already delivered AND when the cart was marked abandoned
     but the reminder has not gone out yet — in Magento both are tracker
-    status `mailed`, so one predicate (`StateManager::wasReminded()`, read
-    before `markCompleted()` overwrites it) answers both. A still-`pending`
-    reminder is withdrawn in the same breath. A cart the extension never
-    tracked sends nothing; the feature off sends nothing.
+    status `mailed`, so one tracker read (`StateManager::rowForQuote()`,
+    read before `markCompleted()` overwrites it) answers both. A
+    still-`pending` reminder is withdrawn in the same breath. A cart the
+    extension never tracked sends nothing; the feature off sends nothing.
   - **Wire-shape deviation from the task brief, recorded honestly.** The
-    brief called for a Z-suffixed datetime. It is UTC `Y-m-d H:i:s`
-    instead — what Woo actually ships (`AutomationMarker::purchase_stamp()`,
-    `gmdate('Y-m-d H:i:s')`, decision PRO-1723, pinned in its
-    `AutomationMarkerTest`) and what the Woo merchant guide documents. The
-    format is load-bearing, not cosmetic: the merchant's exit condition
-    compares this field against `abandoned_cart_automation_at`, and the two
-    must sort against each other. A Z-suffixed value would both break that
-    comparison ('T' > ' ') and split the cross-platform canon the three
-    plugins share. Queued for Erkki below.
+    brief called for a Z-suffixed datetime; the marker ships UTC
+    `Y-m-d H:i:s` because Woo's format stands (decision PRO-1723). Why the
+    format is load-bearing is stated once, at
+    `Trigger::MARKER_STAMP_FORMAT`. Queued for Erkki below.
   - **Verification — the REAL flow on the sandbox, only the Smaily
     transport faked.** Guest quotes built and orders placed through the real
     `CartManagementInterface`, the real `Cron\AbandonedCart` and the real
@@ -112,6 +107,14 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
     withdrawal against the real table). No constructor changed and no new
     injectable class, so no `setup:di:compile` was needed. Sandbox restored
     (see PRO-2467 below — both demonstrations were cleaned up together).
+  - Simplified after review (2026-09-10, same gates re-run): one tracker
+    read per order (`rowForQuote()` replaced `wasReminded()` +
+    `isOptedIn()`), one owner for the marker stamp
+    (`Trigger::MARKER_STAMP_FORMAT`), one owner for a queue row's terminal
+    close (`markSent()` and the withdrawal share it, which also nulls
+    `next_retry_at` on a delivered row — a column nothing reads once a row
+    is not pending), and the format rationale de-duplicated down to that
+    constant. No behaviour change on the wire or in the store.
 
 - **PRO-2452 done — a GDPR erasure now reaches the store's OWN tables, not
   just the engine (Woo PRO-2383 parity, and it closes the sibling's open
@@ -2724,11 +2727,6 @@ PRO-1267 (engine: Magento product-identity contract note).
    reversible until 3.0.0 ships, but merchant-visible and permanent
    afterwards). The task brief asked for a Z-suffixed
    `abandoned_cart_purchased_at`; the code ships UTC `Y-m-d H:i:s` instead,
-   because that is what the Woo sibling actually sends (decision PRO-1723,
-   `AutomationMarker::purchase_stamp()`, pinned in its unit test and
-   documented in the Woo merchant guide), and because the merchant's exit
-   condition compares this value against `abandoned_cart_automation_at` —
-   which is `Y-m-d H:i:s`. A Z form would sort wrong against it ('T' > ' ')
-   and split the cross-platform canon the three plugins share. Nothing to
-   change unless you want all four marker fields moved to Z form on all
-   three platforms at once.
+   because Woo's format stands (decision PRO-1723) — the full rationale is
+   at `Trigger::MARKER_STAMP_FORMAT`. Nothing to change unless you want all
+   four marker fields moved to Z form on all three platforms at once.

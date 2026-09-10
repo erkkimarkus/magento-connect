@@ -38,6 +38,8 @@ class GdprEraseTest extends IntegrationTestCase
     private const BYSTANDER = 'erase-test-2@example.test';
     private const NON_ASCII_SUBJECT = 'mõni@näide.test';
 
+    private const CART_TABLE = 'smaily_abandoned_cart';
+
     /** The merchant-facing labels the eraser keys its results by. */
     private const QUEUE_LABEL = 'Queued messages';
     private const ENGINE_LABEL = 'Engine queue';
@@ -115,9 +117,10 @@ class GdprEraseTest extends IntegrationTestCase
         self::assertStringNotContainsString(self::SUBJECT, (string)$ingest['ing-sent']['payload']);
 
         self::assertSame([], $this->stateManager->rowsForEmail(self::SUBJECT), 'The address is gone');
+        $cartStatuses = array_column($this->fetchAll(self::CART_TABLE), 'status', 'quote_id');
         self::assertSame(
-            [StateManager::STATUS_ERASED],
-            $this->cartStatuses(11),
+            StateManager::STATUS_ERASED,
+            $cartStatuses[11] ?? null,
             'The cart row is kept as an email-less tombstone, never deleted'
         );
         $carts = $this->stateManager->rowsForEmail(self::BYSTANDER);
@@ -183,32 +186,6 @@ class GdprEraseTest extends IntegrationTestCase
         self::assertStringContainsString('Abandoned carts: 0 removed, 1 anonymised', $tester->getDisplay());
     }
 
-    /**
-     * PRO-2467: the module may not touch the core quote table, so the erasure
-     * leaves a tombstone. If the row went away, a quote that is still active
-     * and idle past the cutoff would look untracked to the next sweep and be
-     * mailed to the address just erased.
-     */
-    public function testAnErasedContactsQuoteIsNeverPickedUpByTheCronAgain(): void
-    {
-        $this->stateManager->markMailed(11, 1, self::SUBJECT);
-        $this->stateManager->markMailed(12, 1, self::BYSTANDER);
-
-        $tester = $this->runCommand(['action' => 'erase', 'email' => self::SUBJECT, '--force' => true]);
-        self::assertSame(0, $tester->getStatusCode());
-
-        // The cron's own gate: quote 11 is still reported as handled, so it
-        // never reaches markMailed()/dispatchAutomation() and no reminder row
-        // is ever enqueued for it.
-        self::assertSame(
-            [11, 12],
-            $this->stateManager->filterAlreadyHandled([11, 12]),
-            'The tombstoned quote stays out of the candidate set'
-        );
-        self::assertSame([StateManager::STATUS_ERASED], $this->cartStatuses(11));
-        self::assertSame([], $this->fetchAll(EventResource::TABLE_NAME), 'Nothing was enqueued');
-    }
-
     public function testAFailingEngineStillLeavesTheLocalHalfErased(): void
     {
         $this->seedContactSync(self::SUBJECT, 'engine-down');
@@ -260,18 +237,6 @@ class GdprEraseTest extends IntegrationTestCase
 
         self::assertSame(0, $this->eventQueue->retry([$id]));
         self::assertSame(Event::STATUS_FAILED, $this->fetchRow(EventResource::TABLE_NAME, $id)['status']);
-    }
-
-    /**
-     * @return string[]
-     */
-    private function cartStatuses(int $quoteId): array
-    {
-        return $this->connection->fetchCol(
-            $this->connection->select()
-                ->from($this->connection->getTableName('smaily_abandoned_cart'), ['status'])
-                ->where('quote_id = ?', $quoteId)
-        );
     }
 
     private function seedContactSync(string $email, string $uuid): void

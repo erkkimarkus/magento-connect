@@ -30,11 +30,9 @@ class Trigger
      * or a "got this letter X days ago" rule transfers between platforms. The
      * names are merchant-visible and permanent — add one, never repurpose one.
      *
-     * The value is that run's own clock as `Y-m-d H:i:s` in UTC (the shape of
-     * the only other date+time on the Smaily contact wire, and lexicographically
-     * ordered, which is what lets a Smaily segment compare it against a date),
-     * written on every run: last-writer-wins, meaning "this automation ran, most
-     * recently at T" — not how the contact entered the list.
+     * The value is that run's own clock in MARKER_STAMP_FORMAT, written on
+     * every run: last-writer-wins, meaning "this automation ran, most recently
+     * at T" — not how the contact entered the list.
      *
      * A trigger writes only its own field. A trigger that did not fire sends no
      * marker at all: absent leaves whatever Smaily already holds intact, while
@@ -50,15 +48,27 @@ class Trigger
     ];
 
     /**
-     * The contact field recording that a shopper the store sent an
-     * abandoned-cart reminder to has since bought (PRO-2453, Woo PRO-1723).
+     * The shape of every marker stamp on the Smaily contact wire: UTC
+     * `Y-m-d H:i:s`, taken with gmdate() at the moment the store event
+     * happened.
      *
-     * It is not a trigger marker — no automation runs — so it lives outside
-     * MARKER_FIELDS: the merchant's Smaily workflow reads it as the EXIT
-     * condition of the reminder series ("`abandoned_cart_purchased_at` is
-     * later than `abandoned_cart_automation_at`"), which is why it carries
-     * the same UTC `Y-m-d H:i:s` shape as the markers above and must sort
-     * against them. Merchant-visible and permanent, exactly like them.
+     * Load-bearing, not cosmetic, and the one place this is stated: it is the
+     * shape of the only other date+time on that wire, it is lexicographically
+     * ordered, and the merchant's workflow compares two of these values
+     * against each other (ABANDONED_CART_PURCHASED_FIELD against this
+     * trigger's own marker), so they must sort. It is also what the Woo and
+     * Shopify siblings write (Woo decision PRO-1723,
+     * `AutomationMarker::purchase_stamp()`); a Z-suffixed form would sort
+     * wrong ('T' > ' ') and split the canon the three plugins share.
+     */
+    public const MARKER_STAMP_FORMAT = 'Y-m-d H:i:s';
+
+    /**
+     * The EXIT condition of the reminder series: a shopper the store reminded
+     * has since bought (PRO-2453, Woo PRO-1723). Not a trigger marker — no
+     * automation runs — hence outside MARKER_FIELDS, but it carries
+     * MARKER_STAMP_FORMAT so it sorts against them. Merchant-visible and
+     * permanent, exactly like them.
      */
     public const ABANDONED_CART_PURCHASED_FIELD = 'abandoned_cart_purchased_at';
 }

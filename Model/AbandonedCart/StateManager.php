@@ -16,8 +16,8 @@ use Magento\Framework\Stdlib\DateTime\DateTime;
  * connection; the core quote table is never altered).
  *
  * Statuses: open (tracked), mailed (automation fired), completed (order
- * placed), expired (aged out unmailed), erased (Art. 17 tombstone — the
- * row is kept, email-less, so the quote is never picked up again).
+ * placed), expired (aged out unmailed), erased (Art. 17 tombstone — see
+ * anonymizeForEmail()).
  */
 class StateManager
 {
@@ -93,36 +93,29 @@ class StateManager
     }
 
     /**
-     * Whether the extension tracked this quote as abandoned — the reminder is
-     * either already delivered or still waiting in the queue (PRO-2453). Read
-     * BEFORE markCompleted(), which overwrites the status.
+     * The tracked state of one quote: its status (STATUS_MAILED means the
+     * reminder is either delivered or still waiting in the queue, PRO-2453)
+     * and the checkout newsletter choice. Read BEFORE markCompleted(), which
+     * overwrites the status. An untracked quote reads as the empty state.
+     *
+     * @return array{status: string, newsletter_optin: bool}
      */
-    public function wasReminded(int $quoteId): bool
+    public function rowForQuote(int $quoteId): array
     {
         $connection = $this->resourceConnection->getConnection(self::CONNECTION);
         $select = $connection->select()
-            ->from($this->table(), ['status'])
+            ->from($this->table(), ['status', 'newsletter_optin'])
             ->where('quote_id = ?', $quoteId);
+        $row = $connection->fetchRow($select) ?: [];
 
-        return $connection->fetchOne($select) === self::STATUS_MAILED;
+        return [
+            'status' => (string)($row['status'] ?? ''),
+            'newsletter_optin' => (bool)($row['newsletter_optin'] ?? false),
+        ];
     }
 
     /**
-     * Whether the customer ticked the checkout newsletter checkbox for a quote.
-     */
-    public function isOptedIn(int $quoteId): bool
-    {
-        $connection = $this->resourceConnection->getConnection(self::CONNECTION);
-        $select = $connection->select()
-            ->from($this->table(), ['newsletter_optin'])
-            ->where('quote_id = ?', $quoteId);
-
-        return (bool)$connection->fetchOne($select);
-    }
-
-    /**
-     * Quote IDs that must not be (re)mailed: already mailed, completed,
-     * expired, or tombstoned by an erasure.
+     * Quote IDs in a terminal status, which must not be (re)mailed.
      *
      * @param int[] $quoteIds
      * @return int[]

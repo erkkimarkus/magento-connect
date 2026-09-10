@@ -52,15 +52,16 @@ class OrderPlaced implements ObserverInterface
             return;
         }
 
+        // One read of the tracker row, BEFORE markCompleted() overwrites the
+        // status; an order without a quote reads as the empty state.
         $quoteId = (int)$order->getQuoteId();
-        $wasReminded = false;
+        $cartState = ['status' => '', 'newsletter_optin' => false];
         if ($quoteId > 0) {
-            $optedIn = $this->abandonedCartState->isOptedIn($quoteId);
-            $wasReminded = $this->abandonedCartState->wasReminded($quoteId);
+            $cartState = $this->abandonedCartState->rowForQuote($quoteId);
             $this->abandonedCartState->markCompleted($quoteId);
-        } else {
-            $optedIn = false;
         }
+        $wasReminded = $cartState['status'] === StateManager::STATUS_MAILED;
+        $optedIn = $cartState['newsletter_optin'];
 
         $storeId = (int)$order->getStoreId();
         if (!$this->config->isConnected($storeId ?: null)) {
