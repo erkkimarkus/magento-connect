@@ -27,8 +27,19 @@ class StateManager
     public const STATUS_EXPIRED = 'expired';
     public const STATUS_ERASED = 'erased';
 
-    private const TABLE_NAME = 'smaily_abandoned_cart';
-    private const CONNECTION = 'checkout';
+    /**
+     * Statuses nothing further happens to. The cron's gate uses them, and so
+     * does the retention sweep (Cron\QueueJanitor) — the table's only walkers.
+     */
+    public const TERMINAL_STATUSES = [
+        self::STATUS_MAILED,
+        self::STATUS_COMPLETED,
+        self::STATUS_EXPIRED,
+        self::STATUS_ERASED,
+    ];
+
+    public const TABLE_NAME = 'smaily_abandoned_cart';
+    public const CONNECTION = 'checkout';
 
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
@@ -39,6 +50,11 @@ class StateManager
     /**
      * Record that an order was placed for a quote — the cart is no longer
      * abandoned and must never be mailed.
+     *
+     * A tombstone survives the conversion (PRO-2469): an erased row keeps
+     * its status, and with it its empty email, even when the quote becomes
+     * an order. Both statuses are terminal, so the cart cron treats the row
+     * the same either way.
      */
     public function markCompleted(int $quoteId): void
     {
@@ -49,7 +65,11 @@ class StateManager
                 'quote_id' => $quoteId,
                 'status' => self::STATUS_COMPLETED,
             ],
-            ['status']
+            [
+                'status' => new \Zend_Db_Expr(
+                    $connection->quoteInto('IF(status = ?, status, VALUES(status))', self::STATUS_ERASED)
+                ),
+            ]
         );
     }
 
@@ -75,6 +95,11 @@ class StateManager
 
     /**
      * Store the checkout newsletter opt-in choice for a quote.
+     *
+     * The status is written on insert only: a tombstoned row may take the
+     * fresh address the shopper types at a later checkout (their own new
+     * input), but stays `erased`, so no reminder is ever scheduled for it
+     * (PRO-2469).
      */
     public function setNewsletterOptin(int $quoteId, int $storeId, ?string $email, bool $optedIn): void
     {
@@ -130,12 +155,7 @@ class StateManager
         $select = $connection->select()
             ->from($this->table(), ['quote_id'])
             ->where('quote_id IN (?)', array_map('intval', $quoteIds))
-            ->where('status IN (?)', [
-                self::STATUS_MAILED,
-                self::STATUS_COMPLETED,
-                self::STATUS_EXPIRED,
-                self::STATUS_ERASED,
-            ]);
+            ->where('status IN (?)', self::TERMINAL_STATUSES);
 
         return array_map('intval', $connection->fetchCol($select));
     }

@@ -44,4 +44,59 @@ class StateManagerTest extends IntegrationTestCase
             'The tombstoned quote never reaches markMailed()/dispatchAutomation() again'
         );
     }
+
+    /**
+     * PRO-2469, edge 1: a tombstoned quote that later converts keeps the
+     * tombstone — the completion write must not resurrect the row as
+     * `completed`, which would say the extension still holds a record of
+     * this shopper's cart.
+     */
+    public function testAConvertedTombstoneKeepsItsErasedStatusAndEmptyEmail(): void
+    {
+        $this->stateManager->markMailed(21, 1, self::SUBJECT);
+        $this->stateManager->anonymizeForEmail(self::SUBJECT);
+
+        $this->stateManager->markCompleted(21);
+
+        $row = $this->rowFor(21);
+        self::assertSame(StateManager::STATUS_ERASED, $row['status']);
+        self::assertNull($row['email']);
+    }
+
+    /**
+     * PRO-2469, edge 2: the shopper types their address into checkout again
+     * and ticks the newsletter box. That is their own fresh input, so it may
+     * land on the row — but the row stays terminal, so the cart cron still
+     * never mails it.
+     */
+    public function testAFreshCheckoutOptinRepopulatesTheTombstoneWithoutRevivingIt(): void
+    {
+        $this->stateManager->markMailed(22, 1, self::SUBJECT);
+        $this->stateManager->anonymizeForEmail(self::SUBJECT);
+
+        $this->stateManager->setNewsletterOptin(22, 1, 'cart-state-1-again@example.test', true);
+
+        $row = $this->rowFor(22);
+        self::assertSame('cart-state-1-again@example.test', $row['email']);
+        self::assertSame(StateManager::STATUS_ERASED, $row['status']);
+        self::assertSame('1', (string)$row['newsletter_optin']);
+        self::assertSame(
+            [22],
+            $this->stateManager->filterAlreadyHandled([22]),
+            'A repopulated tombstone is still terminal, so no reminder is scheduled'
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rowFor(int $quoteId): array
+    {
+        $row = $this->connection->fetchRow(
+            $this->connection->select()->from('smaily_abandoned_cart')->where('quote_id = ?', $quoteId)
+        );
+        self::assertIsArray($row, sprintf('Expected a tracker row for quote %d', $quoteId));
+
+        return $row;
+    }
 }
