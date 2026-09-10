@@ -28,7 +28,7 @@ class CatalogResyncTest extends TestCase
     protected function setUp(): void
     {
         $this->settings = $this->createMock(Settings::class);
-        $this->settings->method('isConnected')->willReturn(true);
+        $this->settings->method('isSendingAllowed')->willReturn(true);
         $this->jobManager = $this->createMock(JobManager::class);
     }
 
@@ -57,7 +57,7 @@ class CatalogResyncTest extends TestCase
     public function testADisconnectedEngineNeverSweeps(): void
     {
         $settings = $this->createMock(Settings::class);
-        $settings->method('isConnected')->willReturn(false);
+        $settings->method('isSendingAllowed')->willReturn(false);
         $this->jobManager->expects(self::never())->method('start');
 
         (new CatalogResync($settings, $this->jobManager, $this->createMock(Logger::class)))->execute();

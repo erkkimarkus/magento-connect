@@ -104,6 +104,61 @@ class ClientTest extends TestCase
         }
     }
 
+    /**
+     * Contract §2: a `403 tenant_inactive` from ANY authenticated endpoint
+     * means the key is valid and the account is not. Recorded here, at the
+     * one chokepoint every engine call passes through (PRO-2451).
+     */
+    public function testTenantInactiveRefusalIsRecordedOnce(): void
+    {
+        $this->settings->method('getEndpoint')->willReturn('https://engine.example/api/v1/ingest/orders');
+        $this->settings->expects(self::once())->method('recordRefusal');
+        $client = $this->createClient([
+            new Response(403, [], '{"error":"tenant_inactive","message":"This tenant is currently deactivated.'
+                . ' Contact engine administrator.","tenant_status":"suspended"}'),
+        ]);
+
+        $this->expectException(EngineRequestException::class);
+        $client->ingest(Client::DOMAIN_ORDERS, [['external_order_id' => '1']]);
+    }
+
+    public function testOtherForbiddenResponsesAreNotTreatedAsARefusal(): void
+    {
+        $this->settings->method('getEndpoint')->willReturn('https://engine.example/api/v1/ingest/orders');
+        $this->settings->expects(self::never())->method('recordRefusal');
+        $client = $this->createClient([
+            new Response(403, [], '{"error":"type_not_externally_allowed","message":"internal only"}'),
+        ]);
+
+        $this->expectException(EngineRequestException::class);
+        $client->ingest(Client::DOMAIN_ORDERS, [['external_order_id' => '1']]);
+    }
+
+    /**
+     * The account answered, so a remembered refusal is over — the health-check
+     * ping and the admin's "Check again" both recover through this one line.
+     */
+    public function testASuccessfulAuthenticatedCallClearsTheRefusal(): void
+    {
+        $this->settings->method('getEndpoint')->willReturn('https://engine.example/api/v1/ingest/ping');
+        $this->settings->expects(self::once())->method('clearRefusal');
+        $client = $this->createClient([new Response(200, [], '{"ok":true,"pong":true}')]);
+
+        $client->ping();
+    }
+
+    public function testSetupExchangeDoesNotClearTheRefusalItself(): void
+    {
+        // Unauthenticated: Settings::storeExchange() owns that half, so a
+        // failed persist can never leave a cleared refusal behind.
+        $this->settings->expects(self::never())->method('clearRefusal');
+        $client = $this->createClient([
+            new Response(200, [], '{"tenant_id":"t1","api_key":"sk_x","endpoints":{}}'),
+        ]);
+
+        $client->setupExchange('tok_abc123');
+    }
+
     public function testCatalogRemoveSendsProductIdsWrapperToMappedEndpoint(): void
     {
         $this->settings->method('getEndpoint')->with('ingest_catalog_remove')

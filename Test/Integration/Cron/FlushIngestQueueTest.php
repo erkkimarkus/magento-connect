@@ -141,12 +141,52 @@ class FlushIngestQueueTest extends IntegrationTestCase
         self::assertNull($row['next_retry_at']);
     }
 
+    /**
+     * Contract §2 / PRO-2451: rows met by a refused account go back to
+     * pending exactly as they were — status, attempts, backoff and error
+     * untouched — and wait for the account to be active again.
+     */
+    public function testARefusedAccountLeavesTheClaimedRowsPending(): void
+    {
+        $this->queue->enqueue('catalog', ['sku' => 'A'], null, null, 'fi-ref1');
+        $this->queue->enqueue('catalog', ['sku' => 'B'], null, null, 'fi-ref2');
+
+        $account = new class {
+            public bool $refused = false;
+        };
+        $settings = $this->createMock(Settings::class);
+        $settings->method('isSendingAllowed')->willReturnCallback(
+            static fn (): bool => !$account->refused
+        );
+        $settings->method('isRefused')->willReturnCallback(
+            static fn (): bool => $account->refused
+        );
+        $client = $this->createMock(Client::class);
+        $client->expects(self::once())->method('ingest')->willReturnCallback(
+            static function () use ($account): array {
+                $account->refused = true;
+
+                throw new EngineRequestException('HTTP 403: tenant_inactive', 403);
+            }
+        );
+
+        $this->buildCron($settings, $client)->execute();
+
+        foreach ($this->fetchAll(IngestEventResource::TABLE_NAME) as $row) {
+            self::assertSame(IngestEvent::STATUS_PENDING, $row['status']);
+            self::assertSame('0', (string)$row['attempts'], 'A verdict never burns an attempt');
+            self::assertNull($row['next_retry_at']);
+            self::assertNull($row['last_error']);
+            self::assertNull($row['claim_token']);
+        }
+    }
+
     public function testDisconnectedEngineLeavesTheQueueUntouched(): void
     {
         $this->queue->enqueue('catalog', [], null, null, 'fi-idle');
 
         $settings = $this->createMock(Settings::class);
-        $settings->method('isConnected')->willReturn(false);
+        $settings->method('isSendingAllowed')->willReturn(false);
         $client = $this->createMock(Client::class);
         $client->expects(self::never())->method('ingest');
 
@@ -162,7 +202,7 @@ class FlushIngestQueueTest extends IntegrationTestCase
     private function runCron(Client $client): void
     {
         $settings = $this->createMock(Settings::class);
-        $settings->method('isConnected')->willReturn(true);
+        $settings->method('isSendingAllowed')->willReturn(true);
         $this->buildCron($settings, $client)->execute();
     }
 

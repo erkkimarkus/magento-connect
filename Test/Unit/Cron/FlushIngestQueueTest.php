@@ -34,7 +34,7 @@ class FlushIngestQueueTest extends TestCase
         $this->queue = $this->createMock(IngestQueue::class);
         $this->client = $this->createMock(Client::class);
         $this->settings = $this->createMock(Settings::class);
-        $this->settings->method('isConnected')->willReturn(true);
+        $this->settings->method('isSendingAllowed')->willReturn(true);
         $this->queue->method('decodePayload')->willReturnCallback(
             fn (IngestEvent $event): array => $this->payloads[(int)$event->getId()] ?? ['sku' => 'X']
         );
@@ -104,10 +104,51 @@ class FlushIngestQueueTest extends TestCase
         $this->createCron()->execute();
     }
 
+    /**
+     * Contract §2 / PRO-2451: the account was refused mid-flush, so the rows
+     * are not at fault. They go back to pending exactly as they were — never
+     * burned, never failed, attempt counters untouched (Erkki, 2026-09-10) —
+     * and the rest of the run is abandoned instead of collecting more 403s.
+     */
+    public function testARefusedAccountReleasesTheBatchAndEndsTheRun(): void
+    {
+        $event = $this->createEvent(7);
+        $this->stubClaims([Client::DOMAIN_CATALOG => [$event]]);
+        // Mutable holder: the refusal is learned DURING the run, exactly as
+        // Engine\Client records it mid-batch.
+        $account = new class {
+            public bool $refused = false;
+        };
+        $this->settings = $this->createMock(Settings::class);
+        $this->settings->method('isSendingAllowed')->willReturnCallback(
+            static fn (): bool => !$account->refused
+        );
+        $this->settings->method('isRefused')->willReturnCallback(
+            static fn (): bool => $account->refused
+        );
+        $this->client->method('ingest')->willReturnCallback(
+            static function () use ($account): array {
+                // What Engine\Client does on a `403 tenant_inactive`.
+                $account->refused = true;
+
+                throw new EngineRequestException('HTTP 403: tenant_inactive', 403);
+            }
+        );
+
+        $this->queue->expects(self::once())->method('release')->with([$event]);
+        $this->queue->expects(self::never())->method('markFailed');
+        $this->queue->expects(self::never())->method('markSent');
+        // catalog is the first domain: customers/orders/browse/catalog_remove
+        // are never even claimed once the refusal is known.
+        $this->queue->expects(self::once())->method('claimBatch');
+
+        $this->createCron()->execute();
+    }
+
     public function testDisconnectedEngineSkipsAllWork(): void
     {
         $settings = $this->createMock(Settings::class);
-        $settings->method('isConnected')->willReturn(false);
+        $settings->method('isSendingAllowed')->willReturn(false);
         $this->queue->expects(self::never())->method('claimBatch');
 
         (new FlushIngestQueue($settings, $this->queue, $this->client, new Json(), $this->createMock(Logger::class)))
