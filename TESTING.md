@@ -114,3 +114,32 @@ Assert afterwards:
   welcome/abandoned workflow IDs.
 - `quote.reminder_date` / `quote.is_sent` and `smaily_customer_sync` are gone.
 - The orphaned `crontab/default/jobs/smaily_subscriber_sync/...` row is gone.
+
+## Release package
+
+The ZIP a GitHub release publishes is assembled by one script,
+`bin/build-release-zip.sh` — the release workflow calls it, so what CI ships
+and what you build locally are the same artifact. `bin/verify-release-zip.sh`
+builds it and then checks it:
+
+```bash
+bin/verify-release-zip.sh            # writes ./smaily-connect-magento2.zip
+```
+
+It asserts that the archive carries what a Magento module needs to install
+(`registration.php`, `composer.json`, `etc/module.xml`, `etc/db_schema.xml`,
+the `i18n` catalogs, `view/`), that it carries none of the development
+apparatus (tests, CI config, sandbox, tooling, static-analysis and phpunit
+config, `vendor/`, the internal working documents) and none of the Hyvä
+companion (`compat/` — a separately published package), that the version in
+the archived `composer.json` is the repo's, and that every shipped PHP file
+parses under `php -l`. It ends by printing a SHA-256 build hash and writing it
+to `<zip>.sha256`, so a package handed to a reviewer or a pilot store can be
+identified later.
+
+CI runs it on every push (the `package` job) and keeps the ZIP plus its hash
+as a build artifact for 5 days.
+
+The public documentation set (`docs/`, README, CHANGELOG, TESTING, the user
+guide) ships inside the package deliberately — Marketplace reviewers and
+merchants who install from the ZIP get it with the code.
