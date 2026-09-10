@@ -11,25 +11,55 @@ clean sandbox install; PRO-2451, PRO-2452, PRO-2453, PRO-2467 landed; the
 3.0.0-rc1 release train ran — PRO-2470 index, version cut, packaging check,
 Marketplace pre-checks; release train closed out — the package ships no
 `docs/`, the `composer validate --strict` version warning is accepted;
-PRO-2473 committed `composer.lock`)_
+PRO-2473 committed `composer.lock`; PRO-1748 adopted the shared Connect
+terminology canon in EN + ET)_
 
 ## Where we are
 
-- **Next session opens here (2026-09-10 orchestration session).** Parity sweep
-  against the Woo and Shopify siblings: Magento mirrors the August sibling wave
-  and sits on engine contract v1.8.1. The Woo **September wave** is not
-  mirrored — filed as PRO-2451 (deactivated/refused engine account), PRO-2452
-  (GDPR erasure must reach local queue rows), PRO-2453 (abandoned-cart purchase
-  marker), PRO-2454 (Event Log "Send again"); PRO-2455 (landing page as a CMS
-  widget) is 3.1. **Erkki's decision: the wave ships BEFORE 3.0.0 is tagged** —
-  the composer publish is irreversible for every 2.8.x install. Queue:
-  release gates (PRO-1400 + PRO-1484) → ~~PRO-2451~~ → ~~PRO-2452~~ →
-  ~~PRO-2453~~ → ~~PRO-2467~~ → ~~release train (done — packaging decisions
-  landed)~~ → ~~PRO-2473 (composer.lock committed)~~ → **PRO-1748 next**
-  (terminology canon) → PRO-2454 (Event Log "Send again") → PRO-2456 (design
-  fidelity) → PRO-2472. PRO-2460 waits on the engine team's answer. Erkki-owned
-  doors are unchanged and still shut: PRO-1198 release coordination, PRO-1971
-  comms, the live engine tenant and the pilot store.
+- **Next session opens here (2026-09-10 orchestration session).** Queue:
+  ~~PRO-2473 (`composer.lock`)~~ → ~~PRO-1748 (terminology canon, EN + ET —
+  the ET diff still needs Erkki's proofread)~~ → **PRO-2469 next** (tombstone
+  edges; Erkki 2026-09-10: erased status survives completion, a new opt-in may
+  repopulate a tombstoned row) → PRO-1458 (Erkki 2026-09-10: price
+  non-default-website products at a website they belong to) → PRO-2454 →
+  PRO-2456 → PRO-2472 → PRO-2474 (pilot readiness — the first pilot client
+  exists and installs manually from the release ZIP into `app/code`, clean
+  install, live engine tenant) → rc1 tag on Erkki's go; the Smaily repo
+  hand-over (PRO-1198) comes AFTER the pilot, on Erkki's date. PRO-2460 waits
+  on the engine's answer (current SKU behaviour stays meanwhile). PRO-1971
+  reaffirmed A.
+
+- **PRO-1748 — the admin speaks the shared Connect terminology canon, in both
+  languages (2026-09-10).** Jane's approved copy review, already shipped by Woo
+  and Shopify, now governs Magento too: the menu item and every reference to it
+  are **Initial setup** (ET *Algseadistus*), the audience is **Contacts**
+  everywhere it is named (wizard rail, Settings tab, headings, Save button,
+  Dashboard quick links, the Log intro, the two admin notices — ET *tellijad →
+  kontaktid*), step 2's heading is **Contact synchronisation to Smaily** (ET
+  *Kontaktide sünkroniseerimine Smailysse*) with the Settings tab description
+  **Synchronization settings** (ET *Sünkroniseerimise seaded*), the switch is
+  **Sync contacts to Smaily**, the backfill pair became **Initial contact
+  import / Start import**, and step 5 is **Overview** (ET *Ülevaade*). Two ET
+  strings were aligned to Woo's exact wording (`Subscribers only (consent)`,
+  `Checkout opt-in only`). **Copy only** — no class, route, config path, ACL
+  id, DB column or JS identifier moved; the `subscribers` step/tab id and the
+  `panel/subscribers.phtml` filename are unchanged on purpose. **Deliberate
+  deviations**, recorded merchant-readably in `docs/USER_GUIDE.md`
+  ("Terminology"): the lawful-basis mode **Subscribers only (consent)** keeps
+  its noun (Woo keeps it too — it means precisely Magento's opted-in newsletter
+  subscribers); *newsletter subscriber* stays where it names Magento's own
+  record; and there is **no Forms & RSS section** — Magento ships its own
+  signup block, so the module only has the product-feed **RSS** tab, and the
+  canon's "Ava oma Smaily konto →" link has no Magento surface to live on.
+  `etc/adminhtml/system.xml` keeps its old labels: PRO-1461 hides that section
+  from Stores > Configuration entirely (`showInDefault/Website/Store="0"`), so
+  no merchant ever reads them. Verified on the sandbox by rendering the real
+  wizard and Settings blocks in **both locales** (step rail Connect/Contacts/
+  Automations/Intelligence/Overview vs Ühenda/Kontaktid/Automaatikad/
+  Intelligence/Ülevaade) plus the menu and both notices. Gates: 281 unit,
+  phpcs 0 errors / 929 warnings, phpstan `[OK]`, 79 integration, `setup:upgrade`
+  + `setup:di:compile` clean. **The Estonian diff is NOT yet proofread by Erkki
+  — that gate is open** (Woo's equivalent gate was PRO-1746).
 
 - **The 3.0.0-rc1 release train ran (Erkki's four-part decision,
   2026-09-10).** Nothing was published — no tag, no GitHub release, no

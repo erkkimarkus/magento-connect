@@ -390,7 +390,7 @@ events still flow with `session_id` + `event_id` but the
 ## Admin UI
 
 Four pages under **Marketing > Smaily Connect** (menu.xml): Dashboard,
-Setup Wizard, Settings, Log. Design rules:
+Initial setup, Settings, Log. Design rules:
 
 - **One source of truth.** The wizard and the Settings page write through
   the same `Model\Adminhtml\WizardStepSaver` into the same system-config

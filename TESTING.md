@@ -97,7 +97,7 @@ Manual smoke checklist:
 
 1. Admin > Marketing > Smaily Connect > Dashboard renders the health verdict,
    connection strip, counters and recent activity (fresh installs redirect to
-   the Setup Wizard instead until it is completed).
+   the Initial setup page instead until it is completed).
 2. Settings: each tab saves via AJAX ("Saved." feedback) and the values land
    in `core_config_data`; invalid Smaily credentials must not block saving.
 3. Subscribe on the storefront newsletter form -> a `contact.sync` row appears

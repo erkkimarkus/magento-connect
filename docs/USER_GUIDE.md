@@ -6,7 +6,7 @@ Smaily Connect keeps your newsletter audience, marketing automations and
 - [Installation](#installation)
 - [Finding your way around](#finding-your-way-around)
 - [Connecting your Smaily account](#connecting-your-smaily-account)
-- [Subscriber synchronization](#subscriber-synchronization)
+- [Contact synchronisation](#contact-synchronisation)
 - [Automations](#automations)
 - [Abandoned cart](#abandoned-cart)
 - [Product RSS feed](#product-rss-feed)
@@ -58,24 +58,41 @@ Everything lives under **Marketing > Smaily Connect**, four pages:
 | Page | What it is |
 |---|---|
 | **Dashboard** | The landing page: a one-sentence health verdict, connection status for Smaily / Campaign Intelligence / browse tracking, operational counters (deliveries, failures) and the latest queue activity. Every number is a real local queue query. |
-| **Setup Wizard** | The guided five-step onboarding. On a fresh install every Smaily Connect page brings you here until setup is completed; you can re-run it any time — your settings are kept. |
-| **Settings** | The wizard's content as always-available tabs — Connection, Subscribers, Automations, Intelligence, RSS. Each tab saves instantly via AJAX. Tabs are deep-linkable (`?tab=rss`). |
+| **Initial setup** | The guided five-step onboarding. On a fresh install every Smaily Connect page brings you here until setup is completed; you can re-run it any time — your settings are kept. |
+| **Settings** | The initial setup's content as always-available tabs — Connection, Contacts, Automations, Intelligence, RSS. Each tab saves instantly via AJAX. Tabs are deep-linkable (`?tab=rss`). |
 | **Log** | One unified delivery log for both Smaily and Campaign Intelligence, with mass retry for failed rows. |
 
-The Settings page (and the wizard) is the **only** place to configure Smaily
+The Settings page (and the initial setup) is the **only** place to configure Smaily
 Connect — there is no separate entry under Stores > Configuration. Every
 field, including the ones that used to live only there (multilingual mode,
-the two Subscribers "advanced" toggles), has a home on the module's own
+the two Contacts "advanced" toggles), has a home on the module's own
 pages.
+
+### Terminology
+
+Smaily Connect uses the same words on every store platform (Magento,
+WooCommerce, Shopify) and in both English and Estonian: **Initial setup**,
+**Contacts**, **Synchronization settings**, **Automations**, **Overview**.
+Three places deliberately keep a different word, because Magento already
+owns it:
+
+- **Subscribers only (consent)** stays *subscribers* — it is a lawful-basis
+  mode that means precisely Magento's opted-in newsletter subscribers, not
+  your whole contact audience.
+- *Newsletter subscriber* stays wherever this guide names Magento's own
+  subscriber record rather than your Smaily audience.
+- There is no **Forms & RSS** section here. Magento ships its own newsletter
+  signup block, so this module adds only the **RSS** tab — the product feed
+  for the Smaily template editor.
 
 ### Multiple websites
 
 If your install has more than one **website** (Stores > All Stores), a
-**Website** selector appears next to the Settings tab strip, and the Setup
-Wizard opens with a website-picker step before Connect. Each website gets its
-own Smaily connection, subscriber sync, and automation settings — pick a
-website from the selector to view or edit its own values; run the wizard
-again for each additional website you want to onboard. Single-website
+**Website** selector appears next to the Settings tab strip, and the initial
+setup opens with a website-picker step before Connect. Each website gets its
+own Smaily connection, contact sync, and automation settings — pick a
+website from the selector to view or edit its own values; run the initial
+setup again for each additional website you want to onboard. Single-website
 installs never see the selector or the picker step.
 
 Campaign Intelligence (the recommendation engine tenant) is not yet
@@ -89,12 +106,12 @@ notification suggesting a settings review — nothing is changed or blocked.
 
 ## Connecting your Smaily account
 
-The fastest path is the guided wizard: **Marketing > Smaily Connect >
-Setup Wizard** — five steps (Connect, Subscribers, Automations,
-Intelligence, Done), each saved separately, with connection testing and
+The fastest path is the guided flow: **Marketing > Smaily Connect >
+Initial setup** — five steps (Connect, Contacts, Automations,
+Intelligence, Overview), each saved separately, with connection testing and
 live workflow lists built in. Completed steps stay unlocked in the step
 bar, so you can move back and forward between them freely — also when
-revisiting the wizard after finishing it. Everything the wizard writes
+revisiting the initial setup after finishing it. Everything it writes
 lands in the regular configuration, so you can fine-tune it later on the
 **Settings > Connection** tab — its own Test Connection / Save Connection
 footer and connection-status line (Connected / Not connected, with the
@@ -123,7 +140,7 @@ credentials for you, see below).
 
 A store view's language is derived from its locale (`et_EE` → `et`). As
 soon as your store views speak more than one language, the Connection
-panel (wizard step 1 and Settings > Connection) opens with a
+panel (initial setup step 1 and Settings > Connection) opens with a
 **routing-mode choice** — four cards; the panels below adapt live to the
 selected card, nothing is saved until you press Save/Continue:
 
@@ -138,7 +155,7 @@ Single-language installations never see the cards — they are locked to
 "Single language".
 
 **Per-language workflows.** In the two per-language modes, the
-Automations panel (wizard step 3 / Settings > Automations) grows a
+Automations panel (initial setup step 3 / Settings > Automations) grows a
 **Per-language workflows** editor: for every automation trigger, one
 workflow select per language and a *Default fallback* radio per row. The
 workflow lists load live — in "Per-language Smaily accounts" mode each
@@ -163,11 +180,11 @@ outside the per-language modes.
 
 ---
 
-## Subscriber synchronization
+## Contact synchronisation
 
-**Settings > Subscribers** (or Setup Wizard step 2)
+**Settings > Contacts** (or Initial setup step 2)
 
-Subscribers sync in near-real-time through a durable queue (no lost events
+Contacts sync in near-real-time through a durable queue (no lost events
 if Smaily is briefly unreachable — deliveries retry with backoff).
 
 ### Contact sync mode (lawful basis)
@@ -202,7 +219,7 @@ Additional options:
 
 ## Automations
 
-**Settings > Automations** (or Setup Wizard step 3)
+**Settings > Automations** (or Initial setup step 3)
 
 Map Smaily automation workflows (the dropdowns load live from your account)
 to store events. Only enabled workflows with the **"form submitted"**
@@ -211,7 +228,7 @@ enroll contacts into; workflows with other triggers (e.g. "subscribed to
 list") cannot be fired by an integration and are therefore not offered.
 The events:
 
-- **Welcome** — fires when someone becomes a subscriber.
+- **Welcome** — fires when someone subscribes to the newsletter.
 - **First Order** — fires on a customer's first order, with
   `order_id`, `order_total`, `order_currency`, `is_first_order` fields for
   template personalization.
@@ -307,7 +324,7 @@ Optional query parameters:
 
 You do not need to build the URL by hand: the **Feed URL Builder** on the
 **Settings > RSS** tab assembles it live as you pick the category, limit and
-sorting, with a one-click **Copy** button. The wizard's Done step links
+sorting, with a one-click **Copy** button. The initial setup's Overview step links
 straight to it.
 
 Items include `smly:price` / `smly:old_price` / `smly:discount` (prices as
@@ -327,7 +344,7 @@ engine-run automations (replenishment reminders, win-back, …).
 ### Connecting
 
 1. Get a one-time **setup URL/token** from Smaily.
-2. Paste it on **Settings > Intelligence** (or Setup Wizard step 4) and save.
+2. Paste it on **Settings > Intelligence** (or Initial setup step 4) and save.
    The token is exchanged immediately and never stored; the status row shows
    the connected tenant.
 
@@ -367,8 +384,8 @@ retrying forever:
   goes out in order once the account is active again.
 - **Settings > Intelligence** says the account is not active, links to your
   Smaily account and offers **Check again**. The engine-bound historical
-  imports are unavailable meanwhile; the subscriber import on the
-  **Subscribers** tab is unaffected, as is all Smaily email sending.
+  imports are unavailable meanwhile; the contact import on the
+  **Contacts** tab is unaffected, as is all Smaily email sending.
 - The Dashboard verdict names the deactivated account rather than
   reporting an outage, and an admin notification says the same. Waiting
   does not fix it — only Smaily can make the account active again.
@@ -394,9 +411,9 @@ Historical imports live on the **Settings** page (or the CLI) and run in
 the background, a chunk per cron minute, without ever blocking live
 traffic:
 
-- **Subscribers → Smaily** — Settings > **Subscribers** tab (per website;
+- **Contacts → Smaily** — Settings > **Contacts** tab (per website;
   both subscribed and unsubscribed, so suppression state is correct).
-  The import obeys that website's **Enable subscriber synchronization**
+  The import obeys that website's **Sync contacts to Smaily**
   switch exactly like the live syncs do: with the switch off the import
   button is disabled and says so, and an import started any other way
   (the CLI, or one already queued when you switched it off) sends nothing
