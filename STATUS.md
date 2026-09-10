@@ -6,7 +6,8 @@
 > and fix it.
 
 _Last updated: 2026-09-10 (orchestration session — parity sweep vs
-Woo/Shopify, doc reconcile)_
+Woo/Shopify, doc reconcile; release gates PRO-1400 + PRO-1484 verified on a
+clean sandbox install)_
 
 ## Where we are
 
@@ -20,6 +21,87 @@ Woo/Shopify, doc reconcile)_
   the composer publish is irreversible for every 2.8.x install. Queue:
   release gates (PRO-1400 + PRO-1484) → PRO-2451 → PRO-2452 → PRO-2453 →
   PRO-1748 → PRO-2454 → release train → PRO-2456.
+
+- **PRO-1400 + PRO-1484 verified on a CLEAN sandbox install — both release
+  gates hold on the evidence; one wording conflict between PRO-1484's ask and
+  the engine's own contract needs the engine team, not a code change.**
+  "Clean" meant literally fresh: `docker compose down -v` (all three named
+  volumes dropped) then `up -d`, so Magento reinstalled from the image through
+  `.sandbox/entrypoint.sh`'s `setup:install` against an empty database — no
+  accumulated sandbox state, no `module:enable`, no manual `setup:upgrade`.
+  - **PRO-1400 — the cron group.** `bin/magento module:status Smaily_Connect`
+    → "Module is enabled" straight out of `setup:install`. `etc/cron_groups.xml`
+    is demonstrably the file being read: the merged config under
+    `system/cron/smaily_connect/*` returns exactly the shipped values
+    (`schedule_generate_every=1`, `schedule_ahead_for=4`,
+    `schedule_lifetime=15`, `history_cleanup_every=10`,
+    `history_success_lifetime=60`, `history_failure_lifetime=4320`,
+    `use_separate_process=1`), and `Magento\Cron\Model\Config::getJobs()`
+    lists group `smaily_connect` with **8** jobs — `crontab.xml` gained
+    `smaily_catalog_resync` in PRO-1951, so the July note's "7 jobs" is stale.
+    `cron:run --group=smaily_connect` once a minute for ~20 minutes produced
+    real rows and real `pending → success` transitions:
+    `smaily_flush_event_queue` / `smaily_flush_ingest_queue` /
+    `smaily_backfill_tick` 20 success each, `smaily_abandoned_cart` 4,
+    `smaily_contact_reconcile` + `smaily_health_check` 1 each (both first
+    appeared `pending` for 12:00 UTC and ran on the next tick). The two daily
+    jobs cannot land inside a 4-minute lookahead by construction, so they were
+    proved separately: with `schedule_ahead_for` temporarily at 1100 minutes
+    the generator emitted `smaily_queue_janitor` for 23:20 and
+    `smaily_catalog_resync` for 00:40 — 02:20 / 03:40 Europe/Tallinn, exactly
+    the `crontab.xml` expressions. The override row was deleted afterwards and
+    the merged value read back as 4. All 8 job codes schedule; none is
+    orphaned.
+  - **PRO-1484 — method.** The endpoints map was pointed at a capture server
+    inside the container, so everything else on the path was real: real
+    observers, real `smaily_ingest_queue`, real `Engine\Client`, real cron
+    flush. Test product `TEST-XYZ-1` (entity_id **1** — merchant SKU and id
+    deliberately unmistakable), its storefront page loaded in headless Chrome,
+    and a real guest order placed through the REST quote/order services
+    carrying the browser's own cookies.
+  - **PRO-1484 (1) canonical identity — one key from all three paths.**
+    Catalog ingest sent `"sku":"TEST-XYZ-1"` (with `external_id:"1"` and
+    `tags.product_id:"1"` carrying the entity id); the order payload's line
+    sent `items[0].sku = "TEST-XYZ-1"`; the browse event sent
+    `"sku":"TEST-XYZ-1"`. Identical token from catalog, order line and browse —
+    contract §3 "same key from every path" holds. **But the key is the
+    merchant SKU, not `mag-<entity_id>`** — which is what
+    `RECENGINE_API_CONTRACT.md` v1.8.1 §3 *requires* for Magento: its explicit
+    carve-out says Magento's catalog SKU field IS the platform-canonical key
+    (mandatory + store-unique), the "never the merchant SKU / never a
+    fallback" rule is Shopify/Woo-specific, and `mag-<entity_id>` is the
+    fallback **only** for the pathological empty-SKU product, applied
+    identically on catalog and order lines (that symmetry IS PRO-1280; unit
+    tests `OrderPayloadBuilderTest` assert `mag-42` / `mag-7`). So the code
+    matches the contract, and PRO-1484's item as worded ("`sku` =
+    `mag-<entity id>`, never a fallback") states the generic rule the contract
+    itself exempts Magento from. Queued for Erkki below: the engine team has to
+    reconcile its own ask with its own contract text before this item is
+    ticked — no code change is warranted either way.
+  - **PRO-1484 (2) click capture.** A product page opened with
+    `?smaily_rec=<uuid>&smaily_ctx=cross_sell&smaily_vt=…` in headless Chrome
+    left first-party cookies `smaily_rec_id` (the UUID verbatim),
+    `smaily_rec_ctx`, `smaily_rec_uid`, plus a freshly generated
+    `smaily_anon_sid` — all `SameSite=Lax`, path `/`. A guest order placed with
+    those cookies wrote one `smaily_order_attribution` row for the order, and
+    the order payload carried `smaily_rec_id`, `smaily_visitor_token`,
+    `smaily_rec_ctx` and `session_id` alongside the server-derived
+    `customer_email`. The contract has no separate click endpoint: the click
+    reaches the engine on the order, and — where a visitor token exists — on
+    every browse event (`smaily_visitor_token` was present on the third
+    captured event).
+  - **PRO-1484 (3) browse well-formedness.** Every relayed event carried
+    `source: "plugin_magento"` and a Z-suffix `event_ts`. A hand-forged relay
+    POST asserting `customer_email`, `source: "plugin_woo"`, `event_ts:
+    "1999-01-01 00:00:00"` and `smaily_rec_id: "not-a-uuid"` was accepted
+    (`{"ok":true,"accepted":1}`) but forwarded with **none** of them: source
+    re-stamped `plugin_magento`, `event_ts` re-stamped server-side, email and
+    rec id dropped — the relay accepts no client-asserted identity.
+  - **No product code changed**, so no test gates were run. Sandbox restored:
+    engine settings disconnected, test product / order / quote / attribution
+    row / queue rows deleted, capture server killed (verified back to 0
+    products, 0 orders, 0 queue rows, 0 `smaily_connect/%` config rows). The
+    fresh install itself is left in place.
 
 - **PRO-1765 done — the contact payload speaks the cross-platform field
   canon: gender ships as `user_gender`, and phone ships at all.** Two
@@ -2377,7 +2459,7 @@ Woo/Shopify, doc reconcile)_
 | PRO-2454 | Event Log "Send again", server-worded refusals, no double-send on retry (Woo PRO-2324/2368/1733 parity) | Medium — may slip to 3.1 |
 | PRO-2455 | Smaily landing page as a Magento CMS widget — decided for 3.1 | Low |
 | PRO-1748 | Terminology canon across admin copy and docs | Medium |
-| PRO-1766 | Open in the Magento v3 project (scope in Linear) | — |
+| PRO-1766 | Feature: transactional emails (parity with Woo v3.9/v3.10) | Low |
 | PRO-2456 | Fidelity check of the July design pack against the rendered admin (UI/UX parity project) | — |
 
 Closed 2026-07-11: PRO-1199 (integration suite), PRO-1200 (i18n), PRO-1202 /
@@ -2445,3 +2527,14 @@ PRO-1267 (engine: Magento product-identity contract note).
    `docs/UPGRADING.md` and `CHANGELOG.md`. It carries a release-comms
    obligation towards upgrading merchants (PRO-1971), parked 2026-09-02
    until 3.0.0 has a date.
+6. PRO-1484 item 1 — the engine team's release-gate wording contradicts the
+   engine's own contract (Low urgency, blocks only the tick, not the code).
+   The ask says the Magento `sku` must be `mag-<product entity id>`, "never
+   the merchant SKU, never a fallback"; `RECENGINE_API_CONTRACT.md` v1.8.1 §3
+   says the opposite for Magento specifically — its SKU field IS the canonical
+   key, `mag-<entity_id>` is the empty-SKU fallback, and "never a fallback" is
+   flagged as a Shopify/Woo-only rule. The shipped code follows the contract
+   and emits one identical key on catalog, order lines and browse (verified
+   above). Someone has to ask the engine team which text wins; if the ask
+   wins, it is a contract change and a one-way door for every already-ingested
+   Magento tenant's `(tenant_id, sku)` history.
