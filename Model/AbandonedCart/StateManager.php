@@ -124,6 +124,34 @@ class StateManager
         return array_map('intval', $connection->fetchCol($select));
     }
 
+    /**
+     * Delete every tracked cart for a contact (Art. 17 erasure). The address
+     * is expected already lowercased.
+     */
+    public function deleteForEmail(string $email): int
+    {
+        $connection = $this->resourceConnection->getConnection(self::CONNECTION);
+
+        return $connection->delete($this->table(), ['LOWER(email) = ?' => $email]);
+    }
+
+    /**
+     * The tracked carts of a contact, for the Art. 15 export. The address is
+     * expected already lowercased.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function rowsForEmail(string $email): array
+    {
+        $connection = $this->resourceConnection->getConnection(self::CONNECTION);
+        $select = $connection->select()
+            ->from($this->table(), ['quote_id', 'store_id', 'status', 'created_at'])
+            ->where('LOWER(email) = ?', $email)
+            ->order('quote_id ASC');
+
+        return $connection->fetchAll($select);
+    }
+
     private function table(): string
     {
         return $this->resourceConnection->getTableName(self::TABLE_NAME, self::CONNECTION);

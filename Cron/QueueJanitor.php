@@ -12,6 +12,7 @@ use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Model\Queue\Event;
+use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
 use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 
 /**
@@ -31,9 +32,14 @@ class QueueJanitor
     ) {
     }
 
-    private const TABLES = [
+    /**
+     * The module's queue tables. Public because this sweep is not their only
+     * walker: the Art. 17 eraser (Model\Privacy\LocalEraser) covers the same
+     * pair, and a third queue must reach both from one place.
+     */
+    public const TABLES = [
         EventResource::TABLE_NAME,
-        \Smaily\Connect\Model\ResourceModel\Engine\IngestEvent::TABLE_NAME,
+        IngestEventResource::TABLE_NAME,
     ];
 
     public function execute(): void

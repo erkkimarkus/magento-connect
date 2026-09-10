@@ -455,12 +455,12 @@ panel — you do not have to keep the page open:
   its Entity, payload, response and error all read `[erased]`. Such a row
   can no longer be retried from the Log. The contact's abandoned-cart row is
   deleted.
-- **What it prints.** One line per table, then the engine:
+- **What it prints.** One line per place it reached, then the engine:
 
   ```
-  smaily_event_queue: 1 removed, 1 anonymised
-  smaily_ingest_queue: 1 removed, 0 anonymised
-  smaily_abandoned_cart: 1 removed, 0 anonymised
+  Queued messages: 1 removed, 1 anonymised
+  Engine queue: 1 removed, 0 anonymised
+  Abandoned carts: 1 removed, 0 anonymised
   Erased engine data for shopper@example.com.
   ```
 

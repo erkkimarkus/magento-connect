@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace Smaily\Connect\Test\Unit\Model\Privacy;
 
 use PHPUnit\Framework\TestCase;
+use Smaily\Connect\Model\Privacy\Erasure;
 use Smaily\Connect\Model\Privacy\PayloadAnonymizer;
 
 /**
@@ -31,15 +32,15 @@ class PayloadAnonymizerTest extends TestCase
             'contact' => ['email' => 'erase-test-1@example.test', 'name' => 'Test Erasure'],
         ]);
 
-        self::assertTrue($this->anonymizer->matches($payload, 'erase-test-1@example.test'));
-        self::assertFalse($this->anonymizer->matches($payload, 'erase-test-2@example.test'));
+        self::assertTrue($this->mentions($payload, 'erase-test-1@example.test'));
+        self::assertFalse($this->mentions($payload, 'erase-test-2@example.test'));
     }
 
     public function testMatchingIsCaseInsensitiveOnBothSides(): void
     {
         $payload = (string)json_encode(['contact' => ['email' => 'Erase-Test-1@Example.Test']]);
 
-        self::assertTrue($this->anonymizer->matches($payload, 'ERASE-TEST-1@example.test'));
+        self::assertTrue($this->mentions($payload, 'ERASE-TEST-1@example.test'));
     }
 
     /**
@@ -53,29 +54,29 @@ class PayloadAnonymizerTest extends TestCase
         $payload = (string)json_encode(['contact' => ['email' => $email, 'name' => 'Tõnu Käär']]);
 
         self::assertStringNotContainsString($email, $payload, 'The address is escaped in the stored bytes');
-        self::assertTrue($this->anonymizer->matches($payload, $email));
+        self::assertTrue($this->mentions($payload, $email));
     }
 
     public function testMatchesAnAddressQuotedInsideALongerValue(): void
     {
         $response = (string)json_encode(['message' => 'Rejected recipient erase-test-1@example.test (bounced)']);
 
-        self::assertTrue($this->anonymizer->matches($response, 'erase-test-1@example.test'));
+        self::assertTrue($this->mentions($response, 'erase-test-1@example.test'));
     }
 
     public function testFallsBackToAPlainTextSearchForNonJsonBlobs(): void
     {
         $error = 'HTTP 422: erase-test-1@example.test is not a valid contact';
 
-        self::assertTrue($this->anonymizer->matches($error, 'erase-test-1@example.test'));
-        self::assertFalse($this->anonymizer->matches($error, 'erase-test-2@example.test'));
+        self::assertTrue($this->mentions($error, 'erase-test-1@example.test'));
+        self::assertFalse($this->mentions($error, 'erase-test-2@example.test'));
     }
 
     public function testEmptyInputNeverMatches(): void
     {
-        self::assertFalse($this->anonymizer->matches(null, 'erase-test-1@example.test'));
-        self::assertFalse($this->anonymizer->matches('', 'erase-test-1@example.test'));
-        self::assertFalse($this->anonymizer->matches('{"email":"erase-test-1@example.test"}', '  '));
+        self::assertFalse($this->mentions(null, 'erase-test-1@example.test'));
+        self::assertFalse($this->mentions('', 'erase-test-1@example.test'));
+        self::assertFalse($this->mentions('{"email":"erase-test-1@example.test"}', '  '));
     }
 
     public function testAnonymizingKeepsTheKeysAndTheStructureAndValidJson(): void
@@ -86,7 +87,7 @@ class PayloadAnonymizerTest extends TestCase
             'items' => [['sku' => 'TEST-1', 'qty' => 2]],
         ]);
 
-        $anonymized = (string)$this->anonymizer->anonymize($payload);
+        $anonymized = (string)$this->redacted($payload);
         $decoded = json_decode($anonymized, true);
 
         self::assertSame([
@@ -99,22 +100,35 @@ class PayloadAnonymizerTest extends TestCase
     public function testAnAnonymizedPayloadNoLongerMatchesTheContact(): void
     {
         $payload = (string)json_encode(['contact' => ['email' => 'mõni@näide.test']]);
-        $anonymized = (string)$this->anonymizer->anonymize($payload);
+        $anonymized = (string)$this->redacted($payload);
 
-        self::assertFalse($this->anonymizer->matches($anonymized, 'mõni@näide.test'));
+        self::assertFalse($this->mentions($anonymized, 'mõni@näide.test'));
     }
 
     public function testAnUndecodableBlobIsReplacedWholesale(): void
     {
         self::assertSame(
-            PayloadAnonymizer::ERASED_PLACEHOLDER,
-            $this->anonymizer->anonymize('<html>erase-test-1@example.test</html>')
+            Erasure::PLACEHOLDER,
+            $this->redacted('<html>erase-test-1@example.test</html>')
         );
     }
 
     public function testNullAndEmptyBlobsAreLeftAlone(): void
     {
-        self::assertNull($this->anonymizer->anonymize(null));
-        self::assertSame('', $this->anonymizer->anonymize(''));
+        self::assertNull($this->redacted(null));
+        self::assertSame('', $this->redacted(''));
+    }
+
+    /**
+     * The pair as a caller uses it: decode the blob once, then ask.
+     */
+    private function mentions(?string $stored, string $email): bool
+    {
+        return $this->anonymizer->matches($stored, $this->anonymizer->decode($stored), $email);
+    }
+
+    private function redacted(?string $stored): ?string
+    {
+        return $this->anonymizer->anonymize($stored, $this->anonymizer->decode($stored));
     }
 }

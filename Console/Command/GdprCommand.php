@@ -113,10 +113,10 @@ class GdprCommand extends Command
      */
     private function erase(string $email, OutputInterface $output): int
     {
-        foreach ($this->localEraser->erase($email) as $table => $counts) {
+        foreach ($this->localEraser->erase($email) as $label => $counts) {
             $output->writeln(sprintf(
                 '<info>%s: %d removed, %d anonymised</info>',
-                $table,
+                $label,
                 $counts['removed'],
                 $counts['anonymised']
             ));

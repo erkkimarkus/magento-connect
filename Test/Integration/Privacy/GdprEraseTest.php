@@ -8,7 +8,6 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Test\Integration\Privacy;
 
-use Magento\Framework\App\ResourceConnection;
 use Smaily\Connect\Console\Command\GdprCommand;
 use Smaily\Connect\Model\AbandonedCart\StateManager;
 use Smaily\Connect\Model\Engine\Client;
@@ -16,8 +15,8 @@ use Smaily\Connect\Model\Engine\Exception\EngineTransportException;
 use Smaily\Connect\Model\Engine\Queue\IngestEvent;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
 use Smaily\Connect\Model\Engine\Settings;
+use Smaily\Connect\Model\Privacy\Erasure;
 use Smaily\Connect\Model\Privacy\LocalEraser;
-use Smaily\Connect\Model\Privacy\PayloadAnonymizer;
 use Smaily\Connect\Model\Queue\Event;
 use Smaily\Connect\Model\Queue\EventQueue;
 use Smaily\Connect\Model\Queue\EventType;
@@ -27,9 +26,9 @@ use Smaily\Connect\Test\Integration\IntegrationTestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
 /**
- * The real `smaily:gdpr` command against the real tables (PRO-2452): what a
- * data-subject erasure does to the two queues and the abandoned-cart side
- * table, and that a failing engine never costs the local half.
+ * The Art. 17 erasure against the real tables (PRO-2452): what it does to
+ * the two queues and the abandoned-cart tracker, and that a failing engine
+ * never costs the local half.
  *
  * Contacts are synthetic throughout.
  */
@@ -38,11 +37,16 @@ class GdprEraseTest extends IntegrationTestCase
     private const SUBJECT = 'erase-test-1@example.test';
     private const BYSTANDER = 'erase-test-2@example.test';
     private const NON_ASCII_SUBJECT = 'mõni@näide.test';
-    private const ABANDONED_CART_TABLE = 'smaily_abandoned_cart';
+
+    /** The merchant-facing labels the eraser keys its results by. */
+    private const QUEUE_LABEL = 'Queued messages';
+    private const ENGINE_LABEL = 'Engine queue';
+    private const CART_LABEL = 'Abandoned carts';
 
     private EventQueue $eventQueue;
     private IngestQueue $ingestQueue;
     private StateManager $stateManager;
+    private LocalEraser $eraser;
 
     protected function setUp(): void
     {
@@ -50,6 +54,7 @@ class GdprEraseTest extends IntegrationTestCase
         $this->eventQueue = $this->objectManager->create(EventQueue::class);
         $this->ingestQueue = $this->objectManager->create(IngestQueue::class);
         $this->stateManager = $this->objectManager->create(StateManager::class);
+        $this->eraser = $this->objectManager->create(LocalEraser::class);
     }
 
     public function testErasureDeletesSendableRowsAndAnonymisesTheRest(): void
@@ -79,18 +84,21 @@ class GdprEraseTest extends IntegrationTestCase
         $this->stateManager->markMailed(11, 1, self::SUBJECT);
         $this->stateManager->markMailed(12, 1, self::BYSTANDER);
 
-        $tester = $this->runCommand(['action' => 'erase', 'email' => self::SUBJECT, '--force' => true]);
-
-        self::assertSame(0, $tester->getStatusCode());
-        self::assertStringContainsString('smaily_event_queue: 2 removed, 1 anonymised', $tester->getDisplay());
-        self::assertStringContainsString('smaily_ingest_queue: 1 removed, 1 anonymised', $tester->getDisplay());
-        self::assertStringContainsString('smaily_abandoned_cart: 1 removed, 0 anonymised', $tester->getDisplay());
+        self::assertSame(
+            [
+                self::QUEUE_LABEL => ['removed' => 2, 'anonymised' => 1],
+                self::ENGINE_LABEL => ['removed' => 1, 'anonymised' => 1],
+                self::CART_LABEL => ['removed' => 1, 'anonymised' => 0],
+            ],
+            $this->eraser->erase(self::SUBJECT),
+            'Sendable rows go, terminal rows are kept anonymised'
+        );
 
         $events = array_column($this->fetchAll(EventResource::TABLE_NAME), null, 'event_uuid');
         self::assertSame(['sub-sent', 'other-pending'], array_keys($events), 'Sendable rows are gone, the rest stays');
 
         $erased = $events['sub-sent'];
-        self::assertSame(PayloadAnonymizer::ERASED_PLACEHOLDER, $erased['entity_id']);
+        self::assertSame(Erasure::PLACEHOLDER, $erased['entity_id']);
         self::assertSame(EventType::CONTACT_SYNC, $erased['event_type'], 'The merchant keeps the record of the send');
         self::assertSame(Event::STATUS_SENT, $erased['status']);
         foreach (['payload', 'sent_payload', 'last_response'] as $column) {
@@ -102,18 +110,25 @@ class GdprEraseTest extends IntegrationTestCase
 
         $ingest = array_column($this->fetchAll(IngestEventResource::TABLE_NAME), null, 'event_uuid');
         self::assertSame(['ing-sent'], array_keys($ingest));
-        self::assertSame(PayloadAnonymizer::ERASED_PLACEHOLDER, $ingest['ing-sent']['entity_id']);
-        self::assertSame(PayloadAnonymizer::ERASED_PLACEHOLDER, $ingest['ing-sent']['last_error']);
+        self::assertSame(Erasure::PLACEHOLDER, $ingest['ing-sent']['entity_id']);
+        self::assertSame(Erasure::PLACEHOLDER, $ingest['ing-sent']['last_error']);
         self::assertStringNotContainsString(self::SUBJECT, (string)$ingest['ing-sent']['payload']);
 
-        $carts = $this->fetchAll(self::ABANDONED_CART_TABLE);
+        self::assertSame([], $this->stateManager->rowsForEmail(self::SUBJECT));
+        $carts = $this->stateManager->rowsForEmail(self::BYSTANDER);
         self::assertCount(1, $carts, 'Only the subject\'s cart row goes');
         self::assertSame('12', (string)$carts[0]['quote_id']);
 
         // Another contact's pending row is untouched, and a second run is a no-op.
         self::assertSame(Event::STATUS_PENDING, $events['other-pending']['status']);
-        $repeat = $this->runCommand(['action' => 'erase', 'email' => self::SUBJECT, '--force' => true]);
-        self::assertStringContainsString('smaily_event_queue: 0 removed, 0 anonymised', $repeat->getDisplay());
+        self::assertSame(
+            [
+                self::QUEUE_LABEL => ['removed' => 0, 'anonymised' => 0],
+                self::ENGINE_LABEL => ['removed' => 0, 'anonymised' => 0],
+                self::CART_LABEL => ['removed' => 0, 'anonymised' => 0],
+            ],
+            $this->eraser->erase(self::SUBJECT)
+        );
     }
 
     /**
@@ -134,20 +149,33 @@ class GdprEraseTest extends IntegrationTestCase
         $stored = (string)$this->fetchAll(EventResource::TABLE_NAME)[0]['payload'];
         self::assertStringNotContainsString(self::NON_ASCII_SUBJECT, $stored, 'The address is escaped on disk');
 
-        $tester = $this->runCommand([
-            'action' => 'erase',
-            'email' => self::NON_ASCII_SUBJECT,
-            '--force' => true,
-        ]);
+        $counts = $this->eraser->erase(self::NON_ASCII_SUBJECT);
 
-        self::assertStringContainsString('smaily_event_queue: 0 removed, 1 anonymised', $tester->getDisplay());
+        self::assertSame(['removed' => 0, 'anonymised' => 1], $counts[self::QUEUE_LABEL]);
         $row = $this->fetchAll(EventResource::TABLE_NAME)[0];
-        self::assertSame(PayloadAnonymizer::ERASED_PLACEHOLDER, $row['entity_id']);
-        self::assertStringNotContainsString('Tõnu', (string)$row['payload']);
+        self::assertSame(Erasure::PLACEHOLDER, $row['entity_id']);
         self::assertSame(
             ['address' => ['email' => '[erased]', 'first_name' => '[erased]']],
             json_decode((string)$row['payload'], true)
         );
+    }
+
+    /**
+     * The command's own job: the summary a merchant reads, in plain labels.
+     */
+    public function testTheCommandSummarisesTheErasureInPlainLabels(): void
+    {
+        $this->seedContactSync(self::SUBJECT, 'cli-pending');
+        $this->seedContactSync(self::SUBJECT, 'cli-sent');
+        $this->markRow(EventResource::TABLE_NAME, 'cli-sent', ['status' => Event::STATUS_SENT]);
+        $this->stateManager->markMailed(11, 1, self::SUBJECT);
+
+        $tester = $this->runCommand(['action' => 'erase', 'email' => self::SUBJECT, '--force' => true]);
+
+        self::assertSame(0, $tester->getStatusCode());
+        self::assertStringContainsString('Queued messages: 1 removed, 1 anonymised', $tester->getDisplay());
+        self::assertStringContainsString('Engine queue: 0 removed, 0 anonymised', $tester->getDisplay());
+        self::assertStringContainsString('Abandoned carts: 1 removed, 0 anonymised', $tester->getDisplay());
     }
 
     public function testAFailingEngineStillLeavesTheLocalHalfErased(): void
@@ -163,7 +191,7 @@ class GdprEraseTest extends IntegrationTestCase
 
         self::assertSame(1, $tester->getStatusCode(), 'The merchant must know to retry the engine part');
         self::assertStringContainsString('HTTP 503', $tester->getDisplay());
-        self::assertStringContainsString('smaily_event_queue: 1 removed', $tester->getDisplay());
+        self::assertStringContainsString('Queued messages: 1 removed', $tester->getDisplay());
         self::assertSame([], $this->fetchAll(EventResource::TABLE_NAME));
     }
 
@@ -184,11 +212,11 @@ class GdprEraseTest extends IntegrationTestCase
         self::assertSame(['customer' => ['orders' => 3]], $decoded['engine']);
         self::assertSame(
             [['type' => EventType::CONTACT_SYNC, 'status' => Event::STATUS_PENDING, 'created_at' => $this->createdAt('exp-1')]],
-            $decoded['local'][EventResource::TABLE_NAME],
+            $decoded['local'][self::QUEUE_LABEL],
             'One row, and not the other contact\'s'
         );
-        self::assertCount(1, $decoded['local'][IngestEventResource::TABLE_NAME]);
-        self::assertCount(1, $decoded['local'][self::ABANDONED_CART_TABLE]);
+        self::assertCount(1, $decoded['local'][self::ENGINE_LABEL]);
+        self::assertCount(1, $decoded['local'][self::CART_LABEL]);
     }
 
     public function testAnAnonymisedRowIsNeverRevivedByRetry(): void
@@ -197,7 +225,7 @@ class GdprEraseTest extends IntegrationTestCase
         $this->markRow(EventResource::TABLE_NAME, 'retry-me', ['status' => Event::STATUS_FAILED]);
         $id = (int)$this->fetchAll(EventResource::TABLE_NAME)[0]['id'];
 
-        $this->runCommand(['action' => 'erase', 'email' => self::SUBJECT, '--force' => true]);
+        $this->eraser->erase(self::SUBJECT);
 
         self::assertSame(0, $this->eventQueue->retry([$id]));
         self::assertSame(Event::STATUS_FAILED, $this->fetchRow(EventResource::TABLE_NAME, $id)['status']);
@@ -248,14 +276,7 @@ class GdprEraseTest extends IntegrationTestCase
             $client->method('customerDelete')->willReturn(['ok' => true]);
         }
 
-        $command = new GdprCommand(
-            $settings,
-            $client,
-            new LocalEraser(
-                $this->objectManager->get(ResourceConnection::class),
-                new PayloadAnonymizer()
-            )
-        );
+        $command = new GdprCommand($settings, $client, $this->eraser);
 
         $tester = new CommandTester($command);
         $tester->execute($arguments);

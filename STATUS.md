@@ -28,44 +28,34 @@ clean sandbox install; PRO-2451 and PRO-2452 landed)_
   to forget the customer and stopped there; the marketing queue, the ingest
   queue and the abandoned-cart tracker kept the address until the janitor
   pruned them by age (30 / 90 days). `Model\Privacy\LocalEraser` is the
-  local half, `Console\Command\GdprCommand` its only caller. Written up in
-  `docs/ARCHITECTURE.md` ("Queue semantics").
-  - **Erkki's binding decision, implemented as an asymmetric pair.** A row
-    that could still send (`pending`, `sending`) is DELETED — not sending is
-    the point. A row that is over (`sent`, `failed`) is ANONYMISED in place
-    and kept for audit: `entity_id` (the Log grid's Entity column, and for a
-    contact.sync / automation row it IS the address), `payload`,
-    `sent_payload`, `last_response` and `last_error` become the one
-    placeholder `[erased]`, with the keys and the structure kept. The
-    contact's `smaily_abandoned_cart` row is deleted.
-  - **Deviation from Woo, recorded.** Woo puts `failed` on the DELETE side
-    because its Event Log Retry revives one; Erkki's decision keeps
-    sent AND failed for audit, so both queues' `retry()` now skips a row
-    whose `entity_id` is the placeholder — reviving one would put `[erased]`
-    on the wire. `sending` joins `pending` on the delete side (same reason
-    Woo names a sendable set rather than negating `sent`).
-  - **PRO-2448's edge is closed, not inherited.** Magento has no
-    `contact_key` column and no recipient column to index, so matching
-    DECODES the stored JSON and compares values — `json_encode` escapes
-    `õ` to a backslash-u sequence, which a raw substring search misses. The
-    scan is a chunked full-table walk; an erasure is an admin one-off where
-    completeness beats speed.
-  - **Export covers the same set** — the command now prints
-    `{"engine": …, "local": {…}}`, listing each matched queue row's type,
-    status and created_at plus the abandoned-cart row, so export and erase
-    can never disagree. **Order of operations:** local first, engine second,
-    so an engine outage never blocks the local half; the command then exits
-    non-zero naming the failure.
+  local half, `Console\Command\GdprCommand` its only caller. How it works —
+  the two outcomes, the decoding matcher, the retry guard — is written up in
+  `docs/ARCHITECTURE.md` ("Queue semantics"); don't restate it here.
+  - **Erkki's binding decision (2026-09-10):** a row that could still send
+    (`pending`, `sending`) is DELETED — not sending is the point — while a
+    row that is over (`sent`, `failed`) is ANONYMISED in place and kept for
+    audit; the contact's abandoned-cart row is deleted. It deviates from
+    Woo, which deletes `failed` because its Event Log Retry revives one:
+    here both queues' `retry()` skip an anonymised row instead. `export`
+    lists the same set, so the two can never disagree; local runs first, so
+    an engine outage costs only the engine half (non-zero exit, re-runnable).
   - **Tables deliberately NOT touched:** `smaily_order_attribution` (order
     id + recommendation id + visitor/session tokens, no contact
     identifier), `smaily_automation_mapping` and `smaily_backfill_job` (no
     personal data).
-  - Gates: 280 unit tests green (10 new), phpcs 0 errors, phpstan clean, 76
-    integration tests green (5 new, throwaway MySQL — the real command
-    through `CommandTester` against the real tables). `setup:upgrade` +
-    `setup:di:compile` run in the sandbox (`GdprCommand` gained a
-    constructor argument; two new injectables). Demonstrated on the sandbox
-    with synthetic contacts only: 1 removed + 1 anonymised in the marketing
+  - **Simplify pass (follow-up commit).** The abandoned-cart table is the
+    state manager's alone again, the queue-table list has one owner
+    (`Cron\QueueJanitor::TABLES`), the scan reads a narrow column list in
+    1000-row chunks and acts on each chunk in one transaction before reading
+    the next, a blob is decoded once for both the match and the redaction,
+    and the CLI summary prints merchant-facing labels instead of table
+    names. No behaviour change: every acceptance criterion above still holds.
+  - Gates: 280 unit tests green, phpcs 0 errors, phpstan clean, 77
+    integration tests green (throwaway MySQL — the real command through
+    `CommandTester` against the real tables). `setup:upgrade` +
+    `setup:di:compile` run in the sandbox (`GdprCommand` and `LocalEraser`
+    both gained a constructor argument). Demonstrated on the sandbox with
+    synthetic contacts only: 1 removed + 1 anonymised in the marketing
     queue, 1 removed in the ingest queue, 1 abandoned-cart row removed, the
     anonymised row's four blobs all reading `[erased]`. Sandbox restored —
     all seeded rows deleted, 0 smaily config rows, 0 queue rows, 0 jobs.

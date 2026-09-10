@@ -14,7 +14,7 @@ use Magento\Framework\Exception\AlreadyExistsException;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Smaily\Connect\Model\Logger\Logger;
-use Smaily\Connect\Model\Privacy\PayloadAnonymizer;
+use Smaily\Connect\Model\Privacy\Erasure;
 use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 use Smaily\Connect\Model\ResourceModel\Queue\Event\CollectionFactory;
 
@@ -250,7 +250,7 @@ class EventQueue
             [
                 'id IN (?)' => array_map('intval', $ids),
                 'status = ?' => Event::STATUS_FAILED,
-                'entity_id IS NULL OR entity_id != ?' => PayloadAnonymizer::ERASED_PLACEHOLDER,
+                'entity_id IS NULL OR entity_id != ?' => Erasure::PLACEHOLDER,
             ]
         );
     }

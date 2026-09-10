@@ -22,6 +22,10 @@ namespace Smaily\Connect\Model\Privacy;
  * response) is searched as plain text — there is no escaping there to
  * defeat it.
  *
+ * **A blob is decoded once.** `decode()` is the caller's first step; the
+ * result is then handed to `matches()` and, for a row that is kept, to
+ * `anonymize()`, which is why both take the raw blob and its decoding.
+ *
  * **Anonymisation is an allowlist by construction.** Every scalar is
  * replaced with the placeholder; the keys and the structure survive, so the
  * Log drill-down still shows the shape of what went out. A payload field
@@ -30,24 +34,33 @@ namespace Smaily\Connect\Model\Privacy;
 class PayloadAnonymizer
 {
     /**
-     * What an erased field carries afterwards. A fixed non-address string,
-     * so nothing downstream can read a recipient back out of a row the
-     * subject asked us to forget.
+     * A stored blob as a structure, or null when it is empty or not JSON.
+     *
+     * @return array<int|string, mixed>|null
      */
-    public const ERASED_PLACEHOLDER = '[erased]';
-
-    /**
-     * Whether a stored blob mentions this contact.
-     */
-    public function matches(?string $stored, string $email): bool
+    public function decode(?string $stored): ?array
     {
-        $email = strtolower(trim($email));
-        if ($email === '' || $stored === null || trim($stored) === '') {
-            return false;
+        if ($stored === null || trim($stored) === '') {
+            return null;
         }
 
         $decoded = json_decode($stored, true);
-        if (!is_array($decoded)) {
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * Whether a stored blob mentions this contact.
+     *
+     * @param array<int|string, mixed>|null $decoded what decode() made of it
+     */
+    public function matches(?string $stored, ?array $decoded, string $email): bool
+    {
+        if ($stored === null || trim($stored) === '' || trim($email) === '') {
+            return false;
+        }
+
+        if ($decoded === null) {
             return mb_stripos($stored, $email) !== false;
         }
 
@@ -59,21 +72,20 @@ class PayloadAnonymizer
      * keys and the structure. A blob that is not decodable JSON is replaced
      * wholesale — it may be anything, so nothing in it can be assumed
      * impersonal.
+     *
+     * @param array<int|string, mixed>|null $decoded what decode() made of it
      */
-    public function anonymize(?string $stored): ?string
+    public function anonymize(?string $stored, ?array $decoded): ?string
     {
         if ($stored === null || trim($stored) === '') {
             return $stored;
         }
 
-        $decoded = json_decode($stored, true);
-        if (!is_array($decoded)) {
-            return self::ERASED_PLACEHOLDER;
+        if ($decoded === null) {
+            return Erasure::PLACEHOLDER;
         }
 
-        $encoded = json_encode($this->redact($decoded), JSON_UNESCAPED_SLASHES);
-
-        return $encoded === false ? self::ERASED_PLACEHOLDER : $encoded;
+        return (string)json_encode($this->redact($decoded), JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -104,7 +116,7 @@ class PayloadAnonymizer
     {
         $result = [];
         foreach ($data as $key => $value) {
-            $result[$key] = is_array($value) ? $this->redact($value) : self::ERASED_PLACEHOLDER;
+            $result[$key] = is_array($value) ? $this->redact($value) : Erasure::PLACEHOLDER;
         }
 
         return $result;

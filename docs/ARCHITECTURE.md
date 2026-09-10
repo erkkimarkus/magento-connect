@@ -243,8 +243,17 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   structure kept, so the merchant keeps the record of the send. Rows are
   matched by DECODING the stored JSON (`Model\Privacy\PayloadAnonymizer`),
   never by searching its raw text: `json_encode` escapes a non-ASCII
-  address, which a substring search would miss. Both `retry()` methods skip
-  an anonymised row — reviving one would put the placeholder on the wire.
+  address, which a substring search would miss. The walk reads a narrow
+  column list in 1000-row chunks and deletes or anonymises each chunk's
+  matches in one transaction before reading the next, so peak memory is one
+  chunk; a blob is decoded once and the same decoding answers the match and
+  feeds the redaction. The queue tables are `Cron\QueueJanitor::TABLES` —
+  the pair the retention sweep prunes — and the cart rows go through
+  `Model\AbandonedCart\StateManager`, their only owner. Both `retry()`
+  methods skip a row carrying `Model\Privacy\Erasure::PLACEHOLDER` —
+  reviving one would put the placeholder on the wire. Counts and exported
+  rows come back under merchant-facing labels (Queued messages, Engine
+  queue, Abandoned carts), which is what the CLI prints.
   `smaily_order_attribution` is deliberately untouched: it holds only
   order id, recommendation id and visitor/session tokens, no contact
   identifier, and the engine-side erasure covers the engine's copy.

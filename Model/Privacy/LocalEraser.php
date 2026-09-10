@@ -9,6 +9,8 @@ declare(strict_types=1);
 namespace Smaily\Connect\Model\Privacy;
 
 use Magento\Framework\App\ResourceConnection;
+use Smaily\Connect\Cron\QueueJanitor;
+use Smaily\Connect\Model\AbandonedCart\StateManager;
 use Smaily\Connect\Model\Queue\Event;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
 use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
@@ -37,19 +39,30 @@ use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
  * Rows are found by decoding, never by searching the raw JSON text — see
  * PayloadAnonymizer. Erasure is idempotent by construction: an anonymised
  * row no longer carries the address it was matched on.
+ *
+ * Results are keyed by a merchant-facing label, never by a table name: the
+ * CLI prints them as they come.
  */
 class LocalEraser
 {
     /**
-     * The queue tables and the column each one calls its event type.
+     * The column each queue table calls its event type. Which tables those
+     * are is the janitor's list — the same pair both sweeps walk.
      */
-    private const QUEUES = [
+    private const TYPE_COLUMNS = [
         EventResource::TABLE_NAME => 'event_type',
         IngestEventResource::TABLE_NAME => 'domain',
     ];
 
-    private const ABANDONED_CART_TABLE = 'smaily_abandoned_cart';
-    private const ABANDONED_CART_CONNECTION = 'checkout';
+    /**
+     * What the merchant sees a queue called.
+     */
+    private const LABELS = [
+        EventResource::TABLE_NAME => 'Queued messages',
+        IngestEventResource::TABLE_NAME => 'Engine queue',
+    ];
+
+    private const ABANDONED_CART_LABEL = 'Abandoned carts';
 
     /**
      * Statuses a row can still be sent from. Both queues use the same
@@ -60,36 +73,48 @@ class LocalEraser
 
     /**
      * Rows read per scan pass. The blobs are mediumtext, so the scan is
-     * chunked rather than loaded whole.
+     * chunked rather than loaded whole, and each chunk is dealt with before
+     * the next is read.
      */
-    private const SCAN_CHUNK = 200;
+    private const SCAN_CHUNK = 1000;
 
     /**
      * The blob columns a queue row can hide an address in.
      */
     private const MATCHED_COLUMNS = ['payload', 'sent_payload', 'last_response', 'last_error'];
 
+    /**
+     * What the scan reads: the blobs it matches on, what the erasure needs
+     * to decide the row's fate and what the export prints. Never `SELECT *`
+     * — the rest of a queue row is of no use here.
+     */
+    private const SCANNED_COLUMNS = ['id', 'status', 'entity_id', 'created_at', ...self::MATCHED_COLUMNS];
+
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
-        private readonly PayloadAnonymizer $anonymizer
+        private readonly PayloadAnonymizer $anonymizer,
+        private readonly StateManager $cartState
     ) {
     }
 
     /**
      * Erase everything local for a contact.
      *
-     * @return array<string, array{removed: int, anonymised: int}> keyed by table
+     * @return array<string, array{removed: int, anonymised: int}> keyed by label
      */
     public function erase(string $email): array
     {
         $email = strtolower(trim($email));
+        if ($email === '') {
+            return [];
+        }
 
         $counts = [];
-        foreach (array_keys(self::QUEUES) as $table) {
-            $counts[$table] = $this->eraseQueue($table, $email);
+        foreach (QueueJanitor::TABLES as $table) {
+            $counts[self::LABELS[$table]] = $this->eraseQueue($table, $email);
         }
-        $counts[self::ABANDONED_CART_TABLE] = [
-            'removed' => $this->eraseAbandonedCart($email),
+        $counts[self::ABANDONED_CART_LABEL] = [
+            'removed' => $this->cartState->deleteForEmail($email),
             'anonymised' => 0,
         ];
 
@@ -101,24 +126,31 @@ class LocalEraser
      * the store queued for this address and when, never the message body
      * (which is built from data Magento and Smaily already export).
      *
-     * @return array<string, array<int, array<string, mixed>>> keyed by table
+     * @return array<string, array<int, array<string, mixed>>> keyed by label
      */
     public function export(string $email): array
     {
         $email = strtolower(trim($email));
+        if ($email === '') {
+            return [];
+        }
 
         $rows = [];
-        foreach (self::QUEUES as $table => $typeColumn) {
-            $rows[$table] = array_map(
-                static fn (array $row): array => [
-                    'type' => (string)$row[$typeColumn],
-                    'status' => (string)$row['status'],
-                    'created_at' => (string)$row['created_at'],
-                ],
-                $this->matchingRows($table, $email)
-            );
+        foreach (QueueJanitor::TABLES as $table) {
+            $typeColumn = self::TYPE_COLUMNS[$table];
+            $exported = [];
+            foreach ($this->scan($table, $email) as $matched) {
+                foreach ($matched as [$row]) {
+                    $exported[] = [
+                        'type' => (string)$row[$typeColumn],
+                        'status' => (string)$row['status'],
+                        'created_at' => (string)$row['created_at'],
+                    ];
+                }
+            }
+            $rows[self::LABELS[$table]] = $exported;
         }
-        $rows[self::ABANDONED_CART_TABLE] = $this->abandonedCartRows($email);
+        $rows[self::ABANDONED_CART_LABEL] = $this->cartState->rowsForEmail($email);
 
         return $rows;
     }
@@ -132,122 +164,124 @@ class LocalEraser
         $tableName = $this->resourceConnection->getTableName($table);
 
         $result = ['removed' => 0, 'anonymised' => 0];
-        $sendableIds = [];
-        foreach ($this->matchingRows($table, $email) as $row) {
-            if (in_array((string)$row['status'], self::SENDABLE_STATUSES, true)) {
-                $sendableIds[] = (int)$row['id'];
-                continue;
+        foreach ($this->scan($table, $email) as $matched) {
+            $sendableIds = [];
+            $connection->beginTransaction();
+            try {
+                foreach ($matched as [$row, $decoded]) {
+                    if (in_array((string)$row['status'], self::SENDABLE_STATUSES, true)) {
+                        $sendableIds[] = (int)$row['id'];
+                        continue;
+                    }
+                    $connection->update(
+                        $tableName,
+                        $this->anonymisedValues($row, $decoded),
+                        ['id = ?' => (int)$row['id']]
+                    );
+                    $result['anonymised']++;
+                }
+                if ($sendableIds) {
+                    $result['removed'] += $connection->delete($tableName, ['id IN (?)' => $sendableIds]);
+                }
+                $connection->commit();
+            } catch (\Throwable $exception) {
+                $connection->rollBack();
+                throw $exception;
             }
-            $connection->update(
-                $tableName,
-                [
-                    'entity_id' => PayloadAnonymizer::ERASED_PLACEHOLDER,
-                    'payload' => (string)$this->anonymizer->anonymize((string)$row['payload']),
-                    'sent_payload' => $this->anonymizer->anonymize($this->column($row, 'sent_payload')),
-                    'last_response' => $this->anonymizer->anonymize($this->column($row, 'last_response')),
-                    'last_error' => $this->column($row, 'last_error') === null
-                        ? null
-                        : PayloadAnonymizer::ERASED_PLACEHOLDER,
-                ],
-                ['id = ?' => (int)$row['id']]
-            );
-            $result['anonymised']++;
-        }
-
-        if ($sendableIds) {
-            $result['removed'] = $connection->delete($tableName, ['id IN (?)' => $sendableIds]);
         }
 
         return $result;
     }
 
-    private function eraseAbandonedCart(string $email): int
+    /**
+     * What a kept row carries afterwards.
+     *
+     * @param array<string, mixed> $row
+     * @param array<string, array<int|string, mixed>|null> $decoded
+     * @return array<string, string|null>
+     */
+    private function anonymisedValues(array $row, array $decoded): array
     {
-        if ($email === '') {
-            return 0;
+        $values = ['entity_id' => Erasure::PLACEHOLDER];
+        foreach (self::MATCHED_COLUMNS as $column) {
+            $stored = $this->column($row, $column);
+            // last_error is free text, not a payload: there is no structure
+            // worth keeping, so it goes wholesale.
+            $values[$column] = $column === 'last_error'
+                ? ($stored === null ? null : Erasure::PLACEHOLDER)
+                : $this->anonymizer->anonymize($stored, $decoded[$column]);
         }
 
-        $connection = $this->resourceConnection->getConnection(self::ABANDONED_CART_CONNECTION);
-
-        return $connection->delete($this->abandonedCartTable(), ['LOWER(email) = ?' => $email]);
+        return $values;
     }
 
     /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function abandonedCartRows(string $email): array
-    {
-        if ($email === '') {
-            return [];
-        }
-
-        $connection = $this->resourceConnection->getConnection(self::ABANDONED_CART_CONNECTION);
-        $select = $connection->select()
-            ->from($this->abandonedCartTable(), ['quote_id', 'store_id', 'status', 'created_at'])
-            ->where('LOWER(email) = ?', $email)
-            ->order('quote_id ASC');
-
-        return $connection->fetchAll($select);
-    }
-
-    /**
-     * Every row of a queue table that mentions this contact.
+     * Walk a queue table in id chunks, yielding the rows of each chunk that
+     * mention this contact together with their decoded blobs.
      *
-     * The scan is a full table walk in id chunks: neither queue carries a
-     * recipient column to index (a contact.sync row's entity_id happens to
-     * be the address, an ingest row's is a product or customer id), and the
-     * address inside the JSON cannot be matched in SQL without falling into
-     * the escaping trap PayloadAnonymizer exists to avoid. An erasure is an
-     * admin-triggered one-off where completeness beats speed.
+     * The walk is a full table scan: neither queue carries a recipient
+     * column to index (a contact.sync row's entity_id happens to be the
+     * address, an ingest row's is a product or customer id), and the address
+     * inside the JSON cannot be matched in SQL without falling into the
+     * escaping trap PayloadAnonymizer exists to avoid. An erasure is an
+     * admin-triggered one-off where completeness beats speed. Yielding per
+     * chunk keeps the caller's peak memory at one chunk, whatever the table
+     * holds.
      *
-     * @return array<int, array<string, mixed>>
+     * @return \Generator<int, array<int, array{array<string, mixed>, array<string, ?array<int|string, mixed>>}>>
      */
-    private function matchingRows(string $table, string $email): array
+    private function scan(string $table, string $email): \Generator
     {
-        if ($email === '') {
-            return [];
-        }
-
         $connection = $this->resourceConnection->getConnection();
         $tableName = $this->resourceConnection->getTableName($table);
+        $columns = array_merge(self::SCANNED_COLUMNS, [self::TYPE_COLUMNS[$table]]);
 
-        $matched = [];
         $lastId = 0;
         while (true) {
             $rows = $connection->fetchAll(
                 $connection->select()
-                    ->from($tableName)
+                    ->from($tableName, $columns)
                     ->where('id > ?', $lastId)
                     ->order('id ASC')
                     ->limit(self::SCAN_CHUNK)
             );
             if (!$rows) {
-                return $matched;
+                return;
             }
+            $matched = [];
             foreach ($rows as $row) {
                 $lastId = (int)$row['id'];
-                if ($this->rowMatches($row, $email)) {
-                    $matched[] = $row;
+                $decoded = $this->matchRow($row, $email);
+                if ($decoded !== null) {
+                    $matched[] = [$row, $decoded];
                 }
+            }
+            if ($matched) {
+                yield $matched;
             }
         }
     }
 
     /**
+     * The decoded blobs of a row that mentions this contact, or null when it
+     * does not. A blob is decoded exactly once: the same decoding answers
+     * the match and feeds the redaction.
+     *
      * @param array<string, mixed> $row
+     * @return array<string, array<int|string, mixed>|null>|null
      */
-    private function rowMatches(array $row, string $email): bool
+    private function matchRow(array $row, string $email): ?array
     {
-        if (strtolower(trim((string)($row['entity_id'] ?? ''))) === $email) {
-            return true;
-        }
+        $matched = strtolower(trim((string)$this->column($row, 'entity_id'))) === $email;
+
+        $decoded = [];
         foreach (self::MATCHED_COLUMNS as $column) {
-            if ($this->anonymizer->matches($this->column($row, $column), $email)) {
-                return true;
-            }
+            $stored = $this->column($row, $column);
+            $decoded[$column] = $this->anonymizer->decode($stored);
+            $matched = $matched || $this->anonymizer->matches($stored, $decoded[$column], $email);
         }
 
-        return false;
+        return $matched ? $decoded : null;
     }
 
     /**
@@ -258,13 +292,5 @@ class LocalEraser
         $value = $row[$name] ?? null;
 
         return $value === null ? null : (string)$value;
-    }
-
-    private function abandonedCartTable(): string
-    {
-        return $this->resourceConnection->getTableName(
-            self::ABANDONED_CART_TABLE,
-            self::ABANDONED_CART_CONNECTION
-        );
     }
 }
