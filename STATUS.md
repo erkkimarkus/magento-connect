@@ -7,7 +7,7 @@
 
 _Last updated: 2026-09-10 (orchestration session — parity sweep vs
 Woo/Shopify, doc reconcile; release gates PRO-1400 + PRO-1484 verified on a
-clean sandbox install; PRO-2451 landed)_
+clean sandbox install; PRO-2451 and PRO-2452 landed)_
 
 ## Where we are
 
@@ -19,8 +19,56 @@ clean sandbox install; PRO-2451 landed)_
   marker), PRO-2454 (Event Log "Send again"); PRO-2455 (landing page as a CMS
   widget) is 3.1. **Erkki's decision: the wave ships BEFORE 3.0.0 is tagged** —
   the composer publish is irreversible for every 2.8.x install. Queue:
-  release gates (PRO-1400 + PRO-1484) → ~~PRO-2451~~ → **PRO-2452 next** →
-  PRO-2453 → PRO-1748 → PRO-2454 → release train → PRO-2456.
+  release gates (PRO-1400 + PRO-1484) → ~~PRO-2451~~ → ~~PRO-2452~~ →
+  **PRO-2453 next** → PRO-1748 → PRO-2454 → release train → PRO-2456.
+
+- **PRO-2452 done — a GDPR erasure now reaches the store's OWN tables, not
+  just the engine (Woo PRO-2383 parity, and it closes the sibling's open
+  PRO-2448 rather than shipping it).** `smaily:gdpr erase` asked the engine
+  to forget the customer and stopped there; the marketing queue, the ingest
+  queue and the abandoned-cart tracker kept the address until the janitor
+  pruned them by age (30 / 90 days). `Model\Privacy\LocalEraser` is the
+  local half, `Console\Command\GdprCommand` its only caller. Written up in
+  `docs/ARCHITECTURE.md` ("Queue semantics").
+  - **Erkki's binding decision, implemented as an asymmetric pair.** A row
+    that could still send (`pending`, `sending`) is DELETED — not sending is
+    the point. A row that is over (`sent`, `failed`) is ANONYMISED in place
+    and kept for audit: `entity_id` (the Log grid's Entity column, and for a
+    contact.sync / automation row it IS the address), `payload`,
+    `sent_payload`, `last_response` and `last_error` become the one
+    placeholder `[erased]`, with the keys and the structure kept. The
+    contact's `smaily_abandoned_cart` row is deleted.
+  - **Deviation from Woo, recorded.** Woo puts `failed` on the DELETE side
+    because its Event Log Retry revives one; Erkki's decision keeps
+    sent AND failed for audit, so both queues' `retry()` now skips a row
+    whose `entity_id` is the placeholder — reviving one would put `[erased]`
+    on the wire. `sending` joins `pending` on the delete side (same reason
+    Woo names a sendable set rather than negating `sent`).
+  - **PRO-2448's edge is closed, not inherited.** Magento has no
+    `contact_key` column and no recipient column to index, so matching
+    DECODES the stored JSON and compares values — `json_encode` escapes
+    `õ` to a backslash-u sequence, which a raw substring search misses. The
+    scan is a chunked full-table walk; an erasure is an admin one-off where
+    completeness beats speed.
+  - **Export covers the same set** — the command now prints
+    `{"engine": …, "local": {…}}`, listing each matched queue row's type,
+    status and created_at plus the abandoned-cart row, so export and erase
+    can never disagree. **Order of operations:** local first, engine second,
+    so an engine outage never blocks the local half; the command then exits
+    non-zero naming the failure.
+  - **Tables deliberately NOT touched:** `smaily_order_attribution` (order
+    id + recommendation id + visitor/session tokens, no contact
+    identifier), `smaily_automation_mapping` and `smaily_backfill_job` (no
+    personal data).
+  - Gates: 280 unit tests green (10 new), phpcs 0 errors, phpstan clean, 76
+    integration tests green (5 new, throwaway MySQL — the real command
+    through `CommandTester` against the real tables). `setup:upgrade` +
+    `setup:di:compile` run in the sandbox (`GdprCommand` gained a
+    constructor argument; two new injectables). Demonstrated on the sandbox
+    with synthetic contacts only: 1 removed + 1 anonymised in the marketing
+    queue, 1 removed in the ingest queue, 1 abandoned-cart row removed, the
+    anonymised row's four blobs all reading `[erased]`. Sandbox restored —
+    all seeded rows deleted, 0 smaily config rows, 0 queue rows, 0 jobs.
 
 - **PRO-2451 done — a deactivated Campaign Intelligence account is
   remembered, every send path stops, and the admin says so plainly (Woo

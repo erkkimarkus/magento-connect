@@ -32,7 +32,7 @@ Model/
   Multilingual/     store-view → language, account-key → store-view
   Backfill/         chunked import jobs + processors
   Migration/        2.8.x config mapper (pure, unit-tested)
-  Privacy/          profiling consent
+  Privacy/          profiling consent, data-subject erasure
 Observer/           thin event bridges (all logic lives in Model/)
 Plugin/             newsletter email suppression, config validation,
                     checkout layout injection
@@ -234,6 +234,20 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
 - **Idempotency:** `event_uuid` is unique; callers may pass a deterministic
   UUID to make an enqueue idempotent.
 - **Retention:** sent 30 days, failed 90 days (`Cron/QueueJanitor`).
+- **Art. 17 erasure** does not wait for retention. `Model\Privacy\LocalEraser`
+  (driven by `Console\Command\GdprCommand`) walks BOTH queue tables plus
+  `smaily_abandoned_cart` for one address: a row that could still send
+  (`pending`, `sending`) is DELETED, a row that is over (`sent`, `failed`)
+  is ANONYMISED in place — `entity_id`, `payload`, `sent_payload`,
+  `last_response` and `last_error` become one placeholder, keys and
+  structure kept, so the merchant keeps the record of the send. Rows are
+  matched by DECODING the stored JSON (`Model\Privacy\PayloadAnonymizer`),
+  never by searching its raw text: `json_encode` escapes a non-ASCII
+  address, which a substring search would miss. Both `retry()` methods skip
+  an anonymised row — reviving one would put the placeholder on the wire.
+  `smaily_order_attribution` is deliberately untouched: it holds only
+  order id, recommendation id and visitor/session tokens, no contact
+  identifier, and the engine-side erasure covers the engine's copy.
 
 ## Database tables
 

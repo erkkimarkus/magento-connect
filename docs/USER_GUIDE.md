@@ -442,9 +442,32 @@ panel — you do not have to keep the page open:
   opt out of personalized recommendations under **My Account >
   Personalization**. The choice is stored on the Smaily contact and
   enforced by the engine.
-- **Data subject requests** for engine data:
+- **Data subject requests**:
   `bin/magento smaily:gdpr export <email>` (Art. 15) and
   `bin/magento smaily:gdpr erase <email> --force` (Art. 17, idempotent).
+  Both cover the Campaign Intelligence record **and** the module's own
+  tables — the two delivery queues and the abandoned-cart tracker.
+- **What the erasure does locally.** A queued message that could still be
+  sent (`pending` or `sending`) is **deleted** — not sending it is the point
+  of the request. A message that is over (`sent` or `failed`) is
+  **anonymised and kept**, so you keep your own record that you messaged
+  this person: the row keeps its type, status, attempts and timestamps, and
+  its Entity, payload, response and error all read `[erased]`. Such a row
+  can no longer be retried from the Log. The contact's abandoned-cart row is
+  deleted.
+- **What it prints.** One line per table, then the engine:
+
+  ```
+  smaily_event_queue: 1 removed, 1 anonymised
+  smaily_ingest_queue: 1 removed, 0 anonymised
+  smaily_abandoned_cart: 1 removed, 0 anonymised
+  Erased engine data for shopper@example.com.
+  ```
+
+  The local part runs first, so a Campaign Intelligence outage never blocks
+  it: the command then exits non-zero naming the failure, and you re-run it
+  later to finish the engine half. `export` prints the same set as JSON
+  (`engine` plus `local`), so export and erase always agree.
 - Magento-side customer data is handled by Magento's own tooling; Smaily
   contact deletion is done in the Smaily UI.
 
@@ -456,7 +479,7 @@ panel — you do not have to keep the page open:
 | `smaily:backfill:status` | Show import progress |
 | `smaily:engine:ping` | Campaign Intelligence health check |
 | `smaily:engine:disconnect --force` | Remove the local engine connection |
-| `smaily:gdpr export\|erase <email> [--force]` | Engine data export / erasure |
+| `smaily:gdpr export\|erase <email> [--force]` | Data subject export / erasure (engine + local queues) |
 
 ## FAQ
 
