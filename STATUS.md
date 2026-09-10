@@ -60,6 +60,19 @@ Marketplace pre-checks)_
     `php -l` clean on 189 shipped PHP files) and a deliberate negative test
     — dropping `Test/*` from the exclusion list made it fail, as it must.
 
+- **CI green again — PHPStan is capped below 2.2.6 (2026-09-10).** The
+  `static` job started failing with dozens of
+  `Internal error: Failed opening required '<?php ...'` while local runs stayed
+  green. Cause: `composer.lock` is not committed, so CI resolves fresh — it
+  picked PHPStan 2.2.13, and from 2.2.6 the phar ships the `phpstan_turbo`
+  extension whose shared-memory cache makes `Cache::load()` return the value
+  just passed to `save()`. `bitexpert/phpstan-magento` v0.43.0 expects that
+  call to return the *path* of the factory class it generated, so it `require`s
+  PHP source as a filename. Fixed by capping `phpstan/phpstan` at `<2.2.6` in
+  `composer.json` (the resolver backs `rector/rector` off to a version without
+  the `^2.2.10` floor); reproduced and verified on a clean clone with a fresh
+  `composer install`. TESTING.md records the cap and when to lift it.
+
 - **PRO-2470 done — the marketing event queue is indexed for the per-contact
   lookup (one-way door approved by Erkki 2026-09-10).**
   `EventQueue::cancelPendingAutomation()` — the PRO-2453 withdrawal, run on

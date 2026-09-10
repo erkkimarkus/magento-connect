@@ -10,7 +10,21 @@ vendor/bin/phpstan analyse  # level 6 with the bitexpert/phpstan-magento extensi
 ```
 
 CI (GitHub Actions) runs the unit suite on PHP 8.1 and 8.3 plus the static
-analysis job on every push and pull request.
+analysis job on every push and pull request. `composer.lock` is not committed,
+so CI resolves the toolchain fresh on every run — an upstream release can turn
+a green build red without a change in this repository.
+
+**PHPStan is capped below 2.2.6 on purpose.** From 2.2.6 the phar ships the
+`phpstan_turbo` extension, which PHPStan loads by restarting itself; its
+shared-memory cache makes `PHPStan\Cache\Cache::load()` hand back the value
+that was just passed to `save()` instead of what the injected storage returns.
+`bitexpert/phpstan-magento` v0.43.0 relies on that storage returning the *path*
+of the factory class it generated, so with the extension active it `require`s
+PHP source as a filename and every generated `*Factory` blows up with
+`Internal error: Failed opening required '<?php ...'`. Local runs stayed green
+only because their vendor tree predated 2.2.6. Lift the cap once
+bitexpert/phpstan-magento releases the fix it carries on its unreleased
+`bugfix/autoloader-requires-generated-file-not-source` branch.
 
 ## Integration tests (real MySQL)
 

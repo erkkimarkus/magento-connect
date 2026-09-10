@@ -37,7 +37,7 @@
         "bitexpert/phpstan-magento": "^0.43.0",
         "magento/magento-coding-standard": "*",
         "phpstan/extension-installer": "^1.4",
-        "phpstan/phpstan": "^1.10 || ^2.0",
+        "phpstan/phpstan": "^1.10 || ^2.0 <2.2.6",
         "phpunit/phpunit": "^9.6 || ^10.5"
     },
     "autoload": {
