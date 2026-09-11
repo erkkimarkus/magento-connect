@@ -5,7 +5,10 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-09-11 (PRO-2476 — the sandbox admin logs in without a
+_Last updated: 2026-09-11 (PRO-2472 — the release train's packaging
+leftovers are closed: the checksum ships with the release, the module
+manifest and the composer manifest agree, and MSI is documented as optional.
+Earlier the same day: PRO-2476 — the sandbox admin logs in without a
 second factor again, on the running sandbox and on every boot. Earlier the
 same day: PRO-2454 — the Log says what the server said,
 offers "Send again" only where it is safe, and labels a withdrawn reminder
@@ -23,13 +26,55 @@ canon in EN + ET; PRO-2469 swept the abandoned-cart tracker)_
 
 - **Next session opens here (2026-09-11).** Queue: ~~PRO-2454 (Send again,
   server-worded refusals, Withdrawn)~~ → ~~PRO-2476 (sandbox 2FA off, before
-  PRO-2456)~~ → **PRO-2472 next** → PRO-2456 → PRO-2506 → PRO-2474 (pilot
+  PRO-2456)~~ → ~~PRO-2472 (release packaging leftovers)~~ → **PRO-2456
+  next** → PRO-2506 → PRO-2474 (pilot
   readiness — the first pilot client exists and installs manually from the
   release ZIP into `app/code`, clean install, live engine tenant) → rc1 tag
   on Erkki's go; the Smaily repo hand-over (PRO-1198) comes AFTER the pilot,
   on Erkki's date. PRO-1748 is closed — Erkki proofread the Estonian diff on
   2026-09-10. PRO-2460 waits on the engine's answer (current SKU behaviour
   stays meanwhile). PRO-1971 reaffirmed A.
+
+- **PRO-2472 done — the 3.0.0-rc1 release train's packaging leftovers are
+  closed (2026-09-11).** Four small things, no behaviour change in the
+  module itself:
+  - **The checksum ships with the release.** `bin/verify-release-zip.sh`
+    already wrote `<zip>.sha256` beside the archive it verified; nothing
+    published it. `.github/workflows/release.yaml` now uploads
+    `smaily-connect-magento2.zip.sha256` alongside the ZIP, so a pilot store
+    installing manually can prove what it unpacked. Verified locally: the
+    verifier run wrote the file under exactly that name (337 entries,
+    `php -l` clean on 196 shipped PHP files) and `sha256sum -c` on it
+    answered `OK`; `actionlint` is not installed on this host, so the
+    workflow was checked by reading it plus `yaml.safe_load`.
+  - **`etc/module.xml` sequences what composer requires.**
+    `Magento_CatalogInventory` and `Magento_Ui` were composer requirements
+    (declared in the rc1 train) but absent from `<sequence>`, so Magento had
+    no reason to load the module after them. Both added, the existing seven
+    untouched. Sandbox: `setup:upgrade` + `setup:di:compile` clean,
+    `module:status Smaily_Connect` → "Module is enabled", and
+    `module:status --enabled` lists `Magento_CatalogInventory` (42) and
+    `Magento_Ui` (96) ahead of `Smaily_Connect` (364).
+  - **MSI is documented as optional, not required.** A `suggest` block names
+    `magento/module-inventory-api` and
+    `magento/module-inventory-source-deduction-api` with one line each for
+    the plugin seam it serves. They stay OUT of `require` on purpose — both
+    are named only in `etc/di.xml`, so an install without MSI simply never
+    wires them and the legacy stock observer covers everything.
+    `composer validate --strict` is unchanged: the one accepted `version`
+    warning, nothing new. `suggest` is not part of composer's lock
+    content-hash, so `composer.lock` stays fresh.
+  - **The abandoned-package note has a home.** `magento/module-catalog-inventory`
+    is marked abandoned in favour of `magento/inventory-metapackage`; the
+    requirement is deliberately unchanged (we read the legacy `is_in_stock`
+    flag that package owns, and the metapackage would make all of MSI a hard
+    dependency). The reasoning now sits in CONTRIBUTING's dependency
+    paragraph, with "revisit when the Magento floor is raised" attached to it.
+  - Merchant-facing: README and `docs/USER_GUIDE.md` manual-install steps
+    name the `.sha256` and the `sha256sum -c` check; CHANGELOG's two rc1
+    packaging entries were extended rather than duplicated. No PHP changed,
+    so the integration suite was not run. Gates: 299 unit, phpcs 0 errors /
+    997 warnings, phpstan `[OK]`.
 
 - **PRO-2476 done — the sandbox admin has no second factor, as the docs have
   always claimed (2026-09-11).** `setup:install` enables
