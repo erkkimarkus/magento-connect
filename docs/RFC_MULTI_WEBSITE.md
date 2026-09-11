@@ -221,10 +221,12 @@ completeness fix within that existing loop.
 
 **Current:** every ingest path resolves through ONE canonical store —
 `CatalogPayloadBuilder::canonicalStoreId()`, the default store view of the
-**installation's** default website — regardless of which website a product
-actually belongs to; a product assigned only to a second website still has
-its price read at the first website's scope. Orders and customers carry no
-explicit website scoping at all. The wire contract has no currency field, so
+**installation's** default website. Since PRO-1458 the catalog has one
+exception: a product NOT assigned to that website is priced and linked at
+the default store view of the first website it is assigned to
+(`storeIdForProduct()`) — still one payload per product, and still the
+canonical store's `currency` on it. Orders and customers carry no explicit
+website scoping at all. The wire contract has no currency field, so
 today's single-tenant design papers over this by construction (one tenant,
 one base currency, always the default website's).
 
@@ -236,9 +238,10 @@ re-scoped per the entity's own website(s):
 - **Catalog:** a product assigned to N websites enqueues one ingest row per
   website it belongs to (name/description/URL were already built per
   language across a product's assigned websites —
-  `storesByLanguage()` filtering to `$product->getWebsiteIds()` — only price
-  was pinned; price now also resolves per that row's own website's canonical
-  store). Backfill (`EngineCatalogProcessor::loadPage()`) and the live path
+  `storesByLanguage()` filtering to `$product->getWebsiteIds()`; price and
+  URL follow one website per product since PRO-1458, and now resolve per
+  that row's own website's canonical store). Backfill
+  (`EngineCatalogProcessor::loadPage()`) and the live path
   (`ProductSaveAfter`/`ProductDeleteBefore`) both route through this.
 - **Orders:** `OrderPayloadBuilder` resolves the order's own `store_id` →
   website and enqueues to that website's tenant. Since one tenant now means

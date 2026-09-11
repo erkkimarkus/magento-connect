@@ -210,11 +210,24 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   `ProductRepository::getById($id, false, $canonicalStoreId)` before reading
   price whenever the admin save/delete didn't already resolve that same
   scope. This is a deliberate single-pinned-scope simplification, not a
-  per-website fan-out: a multi-website installation with divergent base
-  currencies or divergent per-website prices still ingests only the
-  canonical website's price. Each `smaily_ingest_queue` catalog row's
-  `store_id` column records the scope the payload was built under, for
-  audit.
+  per-website fan-out: still one payload per product, so a multi-website
+  installation with divergent per-website prices ingests one website's price
+  per product. Each `smaily_ingest_queue` catalog row's `store_id` column
+  records that canonical ingest scope for audit — not necessarily the store
+  the price was read at, see the exception below.
+- **The one exception — a product outside the default website
+  (PRO-1458):** such a product has no price of its own at the canonical
+  scope, so reading it there reports a scope it never sells in. It is priced
+  — and its URL built — at the default store view of the first website it IS
+  assigned to (lowest website id; `CatalogPayloadBuilder::storeIdForProduct()`).
+  The URL is generated from the product loaded at that same store, because
+  Magento's URL model reads the rewrite and the base URL off the product's
+  OWN store, not off whatever store is emulated around it. A product
+  assigned to no website at all keeps the canonical scope and is still
+  ingested, never skipped. The row's `currency` still names the canonical
+  store's display currency: an install whose second website has a different
+  base currency is mislabelled there, and per-website tenants (the
+  multi-website RFC's Phase 4, PRO-1762) are the fix for that, not this.
 
 ### Queue semantics (both queues)
 

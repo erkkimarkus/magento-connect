@@ -5,28 +5,43 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-09-10 (orchestration session — parity sweep vs
+_Last updated: 2026-09-11 (PRO-1458 — a product outside the default website
+is now priced and linked at a website it actually belongs to; verified on a
+two-website sandbox. Previous session, 2026-09-10: parity sweep vs
 Woo/Shopify, doc reconcile; release gates PRO-1400 + PRO-1484 verified on a
 clean sandbox install; PRO-2451, PRO-2452, PRO-2453, PRO-2467 landed; the
-3.0.0-rc1 release train ran — PRO-2470 index, version cut, packaging check,
-Marketplace pre-checks; release train closed out — the package ships no
-`docs/`, the `composer validate --strict` version warning is accepted;
-PRO-2473 committed `composer.lock`; PRO-1748 adopted the shared Connect
-terminology canon in EN + ET; PRO-2469 gave the abandoned-cart tracker a
-retention sweep and pinned the two tombstone edges)_
+3.0.0-rc1 release train ran and closed out — the package ships no `docs/`,
+the `composer validate --strict` version warning is accepted; PRO-2473
+committed `composer.lock`; PRO-1748 adopted the shared Connect terminology
+canon in EN + ET; PRO-2469 swept the abandoned-cart tracker)_
 
 ## Where we are
 
-- **Next session opens here (2026-09-10 orchestration session).** Queue:
-  ~~PRO-2469 (tracker retention + tombstone edges)~~ → **PRO-1458 next**
-  (Erkki 2026-09-10: price non-default-website products at a website they
-  belong to) → PRO-2454 → PRO-2476 (sandbox 2FA off, before PRO-2456) →
-  PRO-2456 → PRO-2472 → PRO-2474 (pilot readiness — the first pilot client
-  exists and installs manually from the release ZIP into `app/code`, clean
-  install, live engine tenant) → rc1 tag on Erkki's go; the Smaily repo
-  hand-over (PRO-1198) comes AFTER the pilot, on Erkki's date. PRO-1748's code
-  landed; Erkki's ET proofread is still open. PRO-2460 waits on the engine's
-  answer (current SKU behaviour stays meanwhile). PRO-1971 reaffirmed A.
+- **Next session opens here (2026-09-11).** Queue: ~~PRO-1458 (price a
+  product at a website it belongs to)~~ → **PRO-2454 next** → PRO-2476
+  (sandbox 2FA off, before PRO-2456) → PRO-2456 → PRO-2472 → PRO-2474 (pilot
+  readiness — the first pilot client exists and installs manually from the
+  release ZIP into `app/code`, clean install, live engine tenant) → rc1 tag
+  on Erkki's go; the Smaily repo hand-over (PRO-1198) comes AFTER the pilot,
+  on Erkki's date. PRO-1748's code landed; Erkki's ET proofread is still
+  open. PRO-2460 waits on the engine's answer (current SKU behaviour stays
+  meanwhile). PRO-1971 reaffirmed A.
+
+- **PRO-1458 done — a product outside the default website is priced and
+  linked where it actually sells (2026-09-11).**
+  `CatalogPayloadBuilder::storeIdForProduct()` picks the scope per product:
+  the canonical store when the product belongs to its website (unchanged,
+  and also for a product on no website at all — still built, never skipped),
+  otherwise the default store view of the lowest-numbered website it IS
+  assigned to. The URL is built from the product loaded at that same store —
+  Magento's URL model reads the rewrite and base URL off the product's own
+  store, so emulation alone was not enough. Still one payload per product;
+  `currency` still names the canonical store (per-website tenants are RFC
+  Phase 4, PRO-1762). Two-website sandbox: the queued row carried website
+  2's price and `second.localhost` URL, a website-1 control was unchanged,
+  sandbox restored to single-website. Rules in `docs/ARCHITECTURE.md`,
+  merchant wording in `docs/USER_GUIDE.md`, RFC §5 current-state refreshed.
+  Gates: 284 unit, phpcs 0 errors, phpstan `[OK]`, 82 integration.
 
 - **PRO-2469 done — the abandoned-cart tracker is swept, and a tombstone
   survives both of its edges (2026-09-10).** `Cron\QueueJanitor` now prunes
