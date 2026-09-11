@@ -36,4 +36,11 @@ if [ ! -f app/etc/env.php ]; then
         --admin-password=${MAGENTO_ADMIN_PASSWORD}
 fi
 
+# The sandbox admin is reachable with the username and password above and
+# nothing else — a browser or a script must never stop at a second factor.
+# setup:install enables both two-factor modules, so switch them off here. This
+# runs on every boot on purpose: it is a no-op once they are off, and it also
+# repairs a data volume installed before this was here.
+bin/magento module:disable Magento_TwoFactorAuth Magento_AdminAdobeImsTwoFactorAuth
+
 exec docker-php-entrypoint "$@"
