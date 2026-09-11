@@ -34,7 +34,10 @@ bin/magento cache:flush
 ### Manual
 
 Extract the release ZIP to `app/code/Smaily/Connect` and run the same
-`module:enable` / `setup:upgrade` steps.
+`module:enable` / `setup:upgrade` steps. Every release also publishes a
+`.sha256` file beside the ZIP; run
+`sha256sum -c smaily-connect-magento2.zip.sha256` in the download folder
+before extracting to confirm the archive is the one we built.
 
 ### Requirements
 
