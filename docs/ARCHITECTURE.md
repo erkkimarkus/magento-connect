@@ -234,13 +234,14 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
 - **Idempotency:** `event_uuid` is unique; callers may pass a deterministic
   UUID to make an enqueue idempotent.
 - **Retention:** sent 30 days, failed 90 days (`Cron/QueueJanitor`). The
-  same job sweeps `smaily_abandoned_cart` (PRO-2469): a terminal row —
-  `mailed`, `completed`, `expired`, `erased`, i.e.
-  `StateManager::TERMINAL_STATUSES` — older than the 30-day window goes, and
-  so does any row whose `quote_id` is no longer in `quote`, whatever its
-  status; Magento's own quote cleanup does not cascade onto the side table,
-  and a marker with nothing left to mark is dead weight. A live quote in a
-  non-terminal status is never touched: that row is what keeps
+  same job sweeps `smaily_abandoned_cart` (PRO-2469) — it owns the schedule
+  and the window, while the SQL stays with the table's owner
+  (`StateManager::pruneTerminal()` / `pruneOrphans()`): a terminal row
+  (`mailed`, `completed`, `expired`, `erased`) older than the 30-day window
+  goes, and so does any row whose `quote_id` is no longer in `quote`,
+  whatever its status; Magento's own quote cleanup does not cascade onto the
+  side table, and a marker with nothing left to mark is dead weight. A live
+  quote in a non-terminal status is never touched: that row is what keeps
   `Cron/AbandonedCart` from mailing the same cart twice.
 - **Art. 17 erasure** does not wait for retention. `Model\Privacy\LocalEraser`
   (driven by `Console\Command\GdprCommand`) walks BOTH queue tables plus
@@ -256,9 +257,9 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
   matches in one transaction before reading the next, so peak memory is one
   chunk; a blob is decoded once and the same decoding answers the match and
   feeds the redaction. The queue tables are `Cron\QueueJanitor::TABLES` —
-  the pair the queue half of the retention sweep prunes — and the cart rows
-  go through `Model\AbandonedCart\StateManager`, their only owner. Both
-  `retry()` methods skip a row carrying `Model\Privacy\Erasure::PLACEHOLDER` —
+  the pair the retention sweep prunes — and the cart rows go through
+  `Model\AbandonedCart\StateManager`, their only owner. Both `retry()`
+  methods skip a row carrying `Model\Privacy\Erasure::PLACEHOLDER` —
   reviving one would put the placeholder on the wire.
   **A cart row is always ANONYMISED, never deleted (PRO-2467)**, whatever
   its status: it is not a message but the marker saying this quote has been

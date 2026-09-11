@@ -54,10 +54,10 @@ abstract class IntegrationTestCase extends TestCase
      *
      * @return array<string, mixed>
      */
-    protected function fetchRow(string $table, int $id): array
+    protected function fetchRow(string $table, int $id, string $idColumn = 'id'): array
     {
         $row = $this->connection->fetchRow(
-            $this->connection->select()->from($table)->where('id = ?', $id)
+            $this->connection->select()->from($table)->where($idColumn . ' = ?', $id)
         );
         self::assertIsArray($row, sprintf('Expected row %d in %s', $id, $table));
 

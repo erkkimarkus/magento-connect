@@ -9,9 +9,11 @@ declare(strict_types=1);
 namespace Smaily\Connect\Test\Integration\Cron;
 
 use Smaily\Connect\Cron\QueueJanitor;
+use Smaily\Connect\Model\AbandonedCart\StateManager;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
 use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 use Smaily\Connect\Test\Integration\IntegrationTestCase;
+use Smaily\Connect\Test\Integration\Support\SchemaInstaller;
 
 /**
  * Retention sweep against real tables: queue rows (sent kept 30 days, failed
@@ -23,20 +25,16 @@ class QueueJanitorTest extends IntegrationTestCase
 
     private const CART_TABLE = 'smaily_abandoned_cart';
 
+    private SchemaInstaller $schema;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         // The tracker sweep joins the core quote table; the standalone
         // integration environment installs only the module's own schema.
-        $this->connection->query('DROP TABLE IF EXISTS `quote`');
-        $this->connection->query(
-            'CREATE TABLE `quote` ('
-            . ' `entity_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,'
-            . ' `store_id` SMALLINT UNSIGNED NOT NULL DEFAULT 0,'
-            . ' PRIMARY KEY (`entity_id`)'
-            . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
-        );
+        $this->schema = new SchemaInstaller($this->connection);
+        $this->schema->createQuote();
     }
 
     protected function tearDown(): void
@@ -78,20 +76,18 @@ class QueueJanitorTest extends IntegrationTestCase
      */
     public function testAbandonedCartRowsGoOnRetentionAndOnAVanishedQuote(): void
     {
-        $this->seedQuote(1);
-        $this->seedQuote(2);
-        $this->seedQuote(3);
-        $this->seedQuote(4);
-        $this->seedQuote(5);
+        foreach (range(1, 5) as $entityId) {
+            $this->schema->seedQuote($entityId);
+        }
         // Quotes 6 and 7 are gone from the store (Magento's own cleanup).
 
-        $this->seedCartRow(1, 'completed', 31);
-        $this->seedCartRow(2, 'completed', 29);
-        $this->seedCartRow(3, 'erased', 31);
-        $this->seedCartRow(4, 'mailed', 31);
-        $this->seedCartRow(5, 'open', 400);
-        $this->seedCartRow(6, 'open', 1);
-        $this->seedCartRow(7, 'mailed', 1);
+        $this->seedCartRow(1, StateManager::STATUS_COMPLETED, 31);
+        $this->seedCartRow(2, StateManager::STATUS_COMPLETED, 29);
+        $this->seedCartRow(3, StateManager::STATUS_ERASED, 31);
+        $this->seedCartRow(4, StateManager::STATUS_MAILED, 31);
+        $this->seedCartRow(5, StateManager::STATUS_OPEN, 400);
+        $this->seedCartRow(6, StateManager::STATUS_OPEN, 1);
+        $this->seedCartRow(7, StateManager::STATUS_MAILED, 1);
 
         /** @var QueueJanitor $janitor */
         $janitor = $this->objectManager->create(QueueJanitor::class);
@@ -106,17 +102,14 @@ class QueueJanitorTest extends IntegrationTestCase
         );
     }
 
-    private function seedQuote(int $entityId): void
-    {
-        $this->connection->insert('quote', ['entity_id' => $entityId, 'store_id' => 1]);
-    }
-
     private function seedCartRow(int $quoteId, string $status, int $ageDays): void
     {
         $this->connection->insert(self::CART_TABLE, [
             'quote_id' => $quoteId,
             'store_id' => 1,
-            'email' => $status === 'erased' ? null : sprintf('cart-%d@example.test', $quoteId),
+            'email' => $status === StateManager::STATUS_ERASED
+                ? null
+                : sprintf('cart-%d@example.test', $quoteId),
             'status' => $status,
         ]);
         $this->connection->update(

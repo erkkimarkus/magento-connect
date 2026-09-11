@@ -58,7 +58,7 @@ class StateManagerTest extends IntegrationTestCase
 
         $this->stateManager->markCompleted(21);
 
-        $row = $this->rowFor(21);
+        $row = $this->fetchRow('smaily_abandoned_cart', 21, 'quote_id');
         self::assertSame(StateManager::STATUS_ERASED, $row['status']);
         self::assertNull($row['email']);
     }
@@ -76,7 +76,7 @@ class StateManagerTest extends IntegrationTestCase
 
         $this->stateManager->setNewsletterOptin(22, 1, 'cart-state-1-again@example.test', true);
 
-        $row = $this->rowFor(22);
+        $row = $this->fetchRow('smaily_abandoned_cart', 22, 'quote_id');
         self::assertSame('cart-state-1-again@example.test', $row['email']);
         self::assertSame(StateManager::STATUS_ERASED, $row['status']);
         self::assertSame('1', (string)$row['newsletter_optin']);
@@ -85,18 +85,5 @@ class StateManagerTest extends IntegrationTestCase
             $this->stateManager->filterAlreadyHandled([22]),
             'A repopulated tombstone is still terminal, so no reminder is scheduled'
         );
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function rowFor(int $quoteId): array
-    {
-        $row = $this->connection->fetchRow(
-            $this->connection->select()->from('smaily_abandoned_cart')->where('quote_id = ?', $quoteId)
-        );
-        self::assertIsArray($row, sprintf('Expected a tracker row for quote %d', $quoteId));
-
-        return $row;
     }
 }

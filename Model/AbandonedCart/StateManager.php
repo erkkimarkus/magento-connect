@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace Smaily\Connect\Model\AbandonedCart;
 
 use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DB\Select;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 
 /**
@@ -28,18 +29,19 @@ class StateManager
     public const STATUS_ERASED = 'erased';
 
     /**
-     * Statuses nothing further happens to. The cron's gate uses them, and so
-     * does the retention sweep (Cron\QueueJanitor) — the table's only walkers.
+     * Statuses nothing further happens to: the cron's gate and the retention
+     * sweep both read them.
      */
-    public const TERMINAL_STATUSES = [
+    private const TERMINAL_STATUSES = [
         self::STATUS_MAILED,
         self::STATUS_COMPLETED,
         self::STATUS_EXPIRED,
         self::STATUS_ERASED,
     ];
 
-    public const TABLE_NAME = 'smaily_abandoned_cart';
-    public const CONNECTION = 'checkout';
+    private const TABLE_NAME = 'smaily_abandoned_cart';
+    private const CONNECTION = 'checkout';
+    private const DELETE_CHUNK = 1000;
 
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
@@ -51,10 +53,7 @@ class StateManager
      * Record that an order was placed for a quote — the cart is no longer
      * abandoned and must never be mailed.
      *
-     * A tombstone survives the conversion (PRO-2469): an erased row keeps
-     * its status, and with it its empty email, even when the quote becomes
-     * an order. Both statuses are terminal, so the cart cron treats the row
-     * the same either way.
+     * An erased row keeps its status: a tombstone must not be resurrected.
      */
     public function markCompleted(int $quoteId): void
     {
@@ -66,8 +65,10 @@ class StateManager
                 'status' => self::STATUS_COMPLETED,
             ],
             [
-                'status' => new \Zend_Db_Expr(
-                    $connection->quoteInto('IF(status = ?, status, VALUES(status))', self::STATUS_ERASED)
+                'status' => $connection->getCheckSql(
+                    $connection->quoteInto('status = ?', self::STATUS_ERASED),
+                    'status',
+                    $connection->quote(self::STATUS_COMPLETED)
                 ),
             ]
         );
@@ -197,6 +198,61 @@ class StateManager
             ->order('quote_id ASC');
 
         return $connection->fetchAll($select);
+    }
+
+    /**
+     * Retention sweep, driven by Cron\QueueJanitor: drop terminal rows —
+     * including the Art. 17 tombstone — last touched before the cutoff.
+     */
+    public function pruneTerminal(string $cutoff): int
+    {
+        $connection = $this->resourceConnection->getConnection(self::CONNECTION);
+        $select = $connection->select()
+            ->from($this->table(), ['id'])
+            ->where('status IN (?)', self::TERMINAL_STATUSES)
+            ->where('updated_at < ?', $cutoff)
+            ->limit(self::DELETE_CHUNK);
+
+        return $this->deleteInChunks($select);
+    }
+
+    /**
+     * Retention sweep: drop rows whose quote is gone from the store, whatever
+     * their status — a marker with nothing left to mark. Magento's own quote
+     * cleanup does not cascade onto this side table.
+     */
+    public function pruneOrphans(): int
+    {
+        $connection = $this->resourceConnection->getConnection(self::CONNECTION);
+        $select = $connection->select()
+            ->from(['cart' => $this->table()], ['id'])
+            ->joinLeft(
+                ['quote_table' => $this->resourceConnection->getTableName('quote', self::CONNECTION)],
+                'quote_table.entity_id = cart.quote_id',
+                []
+            )
+            ->where('quote_table.entity_id IS NULL')
+            ->limit(self::DELETE_CHUNK);
+
+        return $this->deleteInChunks($select);
+    }
+
+    /**
+     * Delete the rows an id-selecting query matches, one chunk at a time.
+     */
+    private function deleteInChunks(Select $select): int
+    {
+        $connection = $this->resourceConnection->getConnection(self::CONNECTION);
+
+        $totalDeleted = 0;
+        do {
+            $ids = $connection->fetchCol($select);
+            if ($ids) {
+                $totalDeleted += $connection->delete($this->table(), ['id IN (?)' => $ids]);
+            }
+        } while (count($ids) === self::DELETE_CHUNK);
+
+        return $totalDeleted;
     }
 
     private function table(): string

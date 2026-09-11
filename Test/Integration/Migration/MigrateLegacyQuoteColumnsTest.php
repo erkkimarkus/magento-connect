@@ -10,6 +10,7 @@ namespace Smaily\Connect\Test\Integration\Migration;
 
 use Smaily\Connect\Setup\Patch\Schema\MigrateLegacyQuoteColumns;
 use Smaily\Connect\Test\Integration\IntegrationTestCase;
+use Smaily\Connect\Test\Integration\Support\SchemaInstaller;
 
 /**
  * The 2.8.x schema cleanup patch against a real quote table carrying the
@@ -20,21 +21,14 @@ class MigrateLegacyQuoteColumnsTest extends IntegrationTestCase
 {
     private const STATE_TABLE = 'smaily_abandoned_cart';
 
+    private SchemaInstaller $schema;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->connection->query('DROP TABLE IF EXISTS `quote`');
-        $this->connection->query(
-            'CREATE TABLE `quote` ('
-            . ' `entity_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,'
-            . ' `store_id` SMALLINT UNSIGNED NOT NULL DEFAULT 0,'
-            . ' `customer_email` VARCHAR(255) NULL,'
-            . ' `reminder_date` TIMESTAMP NULL,'
-            . ' `is_sent` SMALLINT NULL,'
-            . ' PRIMARY KEY (`entity_id`)'
-            . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
-        );
+        $this->schema = new SchemaInstaller($this->connection);
+        $this->schema->createQuote();
         $this->connection->query(
             'CREATE TABLE IF NOT EXISTS `smaily_customer_sync` (`id` INT NOT NULL, PRIMARY KEY (`id`))'
         );
@@ -105,9 +99,7 @@ class MigrateLegacyQuoteColumnsTest extends IntegrationTestCase
 
     private function seedQuote(int $entityId, string $email, ?int $isSent, ?string $reminderDate): void
     {
-        $this->connection->insert('quote', [
-            'entity_id' => $entityId,
-            'store_id' => 1,
+        $this->schema->seedQuote($entityId, [
             'customer_email' => $email,
             'is_sent' => $isSent,
             'reminder_date' => $reminderDate,

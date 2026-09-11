@@ -30,7 +30,8 @@ class QueueJanitor
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
         private readonly DateTime $dateTime,
-        private readonly Logger $logger
+        private readonly Logger $logger,
+        private readonly StateManager $stateManager
     ) {
     }
 
@@ -60,41 +61,13 @@ class QueueJanitor
     }
 
     /**
-     * Sweep the abandoned-cart tracker (PRO-2469). Magento's own quote
-     * cleanup does not cascade onto this side table and nothing else prunes
-     * it, so two kinds of row go: a terminal one — including the Art. 17
-     * tombstone — past the sent-row retention window, and any row whose
-     * quote is gone from `quote`, whatever its status, because the marker
-     * has nothing left to mark. A live quote in a non-terminal status is
-     * never touched: that row is what keeps the cron honest.
+     * Nothing else prunes the abandoned-cart tracker: the same 30-day window
+     * as sent rows applies to its terminal rows, plus orphans of a gone quote.
      */
     private function pruneAbandonedCarts(): int
     {
-        $connection = $this->resourceConnection->getConnection(StateManager::CONNECTION);
-        $table = $this->resourceConnection->getTableName(StateManager::TABLE_NAME, StateManager::CONNECTION);
-        $quoteTable = $this->resourceConnection->getTableName('quote', StateManager::CONNECTION);
-        $cutoff = $this->cutoff(self::SENT_RETENTION_DAYS);
-
-        $condition = sprintf(
-            '(%s AND %s) OR quote_table.entity_id IS NULL',
-            $connection->quoteInto('cart.status IN (?)', StateManager::TERMINAL_STATUSES),
-            $connection->quoteInto('cart.updated_at < ?', $cutoff)
-        );
-
-        $totalDeleted = 0;
-        do {
-            $select = $connection->select()
-                ->from(['cart' => $table], ['id'])
-                ->joinLeft(['quote_table' => $quoteTable], 'quote_table.entity_id = cart.quote_id', [])
-                ->where($condition)
-                ->limit(self::DELETE_CHUNK);
-            $ids = $connection->fetchCol($select);
-            if ($ids) {
-                $totalDeleted += $connection->delete($table, ['id IN (?)' => $ids]);
-            }
-        } while (count($ids) === self::DELETE_CHUNK);
-
-        return $totalDeleted;
+        return $this->stateManager->pruneTerminal($this->cutoff(self::SENT_RETENTION_DAYS))
+            + $this->stateManager->pruneOrphans();
     }
 
     private function prune(string $tableName, string $status, int $retentionDays): int

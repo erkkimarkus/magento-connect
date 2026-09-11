@@ -28,31 +28,15 @@ retention sweep and pinned the two tombstone edges)_
   landed; Erkki's ET proofread is still open. PRO-2460 waits on the engine's
   answer (current SKU behaviour stays meanwhile). PRO-1971 reaffirmed A.
 
-- **PRO-2469 — the abandoned-cart tracker is swept, and a tombstone survives
-  both of its edges (2026-09-10).** Nothing pruned `smaily_abandoned_cart`:
-  the janitor knew only the two queue tables and Magento's quote cleanup does
-  not cascade onto the side table, so the tracker grew for the life of the
-  store — with PRO-2467 tombstones sitting in it. `Cron\QueueJanitor` gained a
-  third sweep on the SAME 30-day window the sent queue rows use (no new admin
-  setting): terminal rows (`StateManager::TERMINAL_STATUSES` — mailed,
-  completed, expired, erased) past the window, plus any row whose `quote_id`
-  is gone from `quote`, whatever its status. A live quote in a non-terminal
-  status is never touched — that row is what stops a second reminder. The two
-  edges Erkki decided the same day are now behaviour, not intent:
-  `markCompleted()` writes `IF(status = 'erased', status, VALUES(status))`, so
-  a converting tombstone keeps `erased` and its empty email;
-  `setNewsletterOptin()` already wrote the status on insert only, so a later
-  checkout opt-in may put
-  the shopper's freshly typed address on the row while it stays `erased` and
-  unmailable — pinned by tests either way. Docs: `docs/ARCHITECTURE.md`
-  (retention + Art. 17 sections, cron table) and `docs/USER_GUIDE.md`
-  (retention bullet + the GDPR erasure paragraph, merchant wording).
-  Verified on the sandbox against the REAL `quote` table as well: of five
-  seeded tracker rows the sweep took the 40-day-old `completed` one and both
-  orphans (including the stray quote-2 row from an earlier session) and left
-  the 5-day-old `completed` row and a 400-day-old `open` row on a live quote.
-  Sandbox restored to exactly what it was. Gates: 281 unit, phpcs 0 errors,
-  phpstan `[OK]`, 82 integration (3 new).
+- **PRO-2469 done — the abandoned-cart tracker is swept, and a tombstone
+  survives both of its edges (2026-09-10).** `Cron\QueueJanitor` now prunes
+  `smaily_abandoned_cart` on the same 30-day window as sent queue rows,
+  through `Model\AbandonedCart\StateManager` (the table's only owner), and an
+  `erased` row stays erased through both a conversion and a later checkout
+  opt-in. The rules are in `docs/ARCHITECTURE.md` (retention + Art. 17), the
+  merchant wording in `docs/USER_GUIDE.md`. Verified on the sandbox against
+  the real `quote` table, sandbox restored. Gates: 281 unit, phpcs 0 errors,
+  phpstan `[OK]`, 82 integration.
 
 - **PRO-1748 — the admin speaks the shared Connect terminology canon, in both
   languages (2026-09-10).** Jane's approved copy review, already shipped by Woo

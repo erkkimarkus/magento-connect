@@ -68,6 +68,40 @@ class SchemaInstaller
     }
 
     /**
+     * Minimal mirror of the core quote table, for the tests that join or
+     * patch it. The legacy reminder_date/is_sent columns are part of the
+     * stub because the 2.8.x schema patch exists to drop them, and that
+     * patch reads store_id too.
+     */
+    public function createQuote(): void
+    {
+        $this->connection->query('DROP TABLE IF EXISTS `quote`');
+        $this->connection->query(
+            'CREATE TABLE `quote` ('
+            . ' `entity_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,'
+            . ' `store_id` SMALLINT UNSIGNED NOT NULL DEFAULT 0,'
+            . ' `customer_email` VARCHAR(255) NULL,'
+            . ' `reminder_date` TIMESTAMP NULL,'
+            . ' `is_sent` SMALLINT NULL,'
+            . ' PRIMARY KEY (`entity_id`)'
+            . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+        );
+    }
+
+    /**
+     * Seed one quote row; $columns adds to or overrides the defaults.
+     *
+     * @param array<string, mixed> $columns
+     */
+    public function seedQuote(int $entityId, array $columns = []): void
+    {
+        $this->connection->insert(
+            'quote',
+            array_merge(['entity_id' => $entityId, 'store_id' => 1], $columns)
+        );
+    }
+
+    /**
      * Render one declarative <table> node as CREATE TABLE DDL.
      */
     private function tableDdl(\SimpleXMLElement $table): string
