@@ -84,8 +84,8 @@ class CatalogPayloadBuilder
     public function build(Product $product): array
     {
         $scopeStoreId = $this->storeIdForProduct($product);
-        $languageValues = $this->languageValues($product, $scopeStoreId);
-        $priceProduct = $this->scopedForPrice($product, $scopeStoreId);
+        $priceProduct = $this->scopedTo($product, $scopeStoreId);
+        $languageValues = $this->languageValues($product, $priceProduct, $scopeStoreId);
 
         $item = [
             'sku' => $this->sku($product),
@@ -169,7 +169,7 @@ class CatalogPayloadBuilder
      *     description: string|array<string, string>|null,
      *     product_url: string|array<string, string>}
      */
-    private function languageValues(Product $product, int $scopeStoreId): array
+    private function languageValues(Product $product, Product $scopedProduct, int $scopeStoreId): array
     {
         $storesByLanguage = $this->storesByLanguage($product);
 
@@ -179,7 +179,10 @@ class CatalogPayloadBuilder
             return [
                 'name' => (string)$product->getName(),
                 'description' => $this->description($product),
-                'product_url' => $this->productUrl($product, $storeId),
+                'product_url' => $this->productUrl(
+                    $storeId === $scopeStoreId ? $scopedProduct : $this->scopedTo($product, $storeId),
+                    $storeId
+                ),
             ];
         }
 
@@ -206,7 +209,7 @@ class CatalogPayloadBuilder
         return [
             'name' => $names ?: (string)$product->getName(),
             'description' => $descriptions ?: $this->description($product),
-            'product_url' => $urls ?: $this->productUrl($product, $scopeStoreId),
+            'product_url' => $urls ?: $this->productUrl($scopedProduct, $scopeStoreId),
         ];
     }
 
@@ -240,6 +243,11 @@ class CatalogPayloadBuilder
      * Forcing frontend store emulation makes the URL come out exactly as the
      * storefront would render it, in any execution context (web/CLI/cron).
      * Emulation is always stopped, even on failure (try/finally).
+     *
+     * The product must already be loaded at `$storeId`: Magento's URL model
+     * reads the rewrite and the base URL off the product's OWN store, so a
+     * canonical-scoped product would keep emitting the canonical store's
+     * link no matter which store is emulated around it (PRO-1458).
      */
     private function productUrl(Product $product, int $storeId): string
     {
@@ -367,12 +375,12 @@ class CatalogPayloadBuilder
     }
 
     /**
-     * The product re-scoped to the store its price is read at, so price is
-     * always read consistently regardless of which scope the caller loaded
-     * the product in (backfill's collection already loads at the canonical
-     * scope, so this is then a no-op for canonical-website products).
+     * The product re-scoped to the store its price and URL are read at, so
+     * both are always read consistently regardless of which scope the caller
+     * loaded the product in (backfill's collection already loads at the
+     * canonical scope, so this is a no-op for canonical-website products).
      */
-    private function scopedForPrice(Product $product, int $storeId): Product
+    private function scopedTo(Product $product, int $storeId): Product
     {
         if ((int)$product->getStoreId() === $storeId) {
             return $product;

@@ -269,7 +269,8 @@ class CatalogPayloadBuilderTest extends TestCase
         $loadedProduct = $this->product(42, 'SHIRT', 19.99, [2]);
         $loadedProduct->method('getStoreId')->willReturn(1); // loaded at the canonical scope
 
-        $scopedProduct = $this->product(42, 'SHIRT', 29.99, [2]); // website 2 prices it differently
+        // website 2 prices and links it differently
+        $scopedProduct = $this->product(42, 'SHIRT', 29.99, [2], 'https://second.example/shirt');
         $scopedProduct->method('getStoreId')->willReturn(7);
 
         $productRepository = $this->createMock(ProductRepositoryInterface::class);
@@ -287,6 +288,7 @@ class CatalogPayloadBuilderTest extends TestCase
             ->build($loadedProduct);
 
         self::assertSame(29.99, $item['price']);
+        self::assertSame('https://second.example/shirt', $item['product_url']);
     }
 
     /**
@@ -395,7 +397,8 @@ class CatalogPayloadBuilderTest extends TestCase
         int $id,
         string $sku,
         float $price = 19.99,
-        array $websiteIds = []
+        array $websiteIds = [],
+        string $productUrl = 'https://shop.example/shirt'
     ): Product&MockObject {
         $amount = $this->createMock(AmountInterface::class);
         $amount->method('getValue')->willReturn($price);
@@ -408,7 +411,7 @@ class CatalogPayloadBuilderTest extends TestCase
         $product->method('getId')->willReturn($id);
         $product->method('getSku')->willReturn($sku);
         $product->method('getName')->willReturn('Shirt');
-        $product->method('getProductUrl')->willReturn('https://shop.example/shirt');
+        $product->method('getProductUrl')->willReturn($productUrl);
         $product->method('getPriceInfo')->willReturn($priceInfo);
         $product->method('getTypeId')->willReturn('simple');
         $product->method('getAttributeSetId')->willReturn(4);
