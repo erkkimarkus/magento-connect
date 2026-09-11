@@ -93,6 +93,39 @@ docker exec magento2 bash -c 'cd /var/www/html && bin/magento setup:upgrade && b
 docker exec magento2 bash -c 'cd /var/www/html && bin/magento cron:run --group smaily_connect'
 ```
 
+**The admin has no second factor.** `setup:install` enables
+`Magento_TwoFactorAuth` and `Magento_AdminAdobeImsTwoFactorAuth`, which send
+every login to `tfa/tfa/requestconfig` and make the admin unreachable to a
+browser session or a script that only has the password. `.sandbox/entrypoint.sh`
+therefore disables both on every boot — a no-op once they are off ("No modules
+were changed."), so it also repairs a data volume installed before the module
+list was set. The script is mounted into the container from the working tree,
+so an edit to it takes effect on the next `docker compose up -d` without an
+image rebuild. Confirm the login lands on the dashboard rather than the
+two-factor screen:
+
+```bash
+FORM_KEY=$(curl -s -c /tmp/j -L http://localhost:8080/admin \
+  | grep -o 'name="form_key" type="hidden" value="[^"]*"' | head -1 | cut -d'"' -f6)
+curl -s -c /tmp/j -b /tmp/j -L http://localhost:8080/index.php/admin \
+  --data-urlencode "login[username]=admin" \
+  --data-urlencode "login[password]=smailydev1" \
+  --data-urlencode "form_key=$FORM_KEY" \
+  -o /tmp/admin.html -w '%{url_effective}\n'
+grep -o '<title>[^<]*' /tmp/admin.html   # <title>Dashboard / Magento Admin
+```
+
+To exercise the two-factor flow itself, re-enable them for that run and put
+them back afterwards:
+
+```bash
+docker exec magento2 bash -c 'cd /var/www/html && bin/magento module:enable \
+  Magento_TwoFactorAuth Magento_AdminAdobeImsTwoFactorAuth && bin/magento setup:upgrade'
+```
+
+The next container start disables them again, so a restart is all the cleanup
+that run needs.
+
 Manual smoke checklist:
 
 1. Admin > Marketing > Smaily Connect > Dashboard renders the health verdict,

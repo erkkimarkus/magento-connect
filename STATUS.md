@@ -5,7 +5,9 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-09-11 (PRO-2454 — the Log says what the server said,
+_Last updated: 2026-09-11 (PRO-2476 — the sandbox admin logs in without a
+second factor again, on the running sandbox and on every boot. Earlier the
+same day: PRO-2454 — the Log says what the server said,
 offers "Send again" only where it is safe, and labels a withdrawn reminder
 as withdrawn. Earlier the same day: PRO-1458 — a product outside the default
 website is now priced and linked at a website it actually belongs to;
@@ -20,14 +22,43 @@ canon in EN + ET; PRO-2469 swept the abandoned-cart tracker)_
 ## Where we are
 
 - **Next session opens here (2026-09-11).** Queue: ~~PRO-2454 (Send again,
-  server-worded refusals, Withdrawn)~~ → **PRO-2476 next** (sandbox 2FA off,
-  before PRO-2456) → PRO-2472 → PRO-2456 → PRO-2506 → PRO-2474 (pilot
+  server-worded refusals, Withdrawn)~~ → ~~PRO-2476 (sandbox 2FA off, before
+  PRO-2456)~~ → **PRO-2472 next** → PRO-2456 → PRO-2506 → PRO-2474 (pilot
   readiness — the first pilot client exists and installs manually from the
   release ZIP into `app/code`, clean install, live engine tenant) → rc1 tag
   on Erkki's go; the Smaily repo hand-over (PRO-1198) comes AFTER the pilot,
   on Erkki's date. PRO-1748 is closed — Erkki proofread the Estonian diff on
   2026-09-10. PRO-2460 waits on the engine's answer (current SKU behaviour
   stays meanwhile). PRO-1971 reaffirmed A.
+
+- **PRO-2476 done — the sandbox admin has no second factor, as the docs have
+  always claimed (2026-09-11).** `setup:install` enables
+  `Magento_TwoFactorAuth` and `Magento_AdminAdobeImsTwoFactorAuth`, and the
+  bootstrap never switched them off, so every admin login — browser or script —
+  ended at `tfa/tfa/requestconfig`; the last two workers fell back to a CLI
+  bootstrap inside the container to render admin pages, and PRO-2456 needs real
+  screens over HTTP. `.sandbox/entrypoint.sh` now runs `module:disable` on both
+  after the install branch, on **every** boot: it is a no-op once they are off
+  ("No modules were changed."), which is what repairs a data volume installed
+  before this existed. The script is mounted over the image's copy in
+  `docker-compose.yaml`, so a bootstrap edit takes on the next
+  `docker compose up -d` instead of needing an image rebuild.
+  **Verified over HTTP, both before and after.** Curl with a cookie jar and the
+  login page's real form key: before, the POST followed to
+  `/admin/tfa/tfa/requestconfig/key/…`; after `module:disable` +
+  `setup:upgrade` + `setup:di:compile` on the running sandbox it lands on
+  `/admin/admin/dashboard/index/key/…`, `<title>Dashboard / Magento Admin</title>`,
+  with the backend menu in the markup. The container was then recreated
+  (`up -d --force-recreate magento2`, volumes untouched): the boot log shows the
+  new step running as a no-op and the same curl check still reaches the
+  dashboard. TESTING.md carries the check and the re-enable recipe. The
+  fresh-install path is not separately demonstrated — proving it would mean
+  dropping the sandbox volumes, which this task was told not to do; the disable
+  runs unconditionally after the install branch, and the boot log proves the
+  step executes on every start. Sandbox data untouched; PRO-2462 (sample data
+  re-runs on every boot) stays open and out of scope. No PHP changed, so the
+  integration suite was not affected; gates re-run anyway — 299 unit, phpcs 0
+  errors, phpstan `[OK]`.
 
 - **PRO-2454 done — the Log offers "Send again" where it is safe, says what
   the server said, and calls a withdrawn reminder withdrawn (2026-09-11).**
