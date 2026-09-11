@@ -8,13 +8,8 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Test\Unit\Model\Log;
 
-use Magento\Framework\App\ResourceConnection;
-use Magento\Framework\DB\Adapter\AdapterInterface;
-use Magento\Framework\DB\Select;
-use Magento\Framework\Serialize\Serializer\Json;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Smaily\Connect\Model\Log\QueueRowLoader;
 use Smaily\Connect\Model\Log\ResendGuard;
 use Smaily\Connect\Model\Privacy\Erasure;
 use Smaily\Connect\Model\Queue\Event;
@@ -25,28 +20,12 @@ use Smaily\Connect\Model\ResourceModel\Log\Collection;
 class ResendGuardTest extends TestCase
 {
     private ResendGuard $guard;
-    private AdapterInterface&MockObject $connection;
-    private QueueRowLoader&MockObject $rowLoader;
+    private EventQueue&MockObject $eventQueue;
 
     protected function setUp(): void
     {
-        $select = $this->createMock(Select::class);
-        $select->method('from')->willReturnSelf();
-        $select->method('where')->willReturnSelf();
-
-        $this->connection = $this->createMock(AdapterInterface::class);
-        $this->connection->method('select')->willReturn($select);
-        $this->connection->method('quote')->willReturnCallback(
-            static fn ($value): string => "'" . $value . "'"
-        );
-
-        $resourceConnection = $this->createMock(ResourceConnection::class);
-        $resourceConnection->method('getConnection')->willReturn($this->connection);
-        $resourceConnection->method('getTableName')->willReturnArgument(0);
-
-        $this->rowLoader = $this->createMock(QueueRowLoader::class);
-
-        $this->guard = new ResendGuard($resourceConnection, new Json(), $this->rowLoader);
+        $this->eventQueue = $this->createMock(EventQueue::class);
+        $this->guard = new ResendGuard($this->eventQueue);
     }
 
     public function testWithdrawnRowIsRefusedFromTheStoredMarker(): void
@@ -87,8 +66,6 @@ class ResendGuardTest extends TestCase
 
     public function testContactSyncAndIngestRowsAreSafe(): void
     {
-        $this->connection->expects(self::never())->method('fetchPairs');
-
         self::assertSame('', $this->guard->refusalReason(Collection::SOURCE_SMAILY, 3, [
             'type' => EventType::CONTACT_SYNC,
             'entity_id' => 'jane@example.com',
@@ -101,12 +78,35 @@ class ResendGuardTest extends TestCase
         ]));
     }
 
+    public function testOnlyAutomationRowsCostASupersedeLookup(): void
+    {
+        $asked = [];
+        $this->eventQueue->method('laterDeliveredOfSameTrigger')->willReturnCallback(
+            static function (array $entityIds) use (&$asked): array {
+                $asked = $entityIds;
+                return [];
+            }
+        );
+
+        $this->guard->refusalReasons(Collection::SOURCE_SMAILY, [
+            3 => [
+                'type' => EventType::CONTACT_SYNC,
+                'entity_id' => 'jane@example.com',
+                'status' => Event::STATUS_FAILED,
+            ],
+            5 => [
+                'type' => EventType::AUTOMATION_TRIGGER,
+                'entity_id' => 'jane@example.com',
+                'status' => Event::STATUS_FAILED,
+            ],
+        ]);
+
+        self::assertSame([5 => 'jane@example.com'], $asked);
+    }
+
     public function testAutomationRowIsRefusedWhenALaterRowOfTheSameTriggerWasSent(): void
     {
-        $this->connection->method('fetchPairs')->willReturn([
-            5 => json_encode(['trigger_type' => 'welcome']),
-            9 => json_encode(['trigger_type' => 'welcome']),
-        ]);
+        $this->eventQueue->method('laterDeliveredOfSameTrigger')->willReturn([5]);
 
         self::assertSame(ResendGuard::REASON_SUPERSEDED, $this->guard->refusalReason(
             Collection::SOURCE_SMAILY,
@@ -121,11 +121,6 @@ class ResendGuardTest extends TestCase
 
     public function testAutomationRowIsSafeWhenTheLaterRowIsAnotherTrigger(): void
     {
-        $this->connection->method('fetchPairs')->willReturn([
-            5 => json_encode(['trigger_type' => 'welcome']),
-            9 => json_encode(['trigger_type' => 'abandoned_cart']),
-        ]);
-
         self::assertSame('', $this->guard->refusalReason(Collection::SOURCE_SMAILY, 5, [
             'type' => EventType::AUTOMATION_TRIGGER,
             'entity_id' => 'jane@example.com',
@@ -133,9 +128,21 @@ class ResendGuardTest extends TestCase
         ]));
     }
 
+    public function testARowThatNeverFailedHasNothingToSendAgain(): void
+    {
+        self::assertSame(
+            ResendGuard::REASON_NOT_FAILED,
+            $this->guard->refusalReason(Collection::SOURCE_SMAILY, 3, [
+                'type' => EventType::CONTACT_SYNC,
+                'entity_id' => 'jane@example.com',
+                'status' => Event::STATUS_PENDING,
+            ])
+        );
+    }
+
     public function testMassRetryLearnsWhichSelectedRowsToSkip(): void
     {
-        $this->rowLoader->method('loadFailed')->willReturn([
+        $refused = $this->guard->refusalReasons(Collection::SOURCE_SMAILY, [
             3 => [
                 'type' => EventType::CONTACT_SYNC,
                 'entity_id' => Erasure::PLACEHOLDER,
@@ -148,10 +155,7 @@ class ResendGuardTest extends TestCase
             ],
         ]);
 
-        self::assertSame(
-            [3 => ResendGuard::REASON_ERASED],
-            $this->guard->refusalReasons(Collection::SOURCE_SMAILY, [3, 4])
-        );
+        self::assertSame([3 => ResendGuard::REASON_ERASED], $refused);
     }
 
     public function testEveryReasonHasItsOwnSentence(): void
@@ -160,11 +164,13 @@ class ResendGuardTest extends TestCase
             (string)$this->guard->message(ResendGuard::REASON_WITHDRAWN),
             (string)$this->guard->message(ResendGuard::REASON_SUPERSEDED),
             (string)$this->guard->message(ResendGuard::REASON_ERASED),
+            (string)$this->guard->message(ResendGuard::REASON_NOT_FAILED),
         ];
 
-        self::assertCount(3, array_unique($messages));
+        self::assertCount(4, array_unique($messages));
         self::assertStringContainsString('withdrawn', $messages[0]);
         self::assertStringContainsString('twice', $messages[1]);
         self::assertStringContainsString('erased', $messages[2]);
+        self::assertStringContainsString('failed', $messages[3]);
     }
 }

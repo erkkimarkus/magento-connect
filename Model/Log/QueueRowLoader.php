@@ -10,15 +10,18 @@ namespace Smaily\Connect\Model\Log;
 
 use Magento\Framework\App\ResourceConnection;
 use Smaily\Connect\Model\Queue\Event;
+use Smaily\Connect\Model\Queue\EventQueue;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
 use Smaily\Connect\Model\ResourceModel\Log\Collection;
 use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 
 /**
- * Loads the queue row a composite log id ("smaily-<id>" / "intelligence-<id>")
- * addresses, normalized the way the Log reads it: the per-queue type column
- * becomes "type" and the queue it came from becomes "source". Both log
- * actions that work on a single row — Details and Send again — start here.
+ * Loads the queue rows the Log works on, normalized the way the Log reads
+ * them: the per-queue type column becomes "type", the queue it came from
+ * becomes "source", and a withdrawn row carries the derived status the grid
+ * shows — so the drawer, the grid label and the status filter all read one
+ * value. Both log actions that work on a single row — Details and Send
+ * again — start here, and so does the mass retry's question to the guard.
  */
 class QueueRowLoader
 {
@@ -34,15 +37,19 @@ class QueueRowLoader
     }
 
     /**
+     * The row a composite log id ("smaily-<id>" / "intelligence-<id>")
+     * addresses, with its own numeric id on it.
+     *
      * @return array<string, mixed>|null
      */
     public function load(string $logId): ?array
     {
         [$source, $id] = Collection::splitLogId($logId);
-        if ($source === '') {
+        $spec = $this->sourceSpec($source);
+        if ($spec === null) {
             return null;
         }
-        [$table, $typeColumn] = self::SOURCES[$source];
+        [$table, $typeColumn] = $spec;
 
         $connection = $this->resourceConnection->getConnection();
         $row = $connection->fetchRow(
@@ -54,27 +61,25 @@ class QueueRowLoader
             return null;
         }
 
-        $row['source'] = $source;
-        $row['type'] = (string)($row[$typeColumn] ?? '');
-
-        return $row;
+        return $this->normalize($row, $source, $typeColumn);
     }
 
     /**
      * The rows of one queue that are parked as failed, keyed by id and
      * narrowed to the columns a resend decision reads. The mass retry asks
      * about a whole selection at once, where a payload per row would be
-     * dead weight.
+     * dead weight — and a row that never failed is not its business.
      *
      * @param int[] $ids
      * @return array<int, array<string, mixed>>
      */
     public function loadFailed(string $source, array $ids): array
     {
-        if (!$ids || !isset(self::SOURCES[$source])) {
+        $spec = $this->sourceSpec($source);
+        if (!$ids || $spec === null) {
             return [];
         }
-        [$table, $typeColumn] = self::SOURCES[$source];
+        [$table, $typeColumn] = $spec;
 
         $connection = $this->resourceConnection->getConnection();
         $rows = $connection->fetchAll(
@@ -87,11 +92,36 @@ class QueueRowLoader
                 ->where('status = ?', Event::STATUS_FAILED)
         );
 
-        $byId = [];
-        foreach ($rows as $row) {
-            $byId[(int)$row['id']] = $row;
+        return array_column($rows, null, 'id');
+    }
+
+    /**
+     * @return array{0: string, 1: string}|null
+     */
+    private function sourceSpec(string $source): ?array
+    {
+        return self::SOURCES[$source] ?? null;
+    }
+
+    /**
+     * The row as the Log reads it. A withdrawn row is stored as sent with
+     * the cancelled marker in place of an API reply (PRO-2453); it reads as
+     * its own status here, by the same rule the grid's UNION applies.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function normalize(array $row, string $source, string $typeColumn): array
+    {
+        $row['source'] = $source;
+        $row['type'] = (string)($row[$typeColumn] ?? '');
+        if ($source === Collection::SOURCE_SMAILY
+            && (string)($row['status'] ?? '') === Event::STATUS_SENT
+            && (string)($row['last_response'] ?? '') === EventQueue::CANCELLED_RESPONSE
+        ) {
+            $row['status'] = Collection::STATUS_WITHDRAWN;
         }
 
-        return $byId;
+        return $row;
     }
 }

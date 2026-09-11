@@ -71,8 +71,16 @@ class ResendTest extends IntegrationTestCase
             $stored[Resend::PAYLOAD_KEY]['at']
         );
 
-        $record = $this->resend->recordOf((string)$rows[1]['payload']);
-        self::assertSame(['of' => 1, 'by' => 'erkki', 'at' => $stored[Resend::PAYLOAD_KEY]['at']], $record);
+        $record = $this->resend->recordOf($stored);
+        self::assertSame(
+            [
+                'of' => 1,
+                'by' => 'erkki',
+                // Handed over as the plain UTC string the drawer formats.
+                'at' => gmdate('Y-m-d H:i:s', (int)strtotime($stored[Resend::PAYLOAD_KEY]['at'])),
+            ],
+            $record
+        );
     }
 
     public function testTheResendRecordNeverReachesSmaily(): void
@@ -124,7 +132,10 @@ class ResendTest extends IntegrationTestCase
         );
         self::assertSame(
             [1 => ResendGuard::REASON_SUPERSEDED],
-            $this->guard->refusalReasons(Collection::SOURCE_SMAILY, [1, 2]),
+            $this->guard->refusalReasons(
+                Collection::SOURCE_SMAILY,
+                $this->rowLoader->loadFailed(Collection::SOURCE_SMAILY, [1, 2])
+            ),
             'The mass retry skips exactly the superseded row'
         );
     }

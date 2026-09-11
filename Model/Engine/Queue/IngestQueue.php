@@ -16,6 +16,7 @@ use Magento\Framework\Stdlib\DateTime\DateTime;
 use Smaily\Connect\Model\Log\Resend;
 use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Model\Privacy\Erasure;
+use Smaily\Connect\Model\Queue\PayloadDecoder;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent\CollectionFactory;
 
@@ -38,6 +39,7 @@ class IngestQueue
         private readonly CollectionFactory $collectionFactory,
         private readonly IdentityGeneratorInterface $identityGenerator,
         private readonly Json $serializer,
+        private readonly PayloadDecoder $payloadDecoder,
         private readonly DateTime $dateTime,
         private readonly ResourceConnection $resourceConnection,
         private readonly Logger $logger
@@ -274,11 +276,7 @@ class IngestQueue
      */
     public function decodePayload(IngestEvent $event): array
     {
-        $decoded = $this->serializer->unserialize($event->getPayload());
-        $payload = is_array($decoded) ? $decoded : [];
-        // The Log's "Send again" record is our own bookkeeping (PRO-2454) —
-        // it is stored with the row, never sent.
-        unset($payload[Resend::PAYLOAD_KEY]);
+        $payload = Resend::stripRecord($this->payloadDecoder->decode($event->getPayload()));
         $payload['event_id'] = $event->getEventUuid();
 
         return $payload;

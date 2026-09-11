@@ -8,9 +8,9 @@ declare(strict_types=1);
 
 namespace Smaily\Connect\Model\Log;
 
-use Magento\Framework\Serialize\Serializer\Json;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
 use Smaily\Connect\Model\Queue\EventQueue;
+use Smaily\Connect\Model\Queue\PayloadDecoder;
 use Smaily\Connect\Model\ResourceModel\Log\Collection;
 
 /**
@@ -32,7 +32,7 @@ class Resend
     public function __construct(
         private readonly EventQueue $eventQueue,
         private readonly IngestQueue $ingestQueue,
-        private readonly Json $serializer
+        private readonly PayloadDecoder $payloadDecoder
     ) {
     }
 
@@ -43,7 +43,7 @@ class Resend
      */
     public function resend(array $row, string $user): bool
     {
-        $payload = $this->decode((string)($row['payload'] ?? ''));
+        $payload = $this->payloadDecoder->decode((string)($row['payload'] ?? ''));
         $payload[self::PAYLOAD_KEY] = [
             'of' => (int)$row['id'],
             'by' => $user,
@@ -69,36 +69,40 @@ class Resend
     }
 
     /**
-     * The resend record a stored payload carries, or null for a row that was
-     * queued by the store itself.
+     * The resend record a decoded payload carries, or null for a row that
+     * was queued by the store itself. Stored Z-suffixed; handed over as the
+     * plain UTC string the drawer's other dates are, so all of them read in
+     * the admin's own timezone.
      *
+     * @param array<int|string, mixed> $payload
      * @return array{of: int, by: string, at: string}|null
      */
-    public function recordOf(string $payload): ?array
+    public function recordOf(array $payload): ?array
     {
-        $record = $this->decode($payload)[self::PAYLOAD_KEY] ?? null;
+        $record = $payload[self::PAYLOAD_KEY] ?? null;
         if (!is_array($record)) {
             return null;
         }
 
-        return [
-            'of' => (int)($record['of'] ?? 0),
-            'by' => (string)($record['by'] ?? ''),
-            'at' => (string)($record['at'] ?? ''),
-        ];
+        $record['of'] = (int)($record['of'] ?? 0);
+        $record['by'] = (string)($record['by'] ?? '');
+        $record['at'] = gmdate('Y-m-d H:i:s', (int)strtotime((string)($record['at'] ?? '')));
+
+        return $record;
     }
 
     /**
+     * The payload as it goes on the wire: the "Send again" record is our own
+     * bookkeeping (PRO-2454), stored with the row and never sent. Static so
+     * both queues can strip it without depending on this class.
+     *
+     * @param array<int|string, mixed> $payload
      * @return array<int|string, mixed>
      */
-    private function decode(string $payload): array
+    public static function stripRecord(array $payload): array
     {
-        if ($payload === '') {
-            return [];
-        }
+        unset($payload[self::PAYLOAD_KEY]);
 
-        $decoded = $this->serializer->unserialize($payload);
-
-        return is_array($decoded) ? $decoded : [];
+        return $payload;
     }
 }

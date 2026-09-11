@@ -16,12 +16,18 @@
 $row = (array)$block->getData('row');
 /** @var \Smaily\Connect\Model\Log\PayloadRedactor $redactor */
 $redactor = $block->getData('redactor');
-/** @var \Smaily\Connect\Model\Log\FailureMessage $failureMessage */
-$failureMessage = $block->getData('failure_message');
+/** @var array<int|string, mixed> $decodedPayload */
+$decodedPayload = (array)$block->getData('payload');
+/** @var array<string, \Magento\Framework\Phrase> $statusLabels */
+$statusLabels = (array)$block->getData('status_labels');
 /** @var \Magento\Framework\Phrase|null $refusal */
 $refusal = $block->getData('refusal');
 /** @var array{of: int, by: string, at: string}|null $resendRecord */
 $resendRecord = $block->getData('resend_record');
+// The server's own words, masked like everything else here; our internal
+// classification is shown beside them, not in place of them.
+$lastError = (string)$block->getData('last_error');
+$failureClass = (string)$block->getData('failure_class');
 
 if (!$row) {
     ?>
@@ -32,26 +38,15 @@ if (!$row) {
     return;
 }
 
+// Withdrawn is a derived status, and QueueRowLoader derives it — the same
+// value the grid label and the status filter read (PRO-2453).
 $status = (string)($row['status'] ?? '');
-// A withdrawn row is stored as sent with the cancelled marker in place of an
-// API reply (PRO-2453) — it reads as its own status here, exactly as in the
-// grid, because nothing was ever delivered.
-if ((string)($row['last_response'] ?? '') === \Smaily\Connect\Model\Queue\EventQueue::CANCELLED_RESPONSE) {
-    $status = \Smaily\Connect\Model\ResourceModel\Log\Collection::STATUS_WITHDRAWN;
-}
 $attempts = (int)($row['attempts'] ?? 0);
 $maxAttempts = \Smaily\Connect\Model\Queue\EventQueue::MAX_ATTEMPTS;
 
 $sourceLabels = [
     'smaily' => __('Smaily'),
     'intelligence' => __('Campaign Intelligence'),
-];
-$statusLabels = [
-    'pending' => __('Pending'),
-    'sending' => __('Sending'),
-    'sent' => __('Sent'),
-    'failed' => __('Failed'),
-    'withdrawn' => __('Withdrawn'),
 ];
 
 // Honest retry line, by row state. A row that may not be sent again says so
@@ -76,15 +71,14 @@ if ($refusal !== null) {
 }
 
 // Prefer the payload exactly as it went over the wire; fall back to the
-// queued payload for rows that have never been attempted.
+// queued payload for rows that have never been attempted — that one is
+// already decoded, so it is redacted from the array, not read twice.
 $sentPayload = (string)($row['sent_payload'] ?? '');
 $payloadTitle = $sentPayload !== '' ? __('Payload (as sent)') : __('Payload (queued, not sent yet)');
-$payload = $redactor->redact($sentPayload !== '' ? $sentPayload : (string)($row['payload'] ?? ''));
+$payload = $sentPayload !== ''
+    ? $redactor->redact($sentPayload)
+    : ((string)($row['payload'] ?? '') === '' ? '' : $redactor->redactDecoded($decodedPayload));
 $response = $redactor->redact(isset($row['last_response']) ? (string)$row['last_response'] : null);
-// The server's own words, masked like everything else here; our internal
-// classification is shown beside them, not in place of them.
-$lastError = $failureMessage->forDisplay((string)($row['last_error'] ?? ''));
-$failureClass = $failureMessage->failureClass((string)($row['last_error'] ?? ''));
 ?>
 <div class="smaily-ui smaily-log-details">
     <table class="admin__table-secondary smaily-log-details-meta">
@@ -126,13 +120,7 @@ $failureClass = $failureMessage->failureClass((string)($row['last_error'] ?? '')
         'Re-sent from event #%1 by %2 on %3',
         $resendRecord['of'],
         $resendRecord['by'],
-        // Stored Z-suffixed; handed over as the plain UTC string every other
-        // date here is, so all of them read in the admin's own timezone.
-        $block->formatDate(
-            gmdate('Y-m-d H:i:s', (int)strtotime($resendRecord['at'])),
-            \IntlDateFormatter::MEDIUM,
-            true
-        )
+        $block->formatDate($resendRecord['at'], \IntlDateFormatter::MEDIUM, true)
     )) ?></p>
     <?php endif; ?>
 

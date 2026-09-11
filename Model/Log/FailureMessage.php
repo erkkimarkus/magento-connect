@@ -34,13 +34,8 @@ class FailureMessage
      */
     public function forDisplay(?string $lastError): string
     {
-        $error = trim((string)$lastError);
-        if ($error === '') {
-            return '';
-        }
-
         return $this->redactor->redact(
-            (string)preg_replace(self::CLASS_PATTERN, '', $error)
+            (string)preg_replace(self::CLASS_PATTERN, '', trim((string)$lastError))
         );
     }
 

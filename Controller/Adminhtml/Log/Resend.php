@@ -17,8 +17,6 @@ use Magento\Framework\Controller\ResultFactory;
 use Smaily\Connect\Model\Log\QueueRowLoader;
 use Smaily\Connect\Model\Log\Resend as ResendModel;
 use Smaily\Connect\Model\Log\ResendGuard;
-use Smaily\Connect\Model\Queue\Event;
-use Smaily\Connect\Model\ResourceModel\Log\Collection;
 
 /**
  * Sends one failed log row again: a NEW queue row carrying the same event,
@@ -56,18 +54,9 @@ class Resend extends Action implements HttpPostActionInterface
             return $this->backToLog();
         }
 
-        [$source, $id] = Collection::splitLogId($logId);
-        $reason = $this->resendGuard->refusalReason($source, $id, $row);
+        $reason = $this->resendGuard->refusalReason((string)$row['source'], (int)$row['id'], $row);
         if ($reason !== '') {
             $this->messageManager->addErrorMessage((string)$this->resendGuard->message($reason));
-
-            return $this->backToLog();
-        }
-
-        if ((string)$row['status'] !== Event::STATUS_FAILED) {
-            $this->messageManager->addErrorMessage(
-                (string)__('Only a failed event can be sent again.')
-            );
 
             return $this->backToLog();
         }

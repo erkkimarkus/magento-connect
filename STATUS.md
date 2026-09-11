@@ -34,32 +34,34 @@ canon in EN + ET; PRO-2469 swept the abandoned-cart tracker)_
   One server-owned guard, `Model\Log\ResendGuard` (Woo's
   `TransactionalRetryGuard` shape): a reason code plus the merchant sentence
   beside it — `withdrawn` (the shopper bought), `superseded` (a later row of
-  the same trigger reached the same contact), `erased` (Art. 17 placeholder,
-  the rule both `retry()` methods already had). It answers for the per-row
-  **Send again** action, for the route behind it (a stale page cannot
-  double-send) and for the mass **Retry**, which now skips what the guard
-  refuses and reports the count. Send again never touches the failed row: it
-  queues a NEW row with the same event, and the decision rides in that row's
-  payload as `_resend {of, by, at}` — stripped by both `decodePayload()`
-  methods, so it never reaches Smaily or the engine, and no column was
-  added. The Details drawer of the new row carries the one line "Re-sent
-  from event #N by <user> on <date>". `Withdrawn` is a derived status: the
-  grid UNION computes it from the stored `cancelled` marker, so the label,
-  the status filter and the drawer all read one value while the flusher
-  still sees its terminal `sent` row. Failure wording is now the server's
-  own (`Model\Log\FailureMessage` strips RetryPolicy's
-  `permanent_http_<code>:` prefix and runs `PayloadRedactor` — the grid's
-  error column was previously unredacted); the classification stays in the
-  drawer as "Failure class". Verified on the sandbox against real rows
-  produced by the real flusher with an invalid Smaily credential: the failed
-  row shows Smaily's wording and offers Send again, the superseded welcome
-  row and the withdrawn abandoned-cart row show their sentence instead of a
-  button, Send again queued row #10 recording `admin`, and a mixed mass
-  retry answered "1 queued, 1 skipped". Sandbox config and seeded rows
-  removed afterwards. Rules in `docs/ARCHITECTURE.md` (Queue semantics),
-  merchant wording in `docs/USER_GUIDE.md`, strings in both i18n files.
-  Gates: 291 unit, phpcs 0 errors, phpstan `[OK]`, 87 integration,
-  `setup:upgrade` + `setup:di:compile` clean.
+  the same trigger reached the same contact), `erased` (Art. 17 placeholder)
+  and the plain `not_failed`. It is the ONLY question the per-row **Send
+  again** action, the route behind it (a stale page cannot double-send) and
+  the mass **Retry** ask; the supersede lookup is one query for a whole page
+  or selection and lives with the table's owner (`EventQueue`). Send again
+  never touches the failed row: it queues a NEW row with the same event, and
+  the decision rides in that row's payload as `_resend {of, by, at}` —
+  stripped by both `decodePayload()` methods, so it never reaches Smaily or
+  the engine, and no column was added. The Details drawer of the new row
+  carries the one line "Re-sent from event #N by <user> on <date>".
+  `Withdrawn` is a derived status: one rule over the stored `cancelled`
+  marker, applied by the grid UNION and by `Model\Log\QueueRowLoader`, so
+  the label, the status filter and the drawer all read one value while the
+  flusher still sees its terminal `sent` row. Failure wording is the
+  server's own (`Model\Log\FailureMessage` strips RetryPolicy's
+  `permanent_http_<code>:` prefix and runs `PayloadRedactor`); the
+  classification stays in the drawer as "Failure class". Rules in
+  `docs/ARCHITECTURE.md` (Queue semantics), merchant wording in
+  `docs/USER_GUIDE.md`, strings in both i18n files. Verified twice on the
+  sandbox against real rows — first against rows the real flusher failed
+  with an invalid Smaily credential, then after the simplification pass:
+  the failed row offers Send again and shows Smaily's own wording, the
+  superseded and withdrawn rows show their sentence instead of a button, a
+  pending row is left with its ordinary retry line, Send again queued a new
+  row carrying its `_resend` record, and a mixed mass retry answered "1
+  queued, 1 skipped". Seeded rows removed afterwards. Gates: 299 unit,
+  phpcs 0 errors, phpstan `[OK]`, 87 integration, `setup:upgrade` +
+  `setup:di:compile` clean.
 
 - **PRO-1458 done — a product outside the default website is priced and
   linked where it actually sells (2026-09-11).**

@@ -19,6 +19,7 @@ use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Model\Queue\Event;
 use Smaily\Connect\Model\Queue\EventFactory;
 use Smaily\Connect\Model\Queue\EventQueue;
+use Smaily\Connect\Model\Queue\PayloadDecoder;
 use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 use Smaily\Connect\Model\ResourceModel\Queue\Event\CollectionFactory;
 
@@ -52,6 +53,7 @@ class EventQueueTest extends TestCase
             $this->createMock(CollectionFactory::class),
             $this->createMock(IdentityGeneratorInterface::class),
             new Json(),
+            new PayloadDecoder(new Json()),
             $dateTime,
             $this->createMock(ResourceConnection::class),
             $this->createMock(Logger::class)

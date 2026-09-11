@@ -13,7 +13,6 @@ use Magento\Framework\View\Element\UiComponent\ContextInterface;
 use Magento\Framework\View\Element\UiComponentFactory;
 use Magento\Ui\Component\Listing\Columns\Column;
 use Smaily\Connect\Model\Log\ResendGuard;
-use Smaily\Connect\Model\Queue\Event;
 use Smaily\Connect\Model\ResourceModel\Log\Collection;
 
 /**
@@ -53,6 +52,7 @@ class LogActions extends Column
     {
         if (isset($dataSource['data']['items'])) {
             $name = (string)$this->getData('name');
+            $refusals = $this->refusalsOfPage($dataSource['data']['items']);
             foreach ($dataSource['data']['items'] as &$item) {
                 if (!isset($item['log_id'])) {
                     continue;
@@ -66,11 +66,9 @@ class LogActions extends Column
                     'label' => __('Details'),
                 ];
 
-                [$source, $id] = Collection::splitLogId($logId);
-                if ((string)($item['status'] ?? '') !== Event::STATUS_FAILED
-                    || $source === ''
-                    || $this->resendGuard->refusalReason($source, $id, $item) !== ''
-                ) {
+                // Only a row the guard was asked about AND cleared gets the
+                // action: a malformed log id is not in the map at all.
+                if (($refusals[$logId] ?? null) !== '') {
                     continue;
                 }
 
@@ -93,5 +91,33 @@ class LogActions extends Column
         }
 
         return $dataSource;
+    }
+
+    /**
+     * Why each row of this page may not be sent again — one guard question
+     * per queue for the whole page, rather than one per row.
+     *
+     * @param array<int|string, array<string, mixed>> $items
+     * @return array<string, string> refusal reason ('' when none) by log id
+     */
+    private function refusalsOfPage(array $items): array
+    {
+        $rows = [Collection::SOURCE_SMAILY => [], Collection::SOURCE_INTELLIGENCE => []];
+        foreach ($items as $item) {
+            [$source, $id] = Collection::splitLogId((string)($item['log_id'] ?? ''));
+            if ($source !== '') {
+                $rows[$source][$id] = $item;
+            }
+        }
+
+        $refusals = [];
+        foreach ($rows as $source => $sourceRows) {
+            $reasons = $this->resendGuard->refusalReasons($source, $sourceRows);
+            foreach (array_keys($sourceRows) as $id) {
+                $refusals[$source . '-' . $id] = $reasons[$id] ?? '';
+            }
+        }
+
+        return $refusals;
     }
 }

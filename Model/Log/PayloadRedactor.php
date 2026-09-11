@@ -43,12 +43,20 @@ class PayloadRedactor
         }
 
         $decoded = json_decode($raw, true);
-        if (!is_array($decoded)) {
-            return $this->maskEmails($raw);
-        }
 
+        return is_array($decoded) ? $this->redactDecoded($decoded) : $this->maskEmails($raw);
+    }
+
+    /**
+     * The same for a payload the caller has already decoded — the Details
+     * drawer decodes the stored payload once and hands it straight over.
+     *
+     * @param array<int|string, mixed> $data
+     */
+    public function redactDecoded(array $data): string
+    {
         $encoded = json_encode(
-            $this->redactArray($decoded),
+            $this->redactArray($data),
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
         );
 

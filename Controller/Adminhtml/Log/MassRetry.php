@@ -15,6 +15,7 @@ use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Ui\Component\MassAction\Filter;
 use Smaily\Connect\Model\Engine\Queue\IngestQueue;
+use Smaily\Connect\Model\Log\QueueRowLoader;
 use Smaily\Connect\Model\Log\ResendGuard;
 use Smaily\Connect\Model\Queue\EventQueue;
 use Smaily\Connect\Model\ResourceModel\Log\Collection;
@@ -36,6 +37,7 @@ class MassRetry extends Action implements HttpPostActionInterface
         private readonly CollectionFactory $collectionFactory,
         private readonly EventQueue $eventQueue,
         private readonly IngestQueue $ingestQueue,
+        private readonly QueueRowLoader $rowLoader,
         private readonly ResendGuard $resendGuard
     ) {
         parent::__construct($context);
@@ -58,9 +60,14 @@ class MassRetry extends Action implements HttpPostActionInterface
 
         $skipped = 0;
         foreach ($ids as $source => $sourceIds) {
-            $refused = $this->resendGuard->refusalReasons($source, $sourceIds);
+            // Only the failed rows of the selection are the retry's business;
+            // anything else in it is left alone without a word, as before.
+            $refused = $this->resendGuard->refusalReasons(
+                $source,
+                $this->rowLoader->loadFailed($source, $sourceIds)
+            );
             $skipped += count($refused);
-            $ids[$source] = array_values(array_diff($sourceIds, array_keys($refused)));
+            $ids[$source] = array_diff($sourceIds, array_keys($refused));
         }
 
         $retried = $this->eventQueue->retry($ids[Collection::SOURCE_SMAILY])

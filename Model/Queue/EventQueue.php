@@ -46,6 +46,7 @@ class EventQueue
         private readonly CollectionFactory $collectionFactory,
         private readonly IdentityGeneratorInterface $identityGenerator,
         private readonly Json $serializer,
+        private readonly PayloadDecoder $payloadDecoder,
         private readonly DateTime $dateTime,
         private readonly ResourceConnection $resourceConnection,
         private readonly Logger $logger
@@ -282,7 +283,7 @@ class EventQueue
 
         $ids = [];
         foreach ($rows as $id => $payload) {
-            if (($this->decodeArray((string)$payload)['trigger_type'] ?? null) === $trigger) {
+            if ($this->triggerOf((string)$payload) === $trigger) {
                 $ids[] = (int)$id;
             }
         }
@@ -301,30 +302,74 @@ class EventQueue
     }
 
     /**
+     * Which of these automation rows a later delivery already superseded:
+     * one of the same trigger, to the same contact, that was sent after it
+     * and not itself withdrawn (PRO-2454). A trigger lives in the payload —
+     * the Log's grid never carries it — so one query brings this queue's
+     * automation rows for those contacts and the triggers are read here.
+     *
+     * @param array<int, string> $entityIds entity id by queue row id
+     * @return int[] the ids among them that may not be sent again
+     */
+    public function laterDeliveredOfSameTrigger(array $entityIds): array
+    {
+        if (!$entityIds) {
+            return [];
+        }
+
+        $connection = $this->resourceConnection->getConnection();
+        $rows = $connection->fetchAll(
+            $connection->select()
+                ->from(
+                    $this->resourceConnection->getTableName(EventResource::TABLE_NAME),
+                    ['id', 'entity_id', 'payload', 'status', 'last_response']
+                )
+                ->where('event_type = ?', EventType::AUTOMATION_TRIGGER)
+                ->where('entity_id IN (?)', array_values(array_unique($entityIds)))
+        );
+
+        $byEntity = [];
+        foreach ($rows as $row) {
+            $byEntity[(string)$row['entity_id']][(int)$row['id']] = [
+                'trigger' => $this->triggerOf((string)$row['payload']),
+                'delivered' => (string)$row['status'] === Event::STATUS_SENT
+                    && (string)($row['last_response'] ?? '') !== self::CANCELLED_RESPONSE,
+            ];
+        }
+
+        $superseded = [];
+        foreach ($entityIds as $id => $entityId) {
+            $trigger = $byEntity[$entityId][$id]['trigger'] ?? '';
+            if ($trigger === '') {
+                continue;
+            }
+            foreach ($byEntity[$entityId] as $laterId => $later) {
+                if ($laterId > $id && $later['delivered'] && $later['trigger'] === $trigger) {
+                    $superseded[] = $id;
+                    break;
+                }
+            }
+        }
+
+        return $superseded;
+    }
+
+    /**
      * Decode an event payload.
      *
      * @return array<int|string, mixed>
      */
     public function decodePayload(Event $event): array
     {
-        $payload = $this->decodeArray($event->getPayload());
-        // The Log's "Send again" record is our own bookkeeping (PRO-2454) —
-        // it is stored with the row, never sent.
-        unset($payload[Resend::PAYLOAD_KEY]);
-
-        return $payload;
+        return Resend::stripRecord($this->payloadDecoder->decode($event->getPayload()));
     }
 
     /**
-     * A stored JSON payload as an array; anything else decodes to nothing.
-     *
-     * @return array<int|string, mixed>
+     * The automation trigger a stored payload was queued for.
      */
-    private function decodeArray(string $payload): array
+    private function triggerOf(string $payload): string
     {
-        $decoded = $this->serializer->unserialize($payload);
-
-        return is_array($decoded) ? $decoded : [];
+        return (string)($this->payloadDecoder->decode($payload)['trigger_type'] ?? '');
     }
 
     /**

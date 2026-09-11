@@ -20,7 +20,8 @@ use Smaily\Connect\Model\Log\PayloadRedactor;
 use Smaily\Connect\Model\Log\QueueRowLoader;
 use Smaily\Connect\Model\Log\Resend;
 use Smaily\Connect\Model\Log\ResendGuard;
-use Smaily\Connect\Model\ResourceModel\Log\Collection;
+use Smaily\Connect\Model\Queue\PayloadDecoder;
+use Smaily\Connect\Ui\Component\QueueStatusOptions;
 
 /**
  * Per-row drill-down for the unified log grid: renders the delivery detail
@@ -41,7 +42,9 @@ class Details extends Action implements HttpGetActionInterface
         private readonly PayloadRedactor $redactor,
         private readonly FailureMessage $failureMessage,
         private readonly ResendGuard $resendGuard,
-        private readonly Resend $resend
+        private readonly Resend $resend,
+        private readonly PayloadDecoder $payloadDecoder,
+        private readonly QueueStatusOptions $statusOptions
     ) {
         parent::__construct($context);
     }
@@ -62,17 +65,27 @@ class Details extends Action implements HttpGetActionInterface
             $row = [];
         }
 
-        [$source, $id] = Collection::splitLogId($logId);
-        $refusal = $row ? $this->resendGuard->refusalReason($source, $id, $row) : '';
+        $payload = $this->payloadDecoder->decode((string)($row['payload'] ?? ''));
+        $reason = $row
+            ? $this->resendGuard->refusalReason((string)$row['source'], (int)$row['id'], $row)
+            : '';
+        $lastError = (string)($row['last_error'] ?? '');
 
         /** @var Template $block */
         $block = $this->layout->createBlock(Template::class, '', ['data' => [
             'template' => 'Smaily_Connect::log/details.phtml',
             'row' => $row,
             'redactor' => $this->redactor,
-            'failure_message' => $this->failureMessage,
-            'refusal' => $refusal === '' ? null : $this->resendGuard->message($refusal),
-            'resend_record' => $this->resend->recordOf((string)($row['payload'] ?? '')),
+            'payload' => $payload,
+            'status_labels' => array_column($this->statusOptions->toOptionArray(), 'label', 'value'),
+            // A row that simply never failed is refused too, but the drawer
+            // has its own honest line for a pending or delivered row.
+            'refusal' => $reason === '' || $reason === ResendGuard::REASON_NOT_FAILED
+                ? null
+                : $this->resendGuard->message($reason),
+            'resend_record' => $this->resend->recordOf($payload),
+            'last_error' => $this->failureMessage->forDisplay($lastError),
+            'failure_class' => $this->failureMessage->failureClass($lastError),
         ]]);
 
         return $result->setContents($block->toHtml());

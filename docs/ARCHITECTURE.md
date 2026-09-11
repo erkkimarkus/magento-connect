@@ -249,27 +249,32 @@ Observer / backfill ──enqueue──> smaily_ingest_queue ──cron flush (1
 - **Sending again (PRO-2454):** the Log's per-row **Send again** and the
   mass **Retry** both ask `Model\Log\ResendGuard` first — one server-owned
   answer, shaped after Woo's `TransactionalRetryGuard`: a reason code
-  (`withdrawn` / `superseded` / `erased`) with the merchant sentence beside
-  it, or `''` for a row that is safe. `superseded` is the only one that
-  costs a query: for an `automation.trigger` row it asks whether a LATER row
-  of the same trigger and the same recipient was delivered (and not itself
-  withdrawn), reading each row's trigger out of its payload. Ingest rows are
-  idempotent upserts and `contact.sync` repeats a state, so only `erased`
-  reaches them. Send again NEVER touches the failed row: it enqueues a NEW
-  row with the same event and payload — the failed row is the history, the
-  new row is the audit record (Woo DECISIONS, same call) — and the decision
-  rides in the new row's payload under `Model\Log\Resend::PAYLOAD_KEY`
+  (`withdrawn` / `superseded` / `erased`, plus the plain `not_failed` — only
+  a failed row is sent again at all) with the merchant sentence beside it,
+  or `''` for a row that is safe. `superseded` is the only one that costs a
+  query: for an `automation.trigger` row it asks whether a LATER row of the
+  same trigger and the same recipient was delivered (and not itself
+  withdrawn), reading each row's trigger out of its payload. That query
+  belongs to the table's owner (`EventQueue::laterDeliveredOfSameTrigger()`)
+  and answers for a whole grid page or mass-retry selection at once. Ingest
+  rows are idempotent upserts and `contact.sync` repeats a state, so only
+  `erased` reaches them. Send again NEVER touches the failed row: it
+  enqueues a NEW row with the same event and payload — the failed row is
+  the history, the new row is the audit record (Woo DECISIONS, same call) —
+  and the decision rides in the new row's payload under
+  `Model\Log\Resend::PAYLOAD_KEY`
   (`_resend: {of, by, at}`, Z-suffixed), which both `decodePayload()`
   methods strip before anything goes on the wire. No column was added for
   it. The mass retry skips what the guard refuses and says how many.
-  `withdrawn` is a derived status, not a stored one: the grid's UNION
-  computes it from `status = sent` plus the `CANCELLED_RESPONSE` marker, so
-  the label AND the status filter read the same value, and the flusher still
-  sees the terminal `sent` row it wrote. The grid's error column and the
-  Details drawer both show the server's own message through
-  `Model\Log\FailureMessage` (RetryPolicy's `permanent_http_<code>:` prefix
-  stripped, `PayloadRedactor` applied); the classification stays in the
-  drawer.
+  `withdrawn` is a derived status, not a stored one: one rule — `status =
+  sent` plus the `CANCELLED_RESPONSE` marker — applied by the grid's UNION
+  and by `Model\Log\QueueRowLoader` for the single row the drawer and the
+  resend route read, so the label, the status filter and the drawer all read
+  one value, and the flusher still sees the terminal `sent` row it wrote.
+  The grid's error column and the Details drawer both show the server's own
+  message through `Model\Log\FailureMessage` (RetryPolicy's
+  `permanent_http_<code>:` prefix stripped, `PayloadRedactor` applied); the
+  classification stays in the drawer.
 - **Retention:** sent 30 days, failed 90 days (`Cron/QueueJanitor`). The
   same job sweeps `smaily_abandoned_cart` (PRO-2469) — it owns the schedule
   and the window, while the SQL stays with the table's owner
