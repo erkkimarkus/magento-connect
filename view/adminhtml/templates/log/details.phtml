@@ -16,6 +16,12 @@
 $row = (array)$block->getData('row');
 /** @var \Smaily\Connect\Model\Log\PayloadRedactor $redactor */
 $redactor = $block->getData('redactor');
+/** @var \Smaily\Connect\Model\Log\FailureMessage $failureMessage */
+$failureMessage = $block->getData('failure_message');
+/** @var \Magento\Framework\Phrase|null $refusal */
+$refusal = $block->getData('refusal');
+/** @var array{of: int, by: string, at: string}|null $resendRecord */
+$resendRecord = $block->getData('resend_record');
 
 if (!$row) {
     ?>
@@ -27,6 +33,12 @@ if (!$row) {
 }
 
 $status = (string)($row['status'] ?? '');
+// A withdrawn row is stored as sent with the cancelled marker in place of an
+// API reply (PRO-2453) — it reads as its own status here, exactly as in the
+// grid, because nothing was ever delivered.
+if ((string)($row['last_response'] ?? '') === \Smaily\Connect\Model\Queue\EventQueue::CANCELLED_RESPONSE) {
+    $status = \Smaily\Connect\Model\ResourceModel\Log\Collection::STATUS_WITHDRAWN;
+}
 $attempts = (int)($row['attempts'] ?? 0);
 $maxAttempts = \Smaily\Connect\Model\Queue\EventQueue::MAX_ATTEMPTS;
 
@@ -39,10 +51,15 @@ $statusLabels = [
     'sending' => __('Sending'),
     'sent' => __('Sent'),
     'failed' => __('Failed'),
+    'withdrawn' => __('Withdrawn'),
 ];
 
-// Honest retry line, by row state.
-if ($status === 'sent') {
+// Honest retry line, by row state. A row that may not be sent again says so
+// instead — the guard's own sentence, the same one the merchant would get if
+// they posted the action anyway (PRO-2454).
+if ($refusal !== null) {
+    $retryText = $refusal;
+} elseif ($status === 'sent') {
     $retryText = __('Delivered — no retries needed.');
 } elseif ($status === 'sending') {
     $retryText = __('A delivery attempt is in progress right now.');
@@ -64,8 +81,10 @@ $sentPayload = (string)($row['sent_payload'] ?? '');
 $payloadTitle = $sentPayload !== '' ? __('Payload (as sent)') : __('Payload (queued, not sent yet)');
 $payload = $redactor->redact($sentPayload !== '' ? $sentPayload : (string)($row['payload'] ?? ''));
 $response = $redactor->redact(isset($row['last_response']) ? (string)$row['last_response'] : null);
-// Error strings routinely quote the contact being synced — mask them too.
-$lastError = $redactor->redact(trim((string)($row['last_error'] ?? '')));
+// The server's own words, masked like everything else here; our internal
+// classification is shown beside them, not in place of them.
+$lastError = $failureMessage->forDisplay((string)($row['last_error'] ?? ''));
+$failureClass = $failureMessage->failureClass((string)($row['last_error'] ?? ''));
 ?>
 <div class="smaily-ui smaily-log-details">
     <table class="admin__table-secondary smaily-log-details-meta">
@@ -102,7 +121,22 @@ $lastError = $redactor->redact(trim((string)($row['last_error'] ?? '')));
         </tr>
     </table>
 
-    <?php $retryTerminal = $status === 'sent' || $status === 'failed'; ?>
+    <?php if ($resendRecord !== null): ?>
+    <p class="note"><?= $escaper->escapeHtml(__(
+        'Re-sent from event #%1 by %2 on %3',
+        $resendRecord['of'],
+        $resendRecord['by'],
+        // Stored Z-suffixed; handed over as the plain UTC string every other
+        // date here is, so all of them read in the admin's own timezone.
+        $block->formatDate(
+            gmdate('Y-m-d H:i:s', (int)strtotime($resendRecord['at'])),
+            \IntlDateFormatter::MEDIUM,
+            true
+        )
+    )) ?></p>
+    <?php endif; ?>
+
+    <?php $retryTerminal = $refusal !== null || $status === 'sent' || $status === 'failed'; ?>
     <div class="smaily-log-details-retry<?= $retryTerminal ? ' is-terminal' : '' ?>">
         <span>&#8635;</span><span><?= $escaper->escapeHtml($retryText) ?></span>
     </div>
@@ -110,6 +144,9 @@ $lastError = $redactor->redact(trim((string)($row['last_error'] ?? '')));
     <?php if ($lastError !== ''): ?>
     <h3><?= $escaper->escapeHtml(__('Last error')) ?><span class="smaily-log-redact-tag"><?= $escaper->escapeHtml(__('redacted')) ?></span></h3>
     <pre class="smaily-log-details-pre smaily-log-details-error"><?= $escaper->escapeHtml($lastError) ?></pre>
+        <?php if ($failureClass !== ''): ?>
+        <p class="note"><?= $escaper->escapeHtml(__('Failure class: %1', $failureClass)) ?></p>
+        <?php endif; ?>
     <?php endif; ?>
 
     <h3><?= $escaper->escapeHtml($payloadTitle) ?><span class="smaily-log-redact-tag"><?= $escaper->escapeHtml(__('PII redacted')) ?></span></h3>

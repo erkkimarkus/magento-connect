@@ -11,39 +11,37 @@ namespace Smaily\Connect\Controller\Adminhtml\Log;
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Action\HttpGetActionInterface;
-use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Controller\Result\Raw;
 use Magento\Framework\Controller\Result\RawFactory;
 use Magento\Framework\View\Element\Template;
 use Magento\Framework\View\LayoutInterface;
+use Smaily\Connect\Model\Log\FailureMessage;
 use Smaily\Connect\Model\Log\PayloadRedactor;
-use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
+use Smaily\Connect\Model\Log\QueueRowLoader;
+use Smaily\Connect\Model\Log\Resend;
+use Smaily\Connect\Model\Log\ResendGuard;
 use Smaily\Connect\Model\ResourceModel\Log\Collection;
-use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 
 /**
  * Per-row drill-down for the unified log grid: renders the delivery detail
  * panel (redacted payload, attempt history, last response) that the grid's
- * Details action loads into a slide-out modal. The composite log id
- * ("smaily-<id>" / "intelligence-<id>") routes the lookup to the right
- * queue table.
+ * Details action loads into a slide-out modal. It also carries what the
+ * grid cannot show (PRO-2454): why a row may not be sent again, and — for a
+ * row that was — which failed row it repeats, at whose hand.
  */
 class Details extends Action implements HttpGetActionInterface
 {
     public const ADMIN_RESOURCE = 'Smaily_Connect::event_log';
 
-    /** Queue source -> [table, type column]. */
-    private const SOURCES = [
-        Collection::SOURCE_SMAILY => [EventResource::TABLE_NAME, 'event_type'],
-        Collection::SOURCE_INTELLIGENCE => [IngestEventResource::TABLE_NAME, 'domain'],
-    ];
-
     public function __construct(
         Context $context,
         private readonly RawFactory $rawFactory,
         private readonly LayoutInterface $layout,
-        private readonly ResourceConnection $resourceConnection,
-        private readonly PayloadRedactor $redactor
+        private readonly QueueRowLoader $rowLoader,
+        private readonly PayloadRedactor $redactor,
+        private readonly FailureMessage $failureMessage,
+        private readonly ResendGuard $resendGuard,
+        private readonly Resend $resend
     ) {
         parent::__construct($context);
     }
@@ -57,48 +55,26 @@ class Details extends Action implements HttpGetActionInterface
         $result = $this->rawFactory->create();
         $result->setHeader('Content-Type', 'text/html; charset=UTF-8', true);
 
-        $row = $this->loadRow((string)$this->getRequest()->getParam('log_id'));
+        $logId = (string)$this->getRequest()->getParam('log_id');
+        $row = $this->rowLoader->load($logId);
         if ($row === null) {
             $result->setHttpResponseCode(404);
             $row = [];
         }
+
+        [$source, $id] = Collection::splitLogId($logId);
+        $refusal = $row ? $this->resendGuard->refusalReason($source, $id, $row) : '';
 
         /** @var Template $block */
         $block = $this->layout->createBlock(Template::class, '', ['data' => [
             'template' => 'Smaily_Connect::log/details.phtml',
             'row' => $row,
             'redactor' => $this->redactor,
+            'failure_message' => $this->failureMessage,
+            'refusal' => $refusal === '' ? null : $this->resendGuard->message($refusal),
+            'resend_record' => $this->resend->recordOf((string)($row['payload'] ?? '')),
         ]]);
 
         return $result->setContents($block->toHtml());
-    }
-
-    /**
-     * Load the queue row addressed by a composite log id, normalized for
-     * the detail template (the per-queue type column becomes "type").
-     *
-     * @return array<string, mixed>|null
-     */
-    private function loadRow(string $logId): ?array
-    {
-        [$source, $id] = array_pad(explode('-', $logId, 2), 2, '');
-        if (!isset(self::SOURCES[$source]) || (int)$id < 1) {
-            return null;
-        }
-        [$table, $typeColumn] = self::SOURCES[$source];
-
-        $connection = $this->resourceConnection->getConnection();
-        $select = $connection->select()
-            ->from($this->resourceConnection->getTableName($table))
-            ->where('id = ?', (int)$id);
-        $row = $connection->fetchRow($select);
-        if (!is_array($row) || !$row) {
-            return null;
-        }
-
-        $row['source'] = $source;
-        $row['type'] = (string)($row[$typeColumn] ?? '');
-
-        return $row;
     }
 }

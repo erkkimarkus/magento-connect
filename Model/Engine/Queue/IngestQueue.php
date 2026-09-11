@@ -13,6 +13,7 @@ use Magento\Framework\DataObject\IdentityGeneratorInterface;
 use Magento\Framework\Exception\AlreadyExistsException;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Framework\Stdlib\DateTime\DateTime;
+use Smaily\Connect\Model\Log\Resend;
 use Smaily\Connect\Model\Logger\Logger;
 use Smaily\Connect\Model\Privacy\Erasure;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
@@ -275,6 +276,9 @@ class IngestQueue
     {
         $decoded = $this->serializer->unserialize($event->getPayload());
         $payload = is_array($decoded) ? $decoded : [];
+        // The Log's "Send again" record is our own bookkeeping (PRO-2454) —
+        // it is stored with the row, never sent.
+        unset($payload[Resend::PAYLOAD_KEY]);
         $payload['event_id'] = $event->getEventUuid();
 
         return $payload;

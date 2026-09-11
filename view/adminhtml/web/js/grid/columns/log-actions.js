@@ -7,7 +7,8 @@
  * Actions column for the unified log grid: the Details action loads the
  * row's drill-down HTML (redacted payload, attempt history, last response)
  * into a slide-out modal instead of navigating away — the grid selection
- * and mass-retry state stay untouched.
+ * and mass-retry state stay untouched. Every other action of the column
+ * (Send again) keeps the stock behaviour.
  */
 define([
     'jquery',
@@ -51,14 +52,21 @@ define([
         },
 
         /**
-         * Open the action's href in the slide-out modal.
+         * Open the Details href in the slide-out modal; leave every other
+         * action to the stock callback (confirmation, POST, navigation).
          *
          * @param {String} actionIndex
          * @param {Number} recordId
          * @param {Object} action
          */
         defaultCallback: function (actionIndex, recordId, action) {
-            var $modal = modalContainer();
+            var $modal;
+
+            if (actionIndex !== 'view') {
+                return this._super(actionIndex, recordId, action);
+            }
+
+            $modal = modalContainer();
 
             $modal.html($('<p></p>').text($t('Loading…')));
             $modal.modal('openModal');
