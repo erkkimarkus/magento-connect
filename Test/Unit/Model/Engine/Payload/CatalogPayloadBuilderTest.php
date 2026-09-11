@@ -23,6 +23,7 @@ use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\App\Emulation;
 use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
+use Magento\Store\Model\Website;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Smaily\Connect\Model\Engine\Payload\CatalogPayloadBuilder;
@@ -250,11 +251,116 @@ class CatalogPayloadBuilderTest extends TestCase
         self::assertTrue($item['in_stock']);
     }
 
+    /**
+     * PRO-1458: a product that is not assigned to the default website has no
+     * price of its own at the canonical scope, so price and URL are read at
+     * the default store view of the first website it IS assigned to.
+     */
+    public function testProductOutsideTheDefaultWebsiteIsPricedAtAWebsiteItBelongsTo(): void
+    {
+        $websiteStore = $this->createMock(Store::class);
+        $websiteStore->method('getId')->willReturn(7);
+        $website = $this->createMock(Website::class);
+        $website->method('getDefaultStore')->willReturn($websiteStore);
+
+        $storeManager = $this->canonicalStoreManager();
+        $storeManager->expects(self::once())->method('getWebsite')->with(2)->willReturn($website);
+
+        $loadedProduct = $this->product(42, 'SHIRT', 19.99, [2]);
+        $loadedProduct->method('getStoreId')->willReturn(1); // loaded at the canonical scope
+
+        $scopedProduct = $this->product(42, 'SHIRT', 29.99, [2]); // website 2 prices it differently
+        $scopedProduct->method('getStoreId')->willReturn(7);
+
+        $productRepository = $this->createMock(ProductRepositoryInterface::class);
+        $productRepository->expects(self::once())
+            ->method('getById')
+            ->with(42, false, 7)
+            ->willReturn($scopedProduct);
+
+        $emulation = $this->createMock(Emulation::class);
+        $emulation->expects(self::once())
+            ->method('startEnvironmentEmulation')
+            ->with(7, Area::AREA_FRONTEND, true);
+
+        $item = $this->createBuilder('42', $emulation, $storeManager, null, $productRepository)
+            ->build($loadedProduct);
+
+        self::assertSame(29.99, $item['price']);
+    }
+
+    /**
+     * PRO-1458: a product that IS on the default website keeps the canonical
+     * scope, even when it also sells on another website — one payload per
+     * product, pinned to the canonical store (PRO-1352/1353).
+     */
+    public function testProductOnTheDefaultWebsiteKeepsTheCanonicalScope(): void
+    {
+        $storeManager = $this->canonicalStoreManager();
+        $storeManager->expects(self::never())->method('getWebsite');
+
+        $product = $this->product(42, 'SHIRT', 19.99, [1, 2]);
+        $product->method('getStoreId')->willReturn(1);
+
+        $productRepository = $this->createMock(ProductRepositoryInterface::class);
+        $productRepository->expects(self::never())->method('getById');
+
+        $emulation = $this->createMock(Emulation::class);
+        $emulation->expects(self::once())
+            ->method('startEnvironmentEmulation')
+            ->with(1, Area::AREA_FRONTEND, true);
+
+        $item = $this->createBuilder('42', $emulation, $storeManager, null, $productRepository)
+            ->build($product);
+
+        self::assertSame(19.99, $item['price']);
+    }
+
+    /**
+     * PRO-1458: a product assigned to NO website keeps today's behaviour —
+     * built and ingested at the canonical scope, never skipped.
+     */
+    public function testProductWithoutAnyWebsiteStaysOnTheCanonicalScope(): void
+    {
+        $storeManager = $this->canonicalStoreManager();
+        $storeManager->expects(self::never())->method('getWebsite');
+
+        $product = $this->product(42, 'SHIRT', 19.99);
+        $product->method('getStoreId')->willReturn(1);
+
+        $emulation = $this->createMock(Emulation::class);
+        $emulation->expects(self::once())
+            ->method('startEnvironmentEmulation')
+            ->with(1, Area::AREA_FRONTEND, true);
+
+        $item = $this->createBuilder('42', $emulation, $storeManager)->build($product);
+
+        self::assertSame('SHIRT', $item['sku']);
+        self::assertSame(19.99, $item['price']);
+    }
+
+    /**
+     * A store manager whose default store view is store 1 on website 1.
+     */
+    private function canonicalStoreManager(): StoreManagerInterface&MockObject
+    {
+        $canonicalStore = $this->createMock(StoreInterface::class);
+        $canonicalStore->method('getId')->willReturn(1);
+        $canonicalStore->method('getWebsiteId')->willReturn(1);
+
+        $storeManager = $this->createMock(StoreManagerInterface::class);
+        $storeManager->method('getStores')->willReturn([]);
+        $storeManager->method('getDefaultStoreView')->willReturn($canonicalStore);
+
+        return $storeManager;
+    }
+
     private function createBuilder(
         string $resolvedProductId,
         ?Emulation $emulation = null,
         ?StoreManagerInterface $storeManager = null,
-        ?StockRegistryStorage $stockRegistryStorage = null
+        ?StockRegistryStorage $stockRegistryStorage = null,
+        ?ProductRepositoryInterface $productRepository = null
     ): CatalogPayloadBuilder {
         $parentResolver = $this->createMock(ParentProductResolver::class);
         $parentResolver->method('productIdOf')->with(42)->willReturn($resolvedProductId);
@@ -271,7 +377,7 @@ class CatalogPayloadBuilderTest extends TestCase
 
         return new CatalogPayloadBuilder(
             $storeManager,
-            $this->createMock(ProductRepositoryInterface::class),
+            $productRepository ?? $this->createMock(ProductRepositoryInterface::class),
             $this->createMock(CategoryRepositoryInterface::class),
             $stockRegistry,
             $stockRegistryStorage ?? $this->createMock(StockRegistryStorage::class),
@@ -282,8 +388,15 @@ class CatalogPayloadBuilderTest extends TestCase
         );
     }
 
-    private function product(int $id, string $sku, float $price = 19.99): Product&MockObject
-    {
+    /**
+     * @param int[] $websiteIds
+     */
+    private function product(
+        int $id,
+        string $sku,
+        float $price = 19.99,
+        array $websiteIds = []
+    ): Product&MockObject {
         $amount = $this->createMock(AmountInterface::class);
         $amount->method('getValue')->willReturn($price);
         $price = $this->createMock(PriceInterface::class);
@@ -300,7 +413,7 @@ class CatalogPayloadBuilderTest extends TestCase
         $product->method('getTypeId')->willReturn('simple');
         $product->method('getAttributeSetId')->willReturn(4);
         $product->method('getCategoryIds')->willReturn([]);
-        $product->method('getWebsiteIds')->willReturn([]);
+        $product->method('getWebsiteIds')->willReturn($websiteIds);
         $product->method('getAttributeText')->willReturn(false);
         $product->method('getData')->willReturnCallback(
             static fn (string $key = '', $index = null) => ['short_description' => 'A fine shirt'][$key] ?? ''

@@ -23,6 +23,7 @@ use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\App\Emulation;
 use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
+use Magento\Store\Model\Website;
 use Smaily\Connect\Model\Multilingual\LanguageResolver;
 
 /**
@@ -47,6 +48,9 @@ class CatalogPayloadBuilder
     private ?StoreInterface $canonicalStore = null;
 
     private bool $canonicalStoreResolved = false;
+
+    /** @var array<int, int|null> website id -> its default store view id (memoized per backfill page) */
+    private array $websiteStoreIds = [];
 
     public function __construct(
         private readonly StoreManagerInterface $storeManager,
@@ -79,8 +83,9 @@ class CatalogPayloadBuilder
      */
     public function build(Product $product): array
     {
-        $languageValues = $this->languageValues($product);
-        $priceProduct = $this->scopedForPrice($product);
+        $scopeStoreId = $this->storeIdForProduct($product);
+        $languageValues = $this->languageValues($product, $scopeStoreId);
+        $priceProduct = $this->scopedForPrice($product, $scopeStoreId);
 
         $item = [
             'sku' => $this->sku($product),
@@ -164,12 +169,12 @@ class CatalogPayloadBuilder
      *     description: string|array<string, string>|null,
      *     product_url: string|array<string, string>}
      */
-    private function languageValues(Product $product): array
+    private function languageValues(Product $product, int $scopeStoreId): array
     {
         $storesByLanguage = $this->storesByLanguage($product);
 
         if (count($storesByLanguage) <= 1) {
-            $storeId = $storesByLanguage ? (int)reset($storesByLanguage) : $this->canonicalStoreId();
+            $storeId = $storesByLanguage ? (int)reset($storesByLanguage) : $scopeStoreId;
 
             return [
                 'name' => (string)$product->getName(),
@@ -201,7 +206,7 @@ class CatalogPayloadBuilder
         return [
             'name' => $names ?: (string)$product->getName(),
             'description' => $descriptions ?: $this->description($product),
-            'product_url' => $urls ?: $this->productUrl($product, $this->canonicalStoreId()),
+            'product_url' => $urls ?: $this->productUrl($product, $scopeStoreId),
         ];
     }
 
@@ -258,6 +263,11 @@ class CatalogPayloadBuilder
      * `EngineCatalogProcessor` calls this same method to scope the backfill
      * collection, so both ingest paths can never disagree.
      *
+     * One exception, and only one (PRO-1458): a product not assigned to the
+     * canonical store's website has no price there to read, so it is priced
+     * and linked at a website it actually belongs to — see
+     * `storeIdForProduct()`.
+     *
      * The optional `currency` field (contract v1.7.0) does NOT relax this:
      * §3 keeps "one currency per tenant" as the assumed model, and the
      * catalog row is keyed on `sku` per tenant — a second store scope would
@@ -302,20 +312,74 @@ class CatalogPayloadBuilder
     }
 
     /**
-     * The product re-scoped to the canonical store, so price is always read
-     * consistently regardless of which scope the caller loaded the product
-     * in (backfill's collection already loads at the canonical scope, so
-     * this is then a no-op).
+     * The store scope this product's price and URL are read at (PRO-1458).
+     *
+     * Normally the canonical store — but a product that is not assigned to
+     * the canonical store's website has no price of its own there at all,
+     * so reading it there reports another website's (or the admin default's)
+     * number for a product that website never sells. Such a product is read
+     * at the default store view of the first website it IS assigned to
+     * (lowest website id, so the choice is stable across runs). A product
+     * assigned to no website at all keeps the canonical scope — unchanged
+     * behaviour: it is still built and still ingested, never skipped.
+     *
+     * This is still ONE payload per product (the PRO-1352/1353 tradeoff): a
+     * product on several websites is priced at the canonical one whenever it
+     * belongs there, and per-website rows remain the multi-website RFC's
+     * Phase 4 (PRO-1762).
      */
-    private function scopedForPrice(Product $product): Product
+    private function storeIdForProduct(Product $product): int
     {
-        $canonicalStoreId = $this->canonicalStoreId();
-        if ((int)$product->getStoreId() === $canonicalStoreId) {
+        $websiteIds = array_map('intval', (array)$product->getWebsiteIds());
+        $canonicalWebsiteId = (int)($this->canonicalStore()?->getWebsiteId() ?? 0);
+        if (!$websiteIds || in_array($canonicalWebsiteId, $websiteIds, true)) {
+            return $this->canonicalStoreId();
+        }
+
+        sort($websiteIds);
+        foreach ($websiteIds as $websiteId) {
+            $storeId = $this->websiteStoreId($websiteId);
+            if ($storeId !== null) {
+                return $storeId;
+            }
+        }
+
+        return $this->canonicalStoreId();
+    }
+
+    /**
+     * A website's own default store view, or null when it has none (a
+     * website without a default store can't price anything).
+     */
+    private function websiteStoreId(int $websiteId): ?int
+    {
+        if (!array_key_exists($websiteId, $this->websiteStoreIds)) {
+            try {
+                $website = $this->storeManager->getWebsite($websiteId);
+            } catch (NoSuchEntityException) {
+                $website = null;
+            }
+            $storeId = $website instanceof Website ? (int)($website->getDefaultStore()?->getId() ?? 0) : 0;
+            $this->websiteStoreIds[$websiteId] = $storeId > 0 ? $storeId : null;
+        }
+
+        return $this->websiteStoreIds[$websiteId];
+    }
+
+    /**
+     * The product re-scoped to the store its price is read at, so price is
+     * always read consistently regardless of which scope the caller loaded
+     * the product in (backfill's collection already loads at the canonical
+     * scope, so this is then a no-op for canonical-website products).
+     */
+    private function scopedForPrice(Product $product, int $storeId): Product
+    {
+        if ((int)$product->getStoreId() === $storeId) {
             return $product;
         }
 
         try {
-            $scoped = $this->productRepository->getById((int)$product->getId(), false, $canonicalStoreId);
+            $scoped = $this->productRepository->getById((int)$product->getId(), false, $storeId);
         } catch (NoSuchEntityException) {
             return $product;
         }
