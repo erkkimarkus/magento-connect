@@ -452,13 +452,31 @@ panel — you do not have to keep the page open:
 - **Marketing > Smaily Connect > Log** — every delivery in one grid:
   Smaily (contact syncs, automation triggers) and Campaign Intelligence
   (catalog, customers, orders, browse events), told apart by the
-  **Source** column, with status, attempts and the last error. Select
-  failed rows and **Retry** — each row is routed back to its own queue.
+  **Source** column, with status, attempts and the last error. The error
+  column shows what the other side actually said, not our internal name
+  for the failure. Select failed rows and **Retry** — each row is routed
+  back to its own queue; rows that cannot safely be sent again are left
+  alone and counted ("2 event(s) queued for retry, 1 skipped because
+  sending again would not be safe").
+- **Send again** on a failed row queues a fresh attempt. The failed row
+  stays exactly as it is — it is your record of what went wrong — and the
+  new row notes which row it repeats, who pressed the button and when;
+  **Details** on the new row shows that line.
+- **Some failed rows have no Send again button**, because sending again
+  would reach the shopper twice or reach nobody. Details on such a row says
+  which of the three it is: the reminder was withdrawn when the shopper
+  completed the purchase, a later message of the same kind already reached
+  that contact, or the contact's data was erased under Art. 17.
+- **Withdrawn** is its own status in the grid and in the status filter: a
+  reminder the store called back because the shopper bought in the
+  meantime. Nothing was delivered and nothing failed, so it is labelled as
+  neither.
 - **Details** on any row opens a slide-out with the full picture: the
   payload exactly as it was (or will be) sent, the attempt count, when the
   next automatic retry happens (or an honest "this row will not retry on
-  its own"), the last error and the last API response. Sensitive values
-  (passwords, API keys) are never shown, and email addresses are masked.
+  its own"), the last error — with our internal failure class beside it —
+  and the last API response. Sensitive values (passwords, API keys) are
+  never shown, and email addresses are masked.
 - When deliveries failed in the last 24 hours, a banner above the grid
   says so and links straight to the grid pre-filtered to failed rows; the
   dashboard's failed-deliveries tile links to the same view.

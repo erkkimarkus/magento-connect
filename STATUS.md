@@ -5,9 +5,11 @@
 > status is a defect. If this file and your memory disagree, trust this file
 > and fix it.
 
-_Last updated: 2026-09-11 (PRO-1458 — a product outside the default website
-is now priced and linked at a website it actually belongs to; verified on a
-two-website sandbox. Previous session, 2026-09-10: parity sweep vs
+_Last updated: 2026-09-11 (PRO-2454 — the Log says what the server said,
+offers "Send again" only where it is safe, and labels a withdrawn reminder
+as withdrawn. Earlier the same day: PRO-1458 — a product outside the default
+website is now priced and linked at a website it actually belongs to;
+verified on a two-website sandbox. Previous session, 2026-09-10: parity sweep vs
 Woo/Shopify, doc reconcile; release gates PRO-1400 + PRO-1484 verified on a
 clean sandbox install; PRO-2451, PRO-2452, PRO-2453, PRO-2467 landed; the
 3.0.0-rc1 release train ran and closed out — the package ships no `docs/`,
@@ -17,15 +19,47 @@ canon in EN + ET; PRO-2469 swept the abandoned-cart tracker)_
 
 ## Where we are
 
-- **Next session opens here (2026-09-11).** Queue: ~~PRO-1458 (price a
-  product at a website it belongs to)~~ → **PRO-2454 next** → PRO-2476
-  (sandbox 2FA off, before PRO-2456) → PRO-2456 → PRO-2472 → PRO-2474 (pilot
+- **Next session opens here (2026-09-11).** Queue: ~~PRO-2454 (Send again,
+  server-worded refusals, Withdrawn)~~ → **PRO-2476 next** (sandbox 2FA off,
+  before PRO-2456) → PRO-2472 → PRO-2456 → PRO-2506 → PRO-2474 (pilot
   readiness — the first pilot client exists and installs manually from the
   release ZIP into `app/code`, clean install, live engine tenant) → rc1 tag
   on Erkki's go; the Smaily repo hand-over (PRO-1198) comes AFTER the pilot,
-  on Erkki's date. PRO-1748's code landed; Erkki's ET proofread is still
-  open. PRO-2460 waits on the engine's answer (current SKU behaviour stays
-  meanwhile). PRO-1971 reaffirmed A.
+  on Erkki's date. PRO-1748 is closed — Erkki proofread the Estonian diff on
+  2026-09-10. PRO-2460 waits on the engine's answer (current SKU behaviour
+  stays meanwhile). PRO-1971 reaffirmed A.
+
+- **PRO-2454 done — the Log offers "Send again" where it is safe, says what
+  the server said, and calls a withdrawn reminder withdrawn (2026-09-11).**
+  One server-owned guard, `Model\Log\ResendGuard` (Woo's
+  `TransactionalRetryGuard` shape): a reason code plus the merchant sentence
+  beside it — `withdrawn` (the shopper bought), `superseded` (a later row of
+  the same trigger reached the same contact), `erased` (Art. 17 placeholder,
+  the rule both `retry()` methods already had). It answers for the per-row
+  **Send again** action, for the route behind it (a stale page cannot
+  double-send) and for the mass **Retry**, which now skips what the guard
+  refuses and reports the count. Send again never touches the failed row: it
+  queues a NEW row with the same event, and the decision rides in that row's
+  payload as `_resend {of, by, at}` — stripped by both `decodePayload()`
+  methods, so it never reaches Smaily or the engine, and no column was
+  added. The Details drawer of the new row carries the one line "Re-sent
+  from event #N by <user> on <date>". `Withdrawn` is a derived status: the
+  grid UNION computes it from the stored `cancelled` marker, so the label,
+  the status filter and the drawer all read one value while the flusher
+  still sees its terminal `sent` row. Failure wording is now the server's
+  own (`Model\Log\FailureMessage` strips RetryPolicy's
+  `permanent_http_<code>:` prefix and runs `PayloadRedactor` — the grid's
+  error column was previously unredacted); the classification stays in the
+  drawer as "Failure class". Verified on the sandbox against real rows
+  produced by the real flusher with an invalid Smaily credential: the failed
+  row shows Smaily's wording and offers Send again, the superseded welcome
+  row and the withdrawn abandoned-cart row show their sentence instead of a
+  button, Send again queued row #10 recording `admin`, and a mixed mass
+  retry answered "1 queued, 1 skipped". Sandbox config and seeded rows
+  removed afterwards. Rules in `docs/ARCHITECTURE.md` (Queue semantics),
+  merchant wording in `docs/USER_GUIDE.md`, strings in both i18n files.
+  Gates: 291 unit, phpcs 0 errors, phpstan `[OK]`, 87 integration,
+  `setup:upgrade` + `setup:di:compile` clean.
 
 - **PRO-1458 done — a product outside the default website is priced and
   linked where it actually sells (2026-09-11).**
@@ -82,8 +116,8 @@ canon in EN + ET; PRO-2469 swept the abandoned-cart tracker)_
   Automations/Intelligence/Overview vs Ühenda/Kontaktid/Automaatikad/
   Intelligence/Ülevaade) plus the menu and both notices. Gates: 281 unit,
   phpcs 0 errors / 929 warnings, phpstan `[OK]`, 79 integration, `setup:upgrade`
-  + `setup:di:compile` clean. **The Estonian diff is NOT yet proofread by Erkki
-  — that gate is open** (Woo's equivalent gate was PRO-1746).
+  + `setup:di:compile` clean. **Erkki proofread the Estonian diff on
+  2026-09-10 and closed the issue** (Woo's equivalent gate was PRO-1746).
 
 - **The 3.0.0-rc1 release train ran (Erkki's four-part decision,
   2026-09-10).** Nothing was published — no tag, no GitHub release, no
