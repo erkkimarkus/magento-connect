@@ -33,6 +33,10 @@
         "magento/module-store": "^101.1",
         "magento/module-ui": "^101.2"
     },
+    "suggest": {
+        "magento/module-inventory-api": "Campaign Intelligence re-syncs a product when a Multi-Source Inventory source item is saved (plugin on SourceItemsSaveInterface); without MSI the legacy stock observer covers it.",
+        "magento/module-inventory-source-deduction-api": "Campaign Intelligence re-syncs a product when a shipment deducts stock or a credit memo returns it under MSI (plugin on SourceDeductionServiceInterface); without MSI the legacy stock observer covers it."
+    },
     "require-dev": {
         "bitexpert/phpstan-magento": "^0.43.0",
         "magento/magento-coding-standard": "*",
