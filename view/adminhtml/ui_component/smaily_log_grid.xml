@@ -100,7 +100,7 @@
                 <label translate="true">Attempts</label>
             </settings>
         </column>
-        <column name="last_error" sortOrder="60">
+        <column name="last_error" class="Smaily\Connect\Ui\Component\LogErrorColumn" sortOrder="60">
             <settings>
                 <filter>text</filter>
                 <label translate="true">Last Error</label>

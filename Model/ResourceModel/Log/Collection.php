@@ -14,6 +14,8 @@ use Magento\Framework\DB\Select;
 use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\View\Element\UiComponent\DataProvider\SearchResult;
 use Psr\Log\LoggerInterface as Logger;
+use Smaily\Connect\Model\Queue\Event;
+use Smaily\Connect\Model\Queue\EventQueue;
 use Smaily\Connect\Model\ResourceModel\Engine\IngestEvent as IngestEventResource;
 use Smaily\Connect\Model\ResourceModel\Queue\Event as EventResource;
 
@@ -30,6 +32,28 @@ class Collection extends SearchResult
 {
     public const SOURCE_SMAILY = 'smaily';
     public const SOURCE_INTELLIGENCE = 'intelligence';
+
+    /**
+     * A row the store withdrew (PRO-2453) reads as its own status in the
+     * grid: it was never delivered, so "Sent" would be a lie, and it never
+     * failed either. Derived from the stored marker, not a queue status —
+     * the flusher still sees the terminal `sent` row it wrote.
+     */
+    public const STATUS_WITHDRAWN = 'withdrawn';
+
+    /**
+     * Split a composite log id back into its queue and row id. Unknown
+     * sources and malformed ids come back as ['', 0].
+     *
+     * @return array{0: string, 1: int}
+     */
+    public static function splitLogId(string $logId): array
+    {
+        [$source, $id] = array_pad(explode('-', $logId, 2), 2, '');
+        $known = $source === self::SOURCE_SMAILY || $source === self::SOURCE_INTELLIGENCE;
+
+        return $known && (int)$id > 0 ? [$source, (int)$id] : ['', 0];
+    }
 
     /**
      * @inheritDoc
@@ -89,7 +113,17 @@ class Collection extends SearchResult
                 'source' => new \Zend_Db_Expr($connection->quote($source)),
                 'type' => 'q.' . $typeColumn,
                 'entity_id' => 'q.entity_id',
-                'status' => 'q.status',
+                // Only the marketing queue withdraws rows, so only its half
+                // can carry the marker; the grid label and the status filter
+                // both read this one derived column.
+                'status' => $source === self::SOURCE_SMAILY
+                    ? new \Zend_Db_Expr(sprintf(
+                        'CASE WHEN q.status = %s AND q.last_response = %s THEN %s ELSE q.status END',
+                        $connection->quote(Event::STATUS_SENT),
+                        $connection->quote(EventQueue::CANCELLED_RESPONSE),
+                        $connection->quote(self::STATUS_WITHDRAWN)
+                    ))
+                    : 'q.status',
                 'attempts' => 'q.attempts',
                 'last_error' => 'q.last_error',
                 'created_at' => 'q.created_at',
